@@ -15,7 +15,8 @@ const START_CREDITS = 1000;
 const INCOME = 1;                     // small trickle per second so nobody gets stuck at $0
 const BUILD_RADIUS = 300;             // how far from your HQ you can place buildings
 
-const COST = { barracks: 300, refinery: 400, soldier: 100, extractor: 150 };
+const COST = { barracks: 300, refinery: 400, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150 };
+const WALL_REACH = 150;              // walls & gates can go this much further out than other buildings
 
 const STATS = {
   settler:   { hp: 200, speed: 38, r: 16, sight: 180 },
@@ -24,6 +25,9 @@ const STATS = {
   hq:        { hp: 900, size: 92, sight: 280 },
   barracks:  { hp: 500, size: 74, sight: 200, buildTime: 10, trainTime: 4, maxQueue: 5 },
   refinery:  { hp: 600, size: 84, sight: 200, buildTime: 12, trainTime: 6, maxQueue: 3 },
+  tower:     { hp: 700, size: 46, sight: 230, buildTime: 12, range: 170, dmg: 14, cooldown: 0.9 },
+  wall:      { hp: 400, size: 25, sight: 50 },
+  gate:      { hp: 600, size: 50, sight: 60 },
 };
 const PRODUCES = { barracks: 'soldier', refinery: 'extractor' };
 
@@ -32,15 +36,15 @@ const PRODUCES = { barracks: 'soldier', refinery: 'extractor' };
 //  attackAt: army size before it attacks   attackAfter: earliest attack (seconds)   barracks: max barracks
 //  maxArmy: it stops training soldiers at this many
 const DIFFICULTY = {
-  easy:   { label: 'Easy',   think: 2.5, slow: 1.5,  income: 0.7,  attackAt: 5, attackAfter: 300, barracks: 1, maxArmy: 6 },
-  normal: { label: 'Normal', think: 1.5, slow: 1.18, income: 0.85, attackAt: 7, attackAfter: 180, barracks: 1, maxArmy: 20 },
-  hard:   { label: 'Hard',   think: 1,   slow: 1,    income: 1,    attackAt: 6, attackAfter: 0,   barracks: 2, maxArmy: Infinity },
+  easy:   { label: 'Easy',   think: 2.5, slow: 1.5,  income: 0.7,  attackAt: 5, attackAfter: 300, barracks: 1, maxArmy: 6, towers: 0 },
+  normal: { label: 'Normal', think: 1.5, slow: 1.18, income: 0.85, attackAt: 7, attackAfter: 180, barracks: 1, maxArmy: 20, towers: 1 },
+  hard:   { label: 'Hard',   think: 1,   slow: 1,    income: 1,    attackAt: 6, attackAfter: 0,   barracks: 2, maxArmy: Infinity, towers: 2 },
 };
 let difficulty = 'normal';
 try { if (DIFFICULTY[localStorage.getItem('mini-rts-difficulty')]) difficulty = localStorage.getItem('mini-rts-difficulty'); } catch (err) {}
 const diff = () => DIFFICULTY[difficulty];
 const slowOf = e => e.team === 1 ? diff().slow : 1;
-const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery' };
+const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', tower: 'Guard Tower', wall: 'Wall', gate: 'Gate' };
 
 const TEAMS = [
   { name: 'You',   color: '#3b82f6', dark: '#1d3f8f', light: '#93c5fd' },
@@ -155,9 +159,26 @@ const walkable = (t, vehicle) => t === T.GRASS || t === T.BRIDGE || (t === T.FOR
 const bldGrid = new Uint8Array(TCOLS * TROWS);   // tiles covered by buildings (plus a clearance gap)
 const CLEAR = 12;                                 // keep routes this far from building walls
 let bldDirty = true;
+const wallKind = new Uint8Array(TCOLS * TROWS);  // 0 none, 1 wall, 2 gate
+const wallTeam = new Int8Array(TCOLS * TROWS);
+const wallId = new Int32Array(TCOLS * TROWS);
+// tiles a wall/gate covers
+function wallTiles(b) {
+  const out = [], h = b.size / 2;
+  for (let r = Math.round((b.y - h) / TC); r < Math.round((b.y + h) / TC); r++)
+    for (let c = Math.round((b.x - h) / TC); c < Math.round((b.x + h) / TC); c++) out.push([c, r]);
+  return out;
+}
 function rebuildBuildingGrid() {
-  bldGrid.fill(0);
+  bldGrid.fill(0); wallKind.fill(0);
   for (const b of game.ents) {
+    if (isWallType(b.type)) {
+      for (const [c, r] of wallTiles(b)) {
+        if (c < 0 || r < 0 || c >= TCOLS || r >= TROWS) continue;
+        const i = r * TCOLS + c; wallKind[i] = b.type === 'wall' ? 1 : 2; wallTeam[i] = b.team; wallId[i] = b.id;
+      }
+      continue;
+    }
     if (!isBuilding(b)) continue;
     const h = b.size / 2;
     for (let r = Math.floor((b.y - h - CLEAR) / TC); r <= Math.floor((b.y + h + CLEAR) / TC); r++) {
@@ -172,10 +193,23 @@ function rebuildBuildingGrid() {
   for (const e of game.ents) e.nav = null;   // routes may have changed
 }
 
+// who is the route for? (set by findPath) — own gates are open, enemy walls can be smashed through if `breakable`
+const P = { team: -1, breakable: false };
 function passable(c, r, vehicle) {
   if (c < 0 || r < 0 || c >= TCOLS || r >= TROWS) return false;
   const i = r * TCOLS + c;
-  return !bldGrid[i] && walkable(terrain[i], vehicle);
+  if (bldGrid[i] || !walkable(terrain[i], vehicle)) return false;
+  const k = wallKind[i];
+  if (!k) return true;
+  if (wallTeam[i] === P.team) return k === 2;   // own gate: open; own wall: closed
+  return P.breakable;                           // enemy wall/gate: only if we're prepared to break it
+}
+// is this spot blocked to this team by a wall or (enemy) gate?
+function wallBlocks(x, y, team) {
+  const c = Math.floor(x / TC), r = Math.floor(y / TC);
+  if (c < 0 || r < 0 || c >= TCOLS || r >= TROWS) return false;
+  const i = r * TCOLS + c, k = wallKind[i];
+  return k === 1 || (k === 2 && wallTeam[i] !== team);
 }
 
 function nearestPassable(c, r, vehicle) {
@@ -194,12 +228,18 @@ function nearestPassable(c, r, vehicle) {
 
 // straight line between two points that never touches a blocked tile?
 function lineClear(x0, y0, x1, y1, vehicle) {
+  const brk = P.breakable; P.breakable = false;
   const d = Math.hypot(x1 - x0, y1 - y0), steps = Math.ceil(d / (TC / 3));
-  for (let i = 1; i <= steps; i++) {
+  let pc = Math.floor(x0 / TC), pr = Math.floor(y0 / TC), ok = true;
+  for (let i = 1; i <= steps && ok; i++) {
     const x = x0 + (x1 - x0) * i / steps, y = y0 + (y1 - y0) * i / steps;
-    if (!passable(Math.floor(x / TC), Math.floor(y / TC), vehicle)) return false;
+    const c = Math.floor(x / TC), r = Math.floor(y / TC);
+    if (!passable(c, r, vehicle)) ok = false;
+    else if (c !== pc && r !== pr && (!passable(pc, r, vehicle) || !passable(c, pr, vehicle))) ok = false;
+    pc = c; pr = r;
   }
-  return true;
+  P.breakable = brk;
+  return ok;
 }
 
 const N = TCOLS * TROWS;
@@ -207,8 +247,9 @@ const gScore = new Float32Array(N), cameFrom = new Int32Array(N), stamp = new Ui
 let searchId = 0;
 const NB = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
 
-function findPath(sx, sy, tx, ty, vehicle) {
+function findPath(sx, sy, tx, ty, vehicle, team = -1, breakable = false) {
   if (bldDirty) rebuildBuildingGrid();
+  P.team = team; P.breakable = breakable;
   let start = nearestPassable(Math.floor(sx / TC), Math.floor(sy / TC), vehicle);
   const goal = nearestPassable(Math.floor(tx / TC), Math.floor(ty / TC), vehicle);
   if (!start || !goal) return null;
@@ -237,7 +278,7 @@ function findPath(sx, sy, tx, ty, vehicle) {
       if (dc && dr && (!passable(cc + dc, cr, vehicle) || !passable(cc, cr + dr, vehicle))) continue;  // no corner cutting
       const ni = nr * TCOLS + nc;
       if (closed[ni] === searchId) continue;
-      const ng = gScore[cur] + cost * (terrain[ni] === T.FOREST ? 1.8 : 1);
+      const ng = gScore[cur] + cost * (terrain[ni] === T.FOREST ? 1.8 : 1) + (wallKind[ni] && wallTeam[ni] !== team ? 12 : 0);
       if (stamp[ni] !== searchId || ng < gScore[ni]) {
         stamp[ni] = searchId; gScore[ni] = ng; cameFrom[ni] = cur;
         push(ng + h(ni), ni);
@@ -263,8 +304,9 @@ function findPath(sx, sy, tx, ty, vehicle) {
 function navigate(e, tx, ty, dt) {
   const n = e.nav;
   if (!n || Math.hypot(n.tx - tx, n.ty - ty) > 30 && game.time - n.t > 0.4 || (n.fail && game.time - n.t > 2)) {
-    const path = findPath(e.x, e.y, tx, ty, isVehicle(e));
-    e.nav = { tx, ty, t: game.time, path: path || [], i: 0, fail: !path };
+    let path = findPath(e.x, e.y, tx, ty, isVehicle(e), e.team, false), breaking = false;
+    if (!path && e.type === 'soldier') { path = findPath(e.x, e.y, tx, ty, false, e.team, true); breaking = !!path; }
+    e.nav = { tx, ty, t: game.time, path: path || [], i: 0, fail: !path, breaking };
   }
   const nav = e.nav;
   if (nav.fail) return 'fail';
@@ -278,6 +320,13 @@ function navigate(e, tx, ty, dt) {
     return false;
   }
   const p = nav.path[nav.i];
+  if (nav.breaking) {   // an enemy wall or gate is in the way: shoot it down, then carry on
+    const a = Math.atan2(p.y - e.y, p.x - e.x), ax = e.x + Math.cos(a) * (e.r + 10), ay = e.y + Math.sin(a) * (e.r + 10);
+    if (wallBlocks(ax, ay, e.team)) {
+      const i = Math.floor(ay / TC) * TCOLS + Math.floor(ax / TC), w = byId(wallId[i]);
+      if (w && w.team !== e.team) { e.order = { type: 'attack', target: w.id, resume: e.order }; e.nav = null; return false; }
+    }
+  }
   if (moveToward(e, p.x, p.y, dt)) { nav.i++; if (nav.i >= nav.path.length) return true; }
   return false;
 }
@@ -374,7 +423,7 @@ function spawn(type, team, x, y) {
   if (isBuildingType(type)) {
     bldDirty = true;
     e.size = s.size;
-    if (type === 'hq') { e.built = true; e.progress = 1; }
+    if (type === 'hq' || isWallType(type)) { e.built = true; e.progress = 1; }   // walls go up instantly
     else { e.built = false; e.progress = 0; e.hp = s.hp * 0.1; }
     e.queue = 0; e.trainT = 0;
   } else {
@@ -385,7 +434,8 @@ function spawn(type, team, x, y) {
   return e;
 }
 
-function isBuildingType(t) { return t === 'hq' || t === 'barracks' || t === 'refinery'; }
+function isBuildingType(t) { return t === 'hq' || t === 'barracks' || t === 'refinery' || t === 'tower' || t === 'wall' || t === 'gate'; }
+const isWallType = t => t === 'wall' || t === 'gate';
 const isBuilding = e => isBuildingType(e.type);
 const isUnit = e => !isBuilding(e);
 const byId = id => game.ents.find(e => e.id === id);
@@ -485,6 +535,12 @@ function deploy(settler) {
 function canPlace(team, type, x, y) {
   const hq = hqOf(team), size = STATS[type].size;
   if (!hq || edgeDist(x, y, hq) > BUILD_RADIUS || !siteIsFree(x, y, size)) return false;
+  for (const b of game.ents) {   // never sit on the doorstep of a building that makes units
+    if (!isBuilding(b) || !PRODUCES[b.type]) continue;
+    const od = frontDoor(b);
+    if (Math.abs(od.x - x) < size / 2 + 14 && Math.abs(od.y - y) < size / 2 + 14) return false;
+  }
+  if (!PRODUCES[type]) return true;   // towers etc. don't need a door
   // the new building's front door needs open ground in front of it
   const door = { x, y: y + size / 2 + 30 };
   for (const dx of [-16, 0, 16]) if (!walkable(terrainAt(door.x + dx, door.y), true) || terrainAt(door.x + dx, door.y) === T.BRIDGE) return false;
@@ -492,13 +548,65 @@ function canPlace(team, type, x, y) {
   for (const b of game.ents) {
     if (!isBuilding(b)) continue;
     if (edgeDist(door.x, door.y, b) < 30) return false;                 // our door would face a wall
-    const od = frontDoor(b);                                            // we'd sit on someone's doorstep
-    if (Math.abs(od.x - x) < size / 2 + 14 && Math.abs(od.y - y) < size / 2 + 14) return false;
   }
   return true;
 }
 
+// walls snap to tiles; gates (2×2 tiles) snap to tile corners
+const snapWall = (x, y) => ({ x: Math.floor(x / TC) * TC + TC / 2, y: Math.floor(y / TC) * TC + TC / 2 });
+const snapGate = (x, y) => ({ x: Math.round(x / TC) * TC, y: Math.round(y / TC) * TC });
+
+function canPlaceWallPiece(team, type, x, y) {
+  const hq = hqOf(team), h = STATS[type].size / 2;
+  if (!hq || edgeDist(x, y, hq) > BUILD_RADIUS + WALL_REACH) return false;
+  if (x - h < 0 || y - h < 0 || x + h > W || y + h > H) return false;
+  for (let yy = y - h + TC / 2; yy < y + h; yy += TC)
+    for (let xx = x - h + TC / 2; xx < x + h; xx += TC) if (terrainAt(xx, yy) !== T.GRASS) return false;
+  if (game.ore.some(o => Math.abs(o.x - x) < h + 10 && Math.abs(o.y - y) < h + 10)) return false;
+  for (const b of game.ents) {
+    if (!isBuilding(b)) continue;
+    const gap = isWallType(b.type) ? 0 : 6;   // walls can touch each other, but not other buildings
+    if (Math.abs(b.x - x) < b.size / 2 + h + gap - 0.5 && Math.abs(b.y - y) < b.size / 2 + h + gap - 0.5) return false;
+    if (PRODUCES[b.type]) {   // keep doorways clear
+      const d = frontDoor(b);
+      if (Math.abs(d.x - x) < h + 24 && Math.abs(d.y - y) < h + 22) return false;
+    }
+  }
+  return true;
+}
+
+// tiles from the anchor to the end, as a straight line (across, down, or 45°)
+function wallLine(a, b) {
+  const c0 = Math.floor(a.x / TC), r0 = Math.floor(a.y / TC);
+  let dc = Math.floor(b.x / TC) - c0, dr = Math.floor(b.y / TC) - r0;
+  if (Math.abs(dc) > 2 * Math.abs(dr)) dr = 0;
+  else if (Math.abs(dr) > 2 * Math.abs(dc)) dc = 0;
+  else { const n = Math.max(Math.abs(dc), Math.abs(dr)); dc = Math.sign(dc) * n; dr = Math.sign(dr) * n; }
+  const steps = Math.max(Math.abs(dc), Math.abs(dr)), out = [];
+  for (let i = 0; i <= Math.min(steps, 30); i++) {
+    const c = c0 + Math.round(dc * i / (steps || 1)), r = r0 + Math.round(dr * i / (steps || 1));
+    out.push({ x: c * TC + TC / 2, y: r * TC + TC / 2 });
+  }
+  return out;
+}
+
+function buildWallLine(team, tiles) {
+  let built = 0;
+  for (const t of tiles) {
+    if (game.credits[team] < COST.wall) break;
+    if (!canPlaceWallPiece(team, 'wall', t.x, t.y)) continue;
+    game.credits[team] -= COST.wall; spawn('wall', team, t.x, t.y); built++;
+  }
+  return built;
+}
+
 function placeBuilding(team, type, x, y) {
+  if (type === 'gate') {
+    const g = snapGate(x, y);
+    if (game.credits[team] < COST.gate || !canPlaceWallPiece(team, 'gate', g.x, g.y)) return false;
+    game.credits[team] -= COST.gate; spawn('gate', team, g.x, g.y);
+    return true;
+  }
   if (game.credits[team] < COST[type] || !canPlace(team, type, x, y)) return false;
   game.credits[team] -= COST[type];
   spawn(type, team, x, y);
@@ -659,6 +767,7 @@ function update(dt) {
     if (e.type === 'settler') { if (e.order && navigate(e, e.order.x, e.order.y, dt)) e.order = null; }
     else if (e.type === 'soldier') updateSoldier(e, dt);
     else if (e.type === 'extractor') updateExtractor(e, dt);
+    else if (e.type === 'tower') updateTower(e, dt);
     else if (isBuilding(e)) updateBuilding(e, dt);
   }
 
@@ -680,7 +789,7 @@ function update(dt) {
   runAI(dt);
   updateFog();
 
-  const alive = [0, 1].map(t => game.ents.some(e => e.team === t));
+  const alive = [0, 1].map(t => game.ents.some(e => e.team === t && !isWallType(e.type)));
   if (!alive[1]) endGame(true);
   else if (!alive[0]) endGame(false);
 }
@@ -688,7 +797,7 @@ function update(dt) {
 function findEnemyNear(e, radius) {
   let best = null, bestD = radius;
   for (const o of game.ents) {
-    if (o.team === e.team || hiddenFrom(o, e.team)) continue;
+    if (o.team === e.team || hiddenFrom(o, e.team) || isWallType(o.type)) continue;
     const d = edgeDist(e.x, e.y, o);
     if (d < bestD) { bestD = d; best = o; }
   }
@@ -748,6 +857,24 @@ function updateBuilding(e, dt) {
   }
 }
 
+// guard towers shoot the nearest enemy in range on their own
+function updateTower(e, dt) {
+  if (!e.built) return updateBuilding(e, dt);
+  const s = STATS.tower;
+  e.cooldown -= dt;
+  let t = e.target && byId(e.target);
+  if (!t || hiddenFrom(t, e.team) || edgeDist(e.x, e.y, t) > s.range) { t = findEnemyNear(e, s.range); e.target = t ? t.id : null; }
+  if (!t) return;
+  e.aim = Math.atan2(t.y - e.y, t.x - e.x);
+  if (e.cooldown <= 0) {
+    e.cooldown = s.cooldown;
+    t.hp -= s.dmg;
+    game.effects.push({ kind: 'shot', x: e.x + Math.cos(e.aim) * 20, y: e.y + Math.sin(e.aim) * 20 - 6,
+                        x2: t.x, y2: t.y, team: e.team, t: 0, heavy: true });
+    if (t.type === 'soldier' && !t.order) t.order = { type: 'attack', target: e.id };   // soldiers charge the tower
+  }
+}
+
 // a new unit rolls out of the building's door
 // Every building's front door faces the bottom of the screen.
 const frontDoor = b => ({ x: b.x, y: b.y + b.size / 2 + 30 });
@@ -802,6 +929,7 @@ function separate() {
     for (const bld of game.ents) {
       if (!isBuilding(bld)) continue;
       if (a.docked && a.order && a.order.ref === bld.id) continue;
+      if (bld.type === 'gate' && bld.team === a.team) continue;
       const h = bld.size / 2 + a.r, dx = a.x - bld.x, dy = a.y - bld.y;
       if (Math.abs(dx) < h && Math.abs(dy) < h) {
         if (h - Math.abs(dx) < h - Math.abs(dy)) a.x = bld.x + Math.sign(dx || 1) * h;
@@ -812,7 +940,7 @@ function separate() {
     a.y = Math.min(H - a.r, Math.max(a.r, a.y));
   }
   for (const u of units) {
-    if (!walkable(terrainAt(u.x, u.y), isVehicle(u))) { u.x = u.px; u.y = u.py; }
+    if (!walkable(terrainAt(u.x, u.y), isVehicle(u)) || wallBlocks(u.x, u.y, u.team)) { u.x = u.px; u.y = u.py; }
   }
 }
 
@@ -853,7 +981,7 @@ function runAI(dt) {
   const cash = game.credits[1];
 
   // remember any of your buildings it has seen; forget ones it sees are gone
-  for (const e of game.ents) if (e.team === 0 && isBuilding(e) && visibleAt(e.x, e.y, 1)) ai.known.set(e.id, { x: e.x, y: e.y });
+  for (const e of game.ents) if (e.team === 0 && isBuilding(e) && !isWallType(e.type) && visibleAt(e.x, e.y, 1)) ai.known.set(e.id, { x: e.x, y: e.y });
   for (const [id, k] of ai.known) if (!byId(id) && visibleAt(k.x, k.y, 1)) ai.known.delete(id);
 
   if (settler && !hq) deploy(settler);
@@ -861,6 +989,7 @@ function runAI(dt) {
   if (hq) {
     if (refineries.length === 0) aiPlace(hq, 'refinery');
     else if (barracks.length === 0) aiPlace(hq, 'barracks');
+    else if (of('tower').length < diff().towers && cash >= COST.tower) aiPlace(hq, 'tower');
     else if (barracks.length < diff().barracks && cash >= 900) aiPlace(hq, 'barracks');
   }
 
@@ -872,12 +1001,13 @@ function runAI(dt) {
     if (spot) x.order = { type: 'move', x: spot.x, y: spot.y };
   }
 
-  const reserve = extractors.length < 2 && refineries.length ? COST.extractor : 0;
+  let reserve = extractors.length < 2 && refineries.length ? COST.extractor : 0;
+  if (of('tower').length < diff().towers && soldiers.length >= 3 && barracks.length) reserve += COST.tower;   // save up for a tower
   const queued = barracks.reduce((n, b) => n + b.queue, 0);
   for (const b of barracks) if (b.queue < 2 && soldiers.length + queued < diff().maxArmy && game.credits[1] >= COST.soldier + reserve) produce(b);
 
   // targets = your things it can see right now + buildings it remembers
-  const targets = game.ents.filter(e => e.team === 0 && visibleAt(e.x, e.y, 1) && !hiddenFrom(e, 1)).map(e => ({ x: e.x, y: e.y }));
+  const targets = game.ents.filter(e => e.team === 0 && !isWallType(e.type) && visibleAt(e.x, e.y, 1) && !hiddenFrom(e, 1)).map(e => ({ x: e.x, y: e.y }));
   for (const k of ai.known.values()) targets.push(k);
 
   // send one soldier out to scout until it has found your base
@@ -932,17 +1062,21 @@ function draw() {
     if (e.type === 'hq') drawHQ(e);
     else if (e.type === 'barracks') drawBarracks(e);
     else if (e.type === 'refinery') drawRefinery(e);
+    else if (e.type === 'tower') drawTower(e);
+    else if (e.type === 'wall') drawWall(e);
+    else if (e.type === 'gate') drawGate(e);
     else if (e.type === 'settler') drawSettler(e);
     else if (e.type === 'extractor') drawExtractor(e);
     else drawSoldier(e);
   }
   for (const e of ents) if (sel.has(e.id) || e.hp < e.maxHp) drawHealth(e);
   for (const e of ents) if (sel.has(e.id) && isBuilding(e)) drawNameTag(e);
+  for (const e of ents) if (sel.has(e.id) && e.type === 'tower') drawRange(e.x, e.y, STATS.tower.range);
 
   for (const fx of game.effects) {
     if (fx.kind !== 'marker' && fx.kind !== 'text' && !visibleAt(fx.x, fx.y)) continue;
     if (fx.kind === 'shot') {
-      ctx.strokeStyle = fx.team === 0 ? '#dbeafe' : '#fee2e2'; ctx.lineWidth = 1.5;
+      ctx.strokeStyle = fx.heavy ? '#ffe9a0' : fx.team === 0 ? '#dbeafe' : '#fee2e2'; ctx.lineWidth = fx.heavy ? 3 : 1.5;
       ctx.beginPath(); ctx.moveTo(fx.x, fx.y); ctx.lineTo(fx.x2, fx.y2); ctx.stroke();
     } else if (fx.kind === 'boom') {
       const k = fx.t / 0.6, r = (fx.big ? 50 : 18) * (0.4 + k);
@@ -977,15 +1111,43 @@ function draw() {
 
 function drawPlacement() {
   const hq = hqOf(0), type = game.placing.type, size = STATS[type].size;
+  const reach = BUILD_RADIUS + (isWallType(type) ? WALL_REACH : 0);
   if (hq) {
     ctx.fillStyle = 'rgba(125,255,125,0.07)'; ctx.strokeStyle = 'rgba(125,255,125,0.55)';
     ctx.setLineDash([10, 8]); ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(hq.x, hq.y, hq.size / 2 + BUILD_RADIUS, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(hq.x, hq.y, hq.size / 2 + reach, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     ctx.setLineDash([]);
+  }
+  if (type === 'wall') {
+    const p = game.placing;
+    if (!p.anchor) return;
+    const tiles = p.end ? wallLine(p.anchor, p.end) : [p.anchor];
+    let cost = 0;
+    for (const t of tiles) {
+      const ok = canPlaceWallPiece(0, 'wall', t.x, t.y);
+      if (ok) cost += COST.wall;
+      ctx.fillStyle = ok ? 'rgba(80,255,80,0.4)' : 'rgba(255,60,60,0.4)';
+      ctx.fillRect(t.x - TC / 2 + 1, t.y - TC / 2 + 1, TC - 2, TC - 2);
+    }
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(p.anchor.x - TC / 2, p.anchor.y - TC / 2, TC, TC);
+    const last = tiles[tiles.length - 1];
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText(`$${cost} — tap ${p.end ? 'the end' : 'it'} again to build`, last.x, last.y - 18);
+    return;
   }
   const g = game.placing.ghost;
   if (!g) return;
+  if (type === 'gate') {
+    const ok = canPlaceWallPiece(0, 'gate', g.x, g.y) && game.credits[0] >= COST.gate;
+    ctx.fillStyle = ok ? 'rgba(80,255,80,0.35)' : 'rgba(255,60,60,0.35)';
+    ctx.strokeStyle = ok ? '#7dff7d' : '#ff6b6b'; ctx.lineWidth = 2;
+    ctx.fillRect(g.x - 25, g.y - 25, 50, 50); ctx.strokeRect(g.x - 25, g.y - 25, 50, 50);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText(ok ? 'Gate — tap again' : "Can't build here", g.x, g.y - 32);
+    return;
+  }
   const ok = canPlace(0, type, g.x, g.y) && game.credits[0] >= COST[type];
+  if (type === 'tower') drawRange(g.x, g.y, STATS.tower.range);
   ctx.fillStyle = ok ? 'rgba(80,255,80,0.3)' : 'rgba(255,60,60,0.3)';
   ctx.strokeStyle = ok ? '#7dff7d' : '#ff6b6b'; ctx.lineWidth = 2;
   ctx.fillRect(g.x - size / 2, g.y - size / 2, size, size);
@@ -1009,7 +1171,7 @@ function drawMinimap() {
   for (const e of game.ents) {
     if (!canSee(e)) continue;
     ctx.fillStyle = TEAMS[e.team].color;
-    const sz = isBuilding(e) ? 6 : 3;
+    const sz = isWallType(e.type) ? 2 : isBuilding(e) ? 6 : 3;
     ctx.fillRect(MM.x + e.x * k - sz / 2, MM.y + e.y * k - sz / 2, sz, sz);
   }
   ctx.imageSmoothingEnabled = true;
@@ -1317,6 +1479,80 @@ function drawRefinery(e) {
   drawQueue(e);
 }
 
+function drawTower(e) {
+  if (!e.built) return drawConstruction(e);
+  const c = TEAMS[e.team], h = e.size / 2;
+  // sandbagged base
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.arc(e.x + 4, e.y + 5, h, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#c2ad7c'; ctx.strokeStyle = '#7d6c45'; ctx.lineWidth = 1;
+  for (let i = 0; i < 12; i++) {
+    const a = i / 12 * Math.PI * 2;
+    ctx.beginPath(); ctx.ellipse(e.x + Math.cos(a) * (h - 5), e.y + Math.sin(a) * (h - 5), 6, 4, a + Math.PI / 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  ctx.fillStyle = '#6f6a5e'; ctx.beginPath(); ctx.arc(e.x, e.y, h - 10, 0, Math.PI * 2); ctx.fill();
+  // turret that turns toward its target
+  const a = e.aim !== undefined ? e.aim : -Math.PI / 2;
+  ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(a);
+  ctx.fillStyle = '#2a2a2a'; ctx.fillRect(4, -3, 22, 6);                       // barrel
+  if (e.cooldown > STATS.tower.cooldown - 0.08) { ctx.fillStyle = '#ffe9a0'; ctx.beginPath(); ctx.arc(28, 0, 5, 0, Math.PI * 2); ctx.fill(); }
+  ctx.fillStyle = c.dark; ctx.beginPath(); ctx.arc(0, 0, 11, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = c.color; ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.beginPath(); ctx.arc(-3, -3, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+// wall pieces join up with neighbouring walls/gates of the same side
+function drawWall(e) {
+  const c0 = Math.floor(e.x / TC), r0 = Math.floor(e.y / TC);
+  const linked = (dc, dr) => {
+    const c = c0 + dc, r = r0 + dr;
+    if (c < 0 || r < 0 || c >= TCOLS || r >= TROWS) return false;
+    const i = r * TCOLS + c; return wallKind[i] && wallTeam[i] === e.team;
+  };
+  ctx.lineCap = 'butt';
+  for (const pass of [0, 1]) {   // shadow, then wall
+    ctx.strokeStyle = pass ? '#9b968b' : 'rgba(0,0,0,0.35)'; ctx.lineWidth = 12;
+    const ox = pass ? 0 : 3, oy = pass ? 0 : 4;
+    for (const [dc, dr] of [[1, 0], [0, 1], [1, 1], [1, -1], [-1, 0], [0, -1], [-1, -1], [-1, 1]]) {
+      if (!linked(dc, dr)) continue;
+      if (dc && dr && (linked(dc, 0) || linked(0, dr))) continue;   // diagonal only when there's no straight link
+      ctx.beginPath(); ctx.moveTo(e.x + ox, e.y + oy); ctx.lineTo(e.x + ox + dc * TC / 2, e.y + oy + dr * TC / 2); ctx.stroke();
+    }
+    ctx.fillStyle = pass ? '#b3aea2' : 'rgba(0,0,0,0.35)';
+    ctx.fillRect(e.x - 8 + ox, e.y - 8 + oy, 16, 16);
+  }
+  ctx.strokeStyle = '#6f6a60'; ctx.lineWidth = 1; ctx.strokeRect(e.x - 8, e.y - 8, 16, 16);
+  ctx.fillStyle = TEAMS[e.team].color; ctx.fillRect(e.x - 3, e.y - 3, 6, 6);
+}
+
+function drawGate(e) {
+  const c = TEAMS[e.team], h = e.size / 2;
+  // opens when one of its own units is close
+  const near = game.ents.some(u => u.team === e.team && isUnit(u) && Math.abs(u.x - e.x) < 55 && Math.abs(u.y - e.y) < 55);
+  e.openK = Math.max(0, Math.min(1, (e.openK || 0) + (near ? 0.08 : -0.05)));
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(e.x - h + 3, e.y - h + 4, e.size, e.size);
+  ctx.fillStyle = '#5a564c'; ctx.fillRect(e.x - h, e.y - h, e.size, e.size);   // gateway floor
+  // posts
+  ctx.fillStyle = '#9b968b';
+  for (const [px, py] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) ctx.fillRect(e.x + px * (h - 6) - 6, e.y + py * (h - 6) - 6, 12, 12);
+  // two sliding steel doors (striped in team colour)
+  const slide = (h - 6) * e.openK;
+  for (const side of [-1, 1]) {
+    const x = side < 0 ? e.x - h + 6 - slide : e.x + slide;
+    ctx.save(); ctx.beginPath(); ctx.rect(e.x - h + 6, e.y - h, e.size - 12, e.size); ctx.clip();
+    ctx.fillStyle = '#7d786c'; ctx.fillRect(x, e.y - 7, h - 6, 14);
+    ctx.fillStyle = c.color;
+    for (let k = 0; k < h - 6; k += 8) ctx.fillRect(x + k, e.y - 7, 4, 14);
+    ctx.restore();
+  }
+}
+
+function drawRange(x, y, r) {
+  ctx.strokeStyle = 'rgba(255,233,160,0.55)'; ctx.fillStyle = 'rgba(255,233,160,0.06)';
+  ctx.setLineDash([8, 6]); ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
+}
+
 // name tag under a selected building
 function drawNameTag(e) {
   const txt = NAMES[e.type];
@@ -1351,7 +1587,9 @@ canvas.addEventListener('pointerdown', ev => {
 
 canvas.addEventListener('pointermove', ev => {
   if (game.placing && ev.pointerType === 'mouse' && input.pointers.size === 0) {
-    game.placing.ghost = toWorld(ev.clientX, ev.clientY);
+    const w = toWorld(ev.clientX, ev.clientY);
+    if (game.placing.type === 'wall') { if (game.placing.anchor) game.placing.end = snapWall(w.x, w.y); }
+    else game.placing.ghost = game.placing.type === 'gate' ? snapGate(w.x, w.y) : w;
   }
   if (!input.pointers.has(ev.pointerId)) return;
   input.pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
@@ -1434,18 +1672,38 @@ function oreAt(x, y) {
   return best;
 }
 
+// walls: 1st tap = start, 2nd tap = preview a straight run, tap the end again = build it (and keep going from there)
+function wallTap(x, y) {
+  const p = game.placing, t = snapWall(x, y);
+  const same = (a, b) => a && Math.abs(a.x - b.x) < 1 && Math.abs(a.y - b.y) < 1;
+  if (!p.anchor) { p.anchor = t; p.end = null; return; }
+  if (!p.end && same(p.anchor, t)) { confirmWall(); return; }   // single piece
+  if (p.end && same(p.end, t)) { confirmWall(); return; }
+  p.end = t;
+}
+function confirmWall() {
+  const p = game.placing;
+  if (!p || p.type !== 'wall' || !p.anchor) return;
+  const tiles = p.end ? wallLine(p.anchor, p.end) : [p.anchor];
+  if (buildWallLine(0, tiles)) { p.anchor = tiles[tiles.length - 1]; p.end = null; }
+  else flash = { text: "Can't build a wall there", t: performance.now() };
+}
+
 function tryPlace() {
   const p = game.placing;
+  if (p && p.type === 'wall') return confirmWall();
   if (p && p.ghost && placeBuilding(0, p.type, p.ghost.x, p.ghost.y)) game.placing = null;
 }
 
 function handleTap(x, y) {
   if (game.paused) return;
 
+  if (game.placing && game.placing.type === 'wall') { wallTap(x, y); return; }
   if (game.placing) {
+    const pt = game.placing.type === 'gate' ? snapGate(x, y) : { x, y };
     const g = game.placing.ghost, h = STATS[game.placing.type].size / 2;
     if (g && Math.abs(x - g.x) < h && Math.abs(y - g.y) < h) tryPlace();
-    else game.placing.ghost = { x, y };
+    else game.placing.ghost = pt;
     return;
   }
 
@@ -1494,7 +1752,7 @@ const selectedOfType = type => [...game.selected].map(byId).filter(e => e && e.t
 const $ = id => document.getElementById(id);
 const ui = {
   credits: $('credits'), info: $('info'),
-  deploy: $('btnDeploy'), barracks: $('btnBarracks'), refinery: $('btnRefinery'), produce: $('btnProduce'),
+  deploy: $('btnDeploy'), barracks: $('btnBarracks'), refinery: $('btnRefinery'), tower: $('btnTower'), wall: $('btnWall'), gate: $('btnGate'), produce: $('btnProduce'),
   harvest: $('btnHarvest'), place: $('btnPlace'), cancel: $('btnCancel'), deselect: $('btnDeselect'),
   box: $('btnBox'), all: $('btnAll'), pause: $('btnPause'),
   overlay: $('overlay'), ovTitle: $('ovTitle'), ovText: $('ovText'), ovBtn: $('ovBtn'),
@@ -1505,7 +1763,7 @@ let flash = null;   // temporary message in the info box
 function startPlacing(type) {
   const hq = hqOf(0);
   if (!hq) return;
-  game.placing = { type, ghost: null };
+  game.placing = { type, ghost: null, anchor: null, end: null };
   cam.x = hq.x; cam.y = hq.y; clampCam();
 }
 
@@ -1515,6 +1773,9 @@ ui.deploy.addEventListener('click', () => {
 });
 ui.barracks.addEventListener('click', () => startPlacing('barracks'));
 ui.refinery.addEventListener('click', () => startPlacing('refinery'));
+ui.tower.addEventListener('click', () => startPlacing('tower'));
+ui.wall.addEventListener('click', () => startPlacing('wall'));
+ui.gate.addEventListener('click', () => startPlacing('gate'));
 ui.place.addEventListener('click', tryPlace);
 ui.cancel.addEventListener('click', () => { game.placing = null; });
 ui.produce.addEventListener('click', () => {
@@ -1608,15 +1869,26 @@ function updateHUD() {
   show(ui.deploy, !!settler && !placing);
   show(ui.barracks, !!hq && !placing);
   show(ui.refinery, !!hq && !placing);
+  show(ui.tower, !!hq && !placing);
+  show(ui.wall, !!hq && !placing);
+  show(ui.gate, !!hq && !placing);
   show(ui.produce, !!producer && !placing);
   show(ui.harvest, extractors.length > 0 && !placing);
-  show(ui.place, !!(placing && placing.ghost));
+  show(ui.place, !!(placing && (placing.ghost || (placing.type === 'wall' && placing.anchor))));
   show(ui.cancel, !!placing);
   show(ui.deselect, sel.length > 0 && !placing);
 
   ui.barracks.disabled = game.credits[0] < COST.barracks;
   ui.refinery.disabled = game.credits[0] < COST.refinery;
-  if (placing && placing.ghost) ui.place.disabled = !canPlace(0, placing.type, placing.ghost.x, placing.ghost.y) || game.credits[0] < COST[placing.type];
+  ui.tower.disabled = game.credits[0] < COST.tower;
+  ui.wall.disabled = game.credits[0] < COST.wall;
+  ui.gate.disabled = game.credits[0] < COST.gate;
+  const wallMode = placing && placing.type === 'wall';
+  ui.cancel.textContent = wallMode ? 'Done' : 'Cancel';
+  ui.place.textContent = wallMode ? 'Build wall' : 'Place here';
+  if (placing && placing.ghost && placing.type === 'gate') ui.place.disabled = !canPlaceWallPiece(0, 'gate', placing.ghost.x, placing.ghost.y) || game.credits[0] < COST.gate;
+  else if (placing && placing.ghost) ui.place.disabled = !canPlace(0, placing.type, placing.ghost.x, placing.ghost.y) || game.credits[0] < COST[placing.type];
+  else if (placing) ui.place.disabled = false;
   if (producer) {
     const unit = PRODUCES[producer.type];
     ui.produce.textContent = `${NAMES[unit]} $${COST[unit]}`;
@@ -1626,9 +1898,13 @@ function updateHUD() {
   let text;
   if (flash && performance.now() - flash.t < 2500) text = flash.text;
   else if (game.paused) text = 'Paused';
+  else if (placing && placing.type === 'wall') text = !placing.anchor ? 'Tap where the wall starts' : placing.end ? 'Tap the end again to build (or Build wall)' : 'Tap where the wall ends (or tap the start again for one piece)';
   else if (placing) text = placing.ghost ? 'Tap the square again (or Place here) to build' : `Tap inside the circle to place your ${NAMES[placing.type].toLowerCase()}`;
   else if (settler) text = 'Settler — move somewhere open, then Deploy';
-  else if (hq) text = 'Headquarters — build a Refinery for income';
+  else if (hq) text = 'Headquarters';
+  else if (sel.length === 1 && sel[0].type === 'gate') text = 'Gate — opens for your units, enemies must destroy it';
+  else if (sel.length === 1 && sel[0].type === 'wall') text = 'Wall';
+  else if (sel.length === 1 && sel[0].type === 'tower') text = sel[0].built ? 'Guard Tower — fires at enemies in range' : `Guard Tower: ${Math.floor(sel[0].progress * 100)}% built`;
   else if (producer) text = producer.built ? `${NAMES[producer.type]}${producer.queue ? ' — making ×' + producer.queue : ''}` : `${NAMES[producer.type]}: ${Math.floor(producer.progress * 100)}% built`;
   else if (extractors.length === 1 && !soldiers.length) text = extractorStatus(extractors[0]);
   else if (sel.length) {

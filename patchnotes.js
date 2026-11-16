@@ -2,6 +2,20 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '3.6', date: '16 Nov 2026', title: 'Towers, walls & gates',
+    changes: [
+      'New building: Guard Tower ($500), built from the HQ.',
+      'It fires automatically at the nearest enemy in range, and outranges soldiers.',
+      'Soldiers that get shot by a tower charge it.',
+      'Tap a tower to see its range. The range also shows while placing one.',
+      'Towers don\'t need a front door, so they fit in tight spots.',
+      'The computer builds towers too: none on Easy, one on Normal, two on Hard.',
+      'New: Walls ($20 a section). Tap where a wall starts, tap where it ends, then tap the end again to build a straight run. Keep tapping to carry on from there; tap Done when finished. Sections join up automatically.',
+      'New: Gate ($150). Opens for your own units; enemies have to destroy it (or a wall) to get through.',
+      'Enemy soldiers that find their way blocked will now shoot through walls and gates.',
+    ],
+  },
+  {
     version: '3.5.1', date: '16 Nov 2026', title: 'Difficulty tuning',
     changes: [
       'Normal is a little tougher: the enemy now builds 18% slower than you (was 25%).',
