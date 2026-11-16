@@ -2,6 +2,20 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.0', date: '16 Nov 2026', title: 'Tech tree & tanks',
+    changes: [
+      'Tech tree: some things now need other buildings first. Locked buttons say what is missing, and losing a building locks them again.',
+      'Grenadier and Rocket Soldier need a Power Plant. Sniper needs a Guard Tower.',
+      'The War Factory is back ($500, needs Barracks + Refinery). It builds the Scout Buggy (moved from the Barracks) and the new tanks.',
+      'New unit: Light Tank ($500). 350 HP, 30 damage every 1.5s, range 130.',
+      'New building: Tech Centre ($800, needs War Factory). Unlocks the Heavy Tank.',
+      'New unit: Heavy Tank ($900). 800 HP, twin cannons for 60 damage every 2s, range 140, but slow.',
+      'Armour: rifles (soldiers, buggies, guard towers) do half damage to tanks; tank shells do half damage to infantry but splash a little onto anyone next to the target. Rockets are the tank killer.',
+      'Tanks run over enemy infantry they drive into, and can\'t go through forests.',
+      'The computer builds a War Factory on Normal and Hard and adds buggies and light tanks to its army; on Hard it also builds a Tech Centre for heavy tanks.',
+    ],
+  },
+  {
     version: '4.5.1', date: '16 Nov 2026', title: 'New engineer look',
     changes: [
       'Engineers now wear a white hard hat with a brim and a team-colour badge.',
