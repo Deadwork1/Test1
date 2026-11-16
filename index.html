@@ -110,6 +110,13 @@
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    // when a new version takes over, reload once so you're not left on the old one
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloaded || !navigator.serviceWorker.controller) return;
+      reloaded = true;
+      if (typeof game === 'undefined' || game.paused || !game.time) location.reload();
+    });
   }
 </script>
 </body>

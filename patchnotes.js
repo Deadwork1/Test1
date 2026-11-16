@@ -6,6 +6,7 @@ const PATCH_NOTES = [
     changes: [
       'Pausing now opens a menu with Resume, Restart and Patch notes.',
       'Restart asks you to tap twice so you can\'t wipe your game by accident.',
+      'Updates now show up as soon as you open the game, instead of one launch later.',
     ],
   },
   {
