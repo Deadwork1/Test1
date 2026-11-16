@@ -2,6 +2,16 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '3.7', date: '16 Nov 2026', title: 'Scout Buggy',
+    changes: [
+      'New building: War Factory ($500), built from the HQ. Vehicles roll out of its big garage door.',
+      'New unit: Scout Buggy ($250). Very fast with a rapid-fire machine gun. Great for scouting and hunting soldiers and extractors, but lightly armoured, so towers chew it up.',
+      'Buggies are vehicles: they can\'t drive through forests.',
+      'The "Soldiers" button is now "Army" and selects buggies too.',
+      'The computer builds a War Factory and buggies on Normal and Hard, and uses a buggy to scout.',
+    ],
+  },
+  {
     version: '3.6', date: '16 Nov 2026', title: 'Towers, walls & gates',
     changes: [
       'New building: Guard Tower ($500), built from the HQ.',

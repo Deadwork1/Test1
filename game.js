@@ -15,36 +15,39 @@ const START_CREDITS = 1000;
 const INCOME = 1;                     // small trickle per second so nobody gets stuck at $0
 const BUILD_RADIUS = 300;             // how far from your HQ you can place buildings
 
-const COST = { barracks: 300, refinery: 400, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150 };
+const COST = { barracks: 300, refinery: 400, factory: 500, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250 };
 const WALL_REACH = 150;              // walls & gates can go this much further out than other buildings
 
 const STATS = {
   settler:   { hp: 200, speed: 38, r: 16, sight: 180 },
   soldier:   { hp: 60,  speed: 52, r: 9,  sight: 170, range: 90, dmg: 8, cooldown: 0.8 },
   extractor: { hp: 300, speed: 34, r: 15, sight: 150, capacity: 150, rate: 30, unloadTime: 1.5 },
+  buggy:     { hp: 140, speed: 95, r: 13, sight: 220, range: 110, dmg: 6,  cooldown: 0.25 },   // fast, machine gun
   hq:        { hp: 900, size: 92, sight: 280 },
   barracks:  { hp: 500, size: 74, sight: 200, buildTime: 10, trainTime: 4, maxQueue: 5 },
   refinery:  { hp: 600, size: 84, sight: 200, buildTime: 12, trainTime: 6, maxQueue: 3 },
+  factory:   { hp: 800, size: 90, sight: 200, buildTime: 14, trainTime: 7, maxQueue: 3 },
   tower:     { hp: 700, size: 46, sight: 230, buildTime: 12, range: 170, dmg: 14, cooldown: 0.9 },
   wall:      { hp: 400, size: 25, sight: 50 },
   gate:      { hp: 600, size: 50, sight: 60 },
 };
-const PRODUCES = { barracks: 'soldier', refinery: 'extractor' };
+const PRODUCES = { barracks: 'soldier', refinery: 'extractor', factory: 'buggy' };
+const isCombat = e => e.type === 'soldier' || e.type === 'buggy';
 
 // How the computer plays at each difficulty.
 //  think: seconds between decisions   slow: build/train time multiplier   income: share of ore value it earns
 //  attackAt: army size before it attacks   attackAfter: earliest attack (seconds)   barracks: max barracks
 //  maxArmy: it stops training soldiers at this many
 const DIFFICULTY = {
-  easy:   { label: 'Easy',   think: 2.5, slow: 1.5,  income: 0.7,  attackAt: 5, attackAfter: 300, barracks: 1, maxArmy: 6, towers: 0 },
-  normal: { label: 'Normal', think: 1.5, slow: 1.18, income: 0.85, attackAt: 7, attackAfter: 180, barracks: 1, maxArmy: 20, towers: 1 },
-  hard:   { label: 'Hard',   think: 1,   slow: 1,    income: 1,    attackAt: 6, attackAfter: 0,   barracks: 2, maxArmy: Infinity, towers: 2 },
+  easy:   { label: 'Easy',   think: 2.5, slow: 1.5,  income: 0.7,  attackAt: 5, attackAfter: 300, barracks: 1, maxArmy: 6, towers: 0, factory: false },
+  normal: { label: 'Normal', think: 1.5, slow: 1.18, income: 0.85, attackAt: 7, attackAfter: 180, barracks: 1, maxArmy: 20, towers: 1, factory: true },
+  hard:   { label: 'Hard',   think: 1,   slow: 1,    income: 1,    attackAt: 6, attackAfter: 0,   barracks: 2, maxArmy: Infinity, towers: 2, factory: true },
 };
 let difficulty = 'normal';
 try { if (DIFFICULTY[localStorage.getItem('mini-rts-difficulty')]) difficulty = localStorage.getItem('mini-rts-difficulty'); } catch (err) {}
 const diff = () => DIFFICULTY[difficulty];
 const slowOf = e => e.team === 1 ? diff().slow : 1;
-const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', tower: 'Guard Tower', wall: 'Wall', gate: 'Gate' };
+const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', tower: 'Guard Tower', wall: 'Wall', gate: 'Gate' };
 
 const TEAMS = [
   { name: 'You',   color: '#3b82f6', dark: '#1d3f8f', light: '#93c5fd' },
@@ -151,7 +154,7 @@ const terrainAt = (x, y) => {
   if (c < 0 || r < 0 || c >= TCOLS || r >= TROWS) return T.ROCK;
   return terrain[r * TCOLS + c];
 };
-const isVehicle = e => e.type === 'settler' || e.type === 'extractor';
+const isVehicle = e => e.type === 'settler' || e.type === 'extractor' || e.type === 'buggy';
 // can this kind of unit stand on this terrain? (ignores buildings)
 const walkable = (t, vehicle) => t === T.GRASS || t === T.BRIDGE || (t === T.FOREST && !vehicle);
 
@@ -305,7 +308,7 @@ function navigate(e, tx, ty, dt) {
   const n = e.nav;
   if (!n || Math.hypot(n.tx - tx, n.ty - ty) > 30 && game.time - n.t > 0.4 || (n.fail && game.time - n.t > 2)) {
     let path = findPath(e.x, e.y, tx, ty, isVehicle(e), e.team, false), breaking = false;
-    if (!path && e.type === 'soldier') { path = findPath(e.x, e.y, tx, ty, false, e.team, true); breaking = !!path; }
+    if (!path && isCombat(e)) { path = findPath(e.x, e.y, tx, ty, isVehicle(e), e.team, true); breaking = !!path; }
     e.nav = { tx, ty, t: game.time, path: path || [], i: 0, fail: !path, breaking };
   }
   const nav = e.nav;
@@ -434,7 +437,7 @@ function spawn(type, team, x, y) {
   return e;
 }
 
-function isBuildingType(t) { return t === 'hq' || t === 'barracks' || t === 'refinery' || t === 'tower' || t === 'wall' || t === 'gate'; }
+function isBuildingType(t) { return t === 'hq' || t === 'barracks' || t === 'refinery' || t === 'factory' || t === 'tower' || t === 'wall' || t === 'gate'; }
 const isWallType = t => t === 'wall' || t === 'gate';
 const isBuilding = e => isBuildingType(e.type);
 const isUnit = e => !isBuilding(e);
@@ -765,7 +768,7 @@ function update(dt) {
 
   for (const e of game.ents) {
     if (e.type === 'settler') { if (e.order && navigate(e, e.order.x, e.order.y, dt)) e.order = null; }
-    else if (e.type === 'soldier') updateSoldier(e, dt);
+    else if (isCombat(e)) updateSoldier(e, dt);
     else if (e.type === 'extractor') updateExtractor(e, dt);
     else if (e.type === 'tower') updateTower(e, dt);
     else if (isBuilding(e)) updateBuilding(e, dt);
@@ -777,7 +780,7 @@ function update(dt) {
     if (e.hp <= 0) {
       game.selected.delete(e.id);
       if (isBuilding(e)) bldDirty = true;
-      if (!e.deployed) game.effects.push({ kind: 'boom', x: e.x, y: e.y, t: 0, big: e.type !== 'soldier' });
+      if (!e.deployed) game.effects.push({ kind: 'boom', x: e.x, y: e.y, t: 0, big: e.type !== 'soldier' && e.type !== 'buggy' });
     }
   }
   game.ents = game.ents.filter(e => e.hp > 0);
@@ -804,8 +807,8 @@ function findEnemyNear(e, radius) {
   return best;
 }
 
-function updateSoldier(e, dt) {
-  const s = STATS.soldier;
+function updateSoldier(e, dt) {   // soldiers and buggies
+  const s = STATS[e.type];
   e.cooldown -= dt;
   e.revealT = (e.revealT || 0) - dt;
   let o = e.order;
@@ -832,7 +835,7 @@ function updateSoldier(e, dt) {
         t.hp -= s.dmg;
         game.effects.push({ kind: 'shot', x: e.x, y: e.y, x2: t.x + (Math.random() - .5) * 8,
                             y2: t.y + (Math.random() - .5) * 8, team: e.team, t: 0 });
-        if (t.type === 'soldier' && !t.order) t.order = { type: 'attack', target: e.id };
+        if (isCombat(t) && !t.order) t.order = { type: 'attack', target: e.id };
       }
     }
   }
@@ -871,7 +874,7 @@ function updateTower(e, dt) {
     t.hp -= s.dmg;
     game.effects.push({ kind: 'shot', x: e.x + Math.cos(e.aim) * 20, y: e.y + Math.sin(e.aim) * 20 - 6,
                         x2: t.x, y2: t.y, team: e.team, t: 0, heavy: true });
-    if (t.type === 'soldier' && !t.order) t.order = { type: 'attack', target: e.id };   // soldiers charge the tower
+    if (isCombat(t) && !t.order) t.order = { type: 'attack', target: e.id };   // units charge the tower
   }
 }
 
@@ -977,7 +980,8 @@ function runAI(dt) {
   const mine = game.ents.filter(e => e.team === 1);
   const of = t => mine.filter(e => e.type === t);
   const settler = of('settler')[0], hq = of('hq')[0];
-  const barracks = of('barracks'), refineries = of('refinery'), soldiers = of('soldier'), extractors = of('extractor');
+  const barracks = of('barracks'), refineries = of('refinery'), extractors = of('extractor'), factories = of('factory');
+  const soldiers = mine.filter(isCombat);   // the whole army: soldiers and buggies
   const cash = game.credits[1];
 
   // remember any of your buildings it has seen; forget ones it sees are gone
@@ -990,6 +994,7 @@ function runAI(dt) {
     if (refineries.length === 0) aiPlace(hq, 'refinery');
     else if (barracks.length === 0) aiPlace(hq, 'barracks');
     else if (of('tower').length < diff().towers && cash >= COST.tower) aiPlace(hq, 'tower');
+    else if (diff().factory && !factories.length && soldiers.length >= 4 && cash >= COST.factory) aiPlace(hq, 'factory');
     else if (barracks.length < diff().barracks && cash >= 900) aiPlace(hq, 'barracks');
   }
 
@@ -1003,6 +1008,13 @@ function runAI(dt) {
 
   let reserve = extractors.length < 2 && refineries.length ? COST.extractor : 0;
   if (of('tower').length < diff().towers && soldiers.length >= 3 && barracks.length) reserve += COST.tower;   // save up for a tower
+  else if (diff().factory && !factories.length && soldiers.length >= 4) reserve += COST.factory;              // then a factory
+  const queuedAll = [...barracks, ...factories].reduce((n, b) => n + b.queue, 0);
+  const wantBuggy = factories.some(f => f.built && f.queue < 1) && of('buggy').length * 2 < of('soldier').length + 2;   // about one buggy per two soldiers
+  for (const f of factories) {
+    if (wantBuggy && f.built && f.queue < 1 && soldiers.length + queuedAll < diff().maxArmy && game.credits[1] >= COST.buggy + reserve) produce(f);
+  }
+  if (wantBuggy) reserve += COST.buggy;   // barracks wait while it saves for a buggy
   const queued = barracks.reduce((n, b) => n + b.queue, 0);
   for (const b of barracks) if (b.queue < 2 && soldiers.length + queued < diff().maxArmy && game.credits[1] >= COST.soldier + reserve) produce(b);
 
@@ -1013,7 +1025,7 @@ function runAI(dt) {
   // send one soldier out to scout until it has found your base
   const scout = ai.scout && byId(ai.scout);
   if (!ai.known.size && soldiers.length && !ai.attacking) {
-    const sc = scout || soldiers[0];
+    const sc = scout || soldiers.find(u => u.type === 'buggy') || soldiers[0];   // buggies make great scouts
     ai.scout = sc.id; sc.passive = true;   // scouts look, they don't pick fights
     if (!sc.order) { const spot = aiExploreSpot(sc.x, sc.y, true); if (spot) sc.order = { type: 'move', x: spot.x, y: spot.y }; }
   } else if (scout && ai.known.size && !ai.attacking && hq) {
@@ -1067,6 +1079,8 @@ function draw() {
     else if (e.type === 'gate') drawGate(e);
     else if (e.type === 'settler') drawSettler(e);
     else if (e.type === 'extractor') drawExtractor(e);
+    else if (e.type === 'buggy') drawBuggy(e);
+    else if (e.type === 'factory') drawFactory(e);
     else drawSoldier(e);
   }
   for (const e of ents) if (sel.has(e.id) || e.hp < e.maxHp) drawHealth(e);
@@ -1086,6 +1100,10 @@ function draw() {
       const k = fx.t / 0.6;
       ctx.strokeStyle = fx.color || `rgba(120,255,120,${1 - k})`; ctx.globalAlpha = 1 - k; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(fx.x, fx.y, 6 + 14 * k, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
+    } else if (fx.kind === 'dust') {
+      const k = fx.t / 0.6;
+      ctx.fillStyle = `rgba(170,150,110,${0.35 * (1 - k)})`;
+      ctx.beginPath(); ctx.arc(fx.x, fx.y, 3 + k * 7, 0, Math.PI * 2); ctx.fill();
     } else if (fx.kind === 'text') {
       const k = fx.t / 1.2;
       ctx.globalAlpha = 1 - k; ctx.fillStyle = '#ffd86b'; ctx.font = 'bold 16px system-ui'; ctx.textAlign = 'center';
@@ -1303,6 +1321,58 @@ function drawSoldier(e) {
     ctx.beginPath(); ctx.arc(e.x + Math.cos(e.facing) * 17, e.y + Math.sin(e.facing) * 17, 3, 0, Math.PI * 2); ctx.fill();
   }
   ctx.globalAlpha = 1;
+}
+
+function drawBuggy(e) {
+  const c = TEAMS[e.team];
+  const moving = e.lx !== undefined && Math.hypot(e.x - e.lx, e.y - e.ly) > 0.3;
+  e.lx = e.x; e.ly = e.y;
+  if (moving && Math.random() < 0.5) game.effects.push({ kind: 'dust', x: e.x - Math.cos(e.facing) * 14, y: e.y - Math.sin(e.facing) * 14, t: 0 });
+  ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.facing);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(-12, -8, 28, 20);
+  // big off-road wheels
+  ctx.fillStyle = '#1e1e1e';
+  for (const [wx, wy] of [[-12, -12], [6, -12], [-12, 7], [6, 7]]) ctx.fillRect(wx, wy, 9, 5);
+  // body
+  ctx.fillStyle = c.color; ctx.strokeStyle = c.dark; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(-13, -7); ctx.lineTo(9, -7); ctx.lineTo(15, -3); ctx.lineTo(15, 3); ctx.lineTo(9, 7); ctx.lineTo(-13, 7); ctx.closePath(); ctx.fill(); ctx.stroke();
+  // roll cage
+  ctx.strokeStyle = '#2b2b2b'; ctx.lineWidth = 2;
+  ctx.strokeRect(-9, -6, 11, 12);
+  ctx.beginPath(); ctx.moveTo(-9, -6); ctx.lineTo(2, 6); ctx.moveTo(2, -6); ctx.lineTo(-9, 6); ctx.stroke();
+  // mounted machine gun
+  ctx.fillStyle = '#333'; ctx.beginPath(); ctx.arc(-3, 0, 3.5, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#111'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(-3, 0); ctx.lineTo(13, 0); ctx.stroke();
+  if (e.cooldown > STATS.buggy.cooldown - 0.06) { ctx.fillStyle = '#ffe9a0'; ctx.beginPath(); ctx.arc(16, 0, 3, 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
+}
+
+function drawFactory(e) {
+  if (!e.built) return drawConstruction(e);
+  const c = TEAMS[e.team], h = e.size / 2, x0 = e.x - h, y0 = e.y - h;
+  ctx.fillStyle = '#8a857a'; ctx.fillRect(x0 - 3, y0 - 3, e.size + 6, e.size + 6);
+  // big workshop hall with saw-tooth roof
+  block(x0 + 4, y0 + 6, e.size - 8, e.size - 12, '#7b766a', '#4c4840', 22);
+  ctx.fillStyle = '#918b7d';
+  for (let k = 0; k < 4; k++) {
+    const yy = y0 + 10 + k * 14;
+    ctx.beginPath(); ctx.moveTo(x0 + 8, yy + 12); ctx.lineTo(x0 + e.size - 8, yy + 12); ctx.lineTo(x0 + e.size - 8, yy); ctx.closePath(); ctx.fill();
+  }
+  ctx.fillStyle = c.color; ctx.fillRect(x0 + 4, y0 + 6, e.size - 8, 5);
+  // emblem: gear
+  emblemPlate(x0 + e.size - 22, y0 + 26, 12, e.team);
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(x0 + e.size - 22, y0 + 26, 5, 0, Math.PI * 2); ctx.stroke();
+  for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3; ctx.beginPath(); ctx.moveTo(x0 + e.size - 22 + Math.cos(a) * 6, y0 + 26 + Math.sin(a) * 6); ctx.lineTo(x0 + e.size - 22 + Math.cos(a) * 9, y0 + 26 + Math.sin(a) * 9); ctx.stroke(); }
+  // large garage door in the front wall (rolls up while a vehicle is being made)
+  const dw = 44, dh = 20, dy = y0 + e.size - 6 - dh;
+  ctx.fillStyle = '#222'; ctx.fillRect(e.x - dw / 2, dy, dw, dh);
+  const open = e.queue ? 0.35 + 0.65 * (e.trainT / (STATS.factory.trainTime * slowOf(e))) : 0;
+  ctx.fillStyle = '#9a958a';
+  for (let k = 0; k < dh * (1 - open); k += 4) ctx.fillRect(e.x - dw / 2, dy + k, dw, 3);
+  ctx.fillStyle = c.color; ctx.fillRect(e.x - dw / 2 - 3, dy - 3, dw + 6, 3);
+  frontApron(e, 50);
+  drawQueue(e);
 }
 
 function drawConstruction(e) {
@@ -1713,7 +1783,7 @@ function handleTap(x, y) {
   if (hit && hit.team === 0) { game.selected = new Set([hit.id]); return; }
 
   if (hit && hit.team === 1) {
-    const soldiers = myUnits.filter(e => e.type === 'soldier');
+    const soldiers = myUnits.filter(isCombat);
     if (soldiers.length) {
       for (const s of soldiers) s.order = { type: 'attack', target: hit.id };
       game.effects.push({ kind: 'marker', x: hit.x, y: hit.y, t: 0, color: '#ff6b6b' });
@@ -1752,7 +1822,7 @@ const selectedOfType = type => [...game.selected].map(byId).filter(e => e && e.t
 const $ = id => document.getElementById(id);
 const ui = {
   credits: $('credits'), info: $('info'),
-  deploy: $('btnDeploy'), barracks: $('btnBarracks'), refinery: $('btnRefinery'), tower: $('btnTower'), wall: $('btnWall'), gate: $('btnGate'), produce: $('btnProduce'),
+  deploy: $('btnDeploy'), barracks: $('btnBarracks'), refinery: $('btnRefinery'), tower: $('btnTower'), factory: $('btnFactory'), wall: $('btnWall'), gate: $('btnGate'), produce: $('btnProduce'),
   harvest: $('btnHarvest'), place: $('btnPlace'), cancel: $('btnCancel'), deselect: $('btnDeselect'),
   box: $('btnBox'), all: $('btnAll'), pause: $('btnPause'),
   overlay: $('overlay'), ovTitle: $('ovTitle'), ovText: $('ovText'), ovBtn: $('ovBtn'),
@@ -1774,6 +1844,7 @@ ui.deploy.addEventListener('click', () => {
 ui.barracks.addEventListener('click', () => startPlacing('barracks'));
 ui.refinery.addEventListener('click', () => startPlacing('refinery'));
 ui.tower.addEventListener('click', () => startPlacing('tower'));
+ui.factory.addEventListener('click', () => startPlacing('factory'));
 ui.wall.addEventListener('click', () => startPlacing('wall'));
 ui.gate.addEventListener('click', () => startPlacing('gate'));
 ui.place.addEventListener('click', tryPlace);
@@ -1790,7 +1861,7 @@ ui.deselect.addEventListener('click', () => { game.selected.clear(); game.placin
 ui.box.addEventListener('click', () => { input.boxMode = !input.boxMode; });
 ui.all.addEventListener('click', () => {
   game.placing = null;
-  const soldiers = game.ents.filter(e => e.team === 0 && e.type === 'soldier');
+  const soldiers = game.ents.filter(e => e.team === 0 && isCombat(e));
   game.selected = new Set(soldiers.map(e => e.id));
 });
 // ---------- Pause menu ----------
@@ -1863,12 +1934,13 @@ function updateHUD() {
   const sel = [...game.selected].map(byId).filter(Boolean);
   const one = t => sel.find(e => e.type === t);
   const settler = one('settler'), hq = one('hq'), producer = sel.find(e => PRODUCES[e.type]);
-  const extractors = sel.filter(e => e.type === 'extractor'), soldiers = sel.filter(e => e.type === 'soldier');
+  const extractors = sel.filter(e => e.type === 'extractor'), soldiers = sel.filter(e => e.type === 'soldier'), buggies = sel.filter(e => e.type === 'buggy');
   const placing = game.placing;
 
   show(ui.deploy, !!settler && !placing);
   show(ui.barracks, !!hq && !placing);
   show(ui.refinery, !!hq && !placing);
+  show(ui.factory, !!hq && !placing);
   show(ui.tower, !!hq && !placing);
   show(ui.wall, !!hq && !placing);
   show(ui.gate, !!hq && !placing);
@@ -1881,6 +1953,7 @@ function updateHUD() {
   ui.barracks.disabled = game.credits[0] < COST.barracks;
   ui.refinery.disabled = game.credits[0] < COST.refinery;
   ui.tower.disabled = game.credits[0] < COST.tower;
+  ui.factory.disabled = game.credits[0] < COST.factory;
   ui.wall.disabled = game.credits[0] < COST.wall;
   ui.gate.disabled = game.credits[0] < COST.gate;
   const wallMode = placing && placing.type === 'wall';
@@ -1906,10 +1979,11 @@ function updateHUD() {
   else if (sel.length === 1 && sel[0].type === 'wall') text = 'Wall';
   else if (sel.length === 1 && sel[0].type === 'tower') text = sel[0].built ? 'Guard Tower — fires at enemies in range' : `Guard Tower: ${Math.floor(sel[0].progress * 100)}% built`;
   else if (producer) text = producer.built ? `${NAMES[producer.type]}${producer.queue ? ' — making ×' + producer.queue : ''}` : `${NAMES[producer.type]}: ${Math.floor(producer.progress * 100)}% built`;
-  else if (extractors.length === 1 && !soldiers.length) text = extractorStatus(extractors[0]);
+  else if (extractors.length === 1 && sel.length === 1) text = extractorStatus(extractors[0]);
   else if (sel.length) {
     const parts = [];
     if (soldiers.length) parts.push(`${soldiers.length} soldier${soldiers.length > 1 ? 's' : ''}`);
+    if (buggies.length) parts.push(`${buggies.length} bugg${buggies.length > 1 ? 'ies' : 'y'}`);
     if (extractors.length) parts.push(`${extractors.length} extractor${extractors.length > 1 ? 's' : ''}`);
     text = parts.join(', ') + ' — tap to move';
   } else text = hqOf(0) ? 'Drag to scroll, pinch to zoom' : 'Tap your settler to begin';
