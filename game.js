@@ -60,7 +60,7 @@ const INCOME = 1;                     // small trickle per second so nobody gets
 const BUILD_RADIUS = 300;             // how far from your HQ you can place buildings
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
 
-const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250, grenadier: 160, engineer: 75 };
+const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250, grenadier: 160, engineer: 75, rocket: 200 };
 const WALL_REACH = 150;              // walls & gates can go this much further out than other buildings
 
 const STATS = {
@@ -68,6 +68,7 @@ const STATS = {
   soldier:   { hp: 60,  speed: 52, r: 9,  sight: 170, range: 90, dmg: 8, cooldown: 0.8 },
   extractor: { hp: 300, speed: 34, r: 15, sight: 150, capacity: 150, rate: 30, unloadTime: 1.5 },
   buggy:     { hp: 140, speed: 95, r: 13, sight: 220, range: 110, dmg: 5,  cooldown: 0.25 },   // fast, machine gun
+  rocket:    { hp: 55,  speed: 45, r: 9,  sight: 170, range: 130, dmg: 40, cooldown: 2.5, rocket: true, vsVehicle: 2, vsBuilding: 2, vsInfantry: 0.4 },   // anti-vehicle: double vs vehicles & buildings, weak vs infantry
   grenadier: { hp: 55,  speed: 48, r: 9,  sight: 170, range: 95,  dmg: 16, cooldown: 2.0, splash: 38, flight: 0.55, vsVehicle: 0.5 },   // lobbed grenades: area damage, half vs vehicles
   engineer:  { hp: 20,  speed: 48, r: 9,  sight: 150, repair: 30 },   // no weapon, very fragile: repairs (hp per second) and captures
   hq:        { hp: 900, size: 92, sight: 280 },
@@ -79,12 +80,12 @@ const STATS = {
   wall:      { hp: 400, size: 25, sight: 50 },
   gate:      { hp: 600, size: 50, sight: 60 },
 };
-const PRODUCES = { barracks: ['soldier', 'grenadier', 'buggy', 'engineer'], refinery: ['extractor'], factory: ['buggy'] };
-const TRAIN_TIME = { soldier: 4, buggy: 6, extractor: 6, grenadier: 4.5, engineer: 5 };   // seconds to make each unit
+const PRODUCES = { barracks: ['soldier', 'grenadier', 'rocket', 'buggy', 'engineer'], refinery: ['extractor'], factory: ['buggy'] };
+const TRAIN_TIME = { soldier: 4, buggy: 6, extractor: 6, grenadier: 4.5, engineer: 5, rocket: 5 };   // seconds to make each unit
 const FACTORY_ENABLED = false;   // War Factory is shelved for now (set true to bring it back)
-const isCombat = e => e.type === 'soldier' || e.type === 'buggy' || e.type === 'grenadier';
-const isInfantry = e => e.type === 'soldier' || e.type === 'grenadier' || e.type === 'engineer';
-const SHORT = { buggy: 'Buggy' };   // shorter names for buttons
+const isCombat = e => e.type === 'soldier' || e.type === 'buggy' || e.type === 'grenadier' || e.type === 'rocket';
+const isInfantry = e => e.type === 'soldier' || e.type === 'grenadier' || e.type === 'engineer' || e.type === 'rocket';
+const SHORT = { buggy: 'Buggy', rocket: 'Rocket' };   // shorter names for buttons
 
 // How the computer plays at each difficulty.
 //  think: seconds between decisions   slow: build/train time multiplier   income: share of ore value it earns
@@ -93,11 +94,11 @@ const SHORT = { buggy: 'Buggy' };   // shorter names for buttons
 //  extractors / refineries: how big its economy gets   walls: whether it builds a wall line with a gate
 const DIFFICULTY = {
   easy:   { label: 'Easy',   think: 2.5, slow: 1.5,  income: 0.7,  attackAt: 5, attackAfter: 300, barracks: 1, maxArmy: 6, towers: 0, buggies: false, plants: 0,
-            guard: 1, maxWave: 6, extractors: 2, refineries: 1, walls: false, grenadiers: false, engineers: 0 },
+            guard: 1, maxWave: 6, extractors: 2, refineries: 1, walls: false, grenadiers: false, engineers: 0, rockets: false },
   normal: { label: 'Normal', think: 1.5, slow: 1.18, income: 0.85, attackAt: 7, attackAfter: 180, barracks: 1, maxArmy: 20, towers: 2, buggies: true, plants: 1,
-            guard: 3, maxWave: 14, extractors: 4, refineries: 2, walls: true, grenadiers: true, engineers: 1 },
+            guard: 3, maxWave: 14, extractors: 4, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true },
   hard:   { label: 'Hard',   think: 1,   slow: 1,    income: 1,    attackAt: 6, attackAfter: 0,   barracks: 2, maxArmy: Infinity, towers: 3, buggies: true, plants: 2,
-            guard: 4, maxWave: 22, extractors: 5, refineries: 2, walls: true, grenadiers: true, engineers: 1 },
+            guard: 4, maxWave: 22, extractors: 5, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true },
 };
 let difficulty = 'normal';
 try { if (DIFFICULTY[localStorage.getItem('mini-rts-difficulty')]) difficulty = localStorage.getItem('mini-rts-difficulty'); } catch (err) {}
@@ -107,7 +108,7 @@ const POWER_BONUS = 0.25, POWER_MAX = 2;
 const powerBoost = team => Math.min(POWER_MAX, 1 + POWER_BONUS * game.ents.filter(b => b.team === team && b.type === 'power' && b.built).length);
 // how many times longer than normal this side takes to build things (difficulty slow-down ÷ power boost)
 const slowOf = e => (e.team === 1 ? diff().slow : 1) / powerBoost(e.team);
-const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', tower: 'Guard Tower', power: 'Power Plant', wall: 'Wall', gate: 'Gate' };
+const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', rocket: 'Rocket Soldier', tower: 'Guard Tower', power: 'Power Plant', wall: 'Wall', gate: 'Gate' };
 
 const TEAMS = [
   { name: 'You',   color: '#3b82f6', dark: '#1d3f8f', light: '#93c5fd' },
@@ -450,7 +451,7 @@ let game;
 
 function newGame() {
   game = {
-    ents: [], ore: [], nextId: 1, time: 0, grenades: [],
+    ents: [], ore: [], nextId: 1, time: 0, grenades: [], rockets: [],
     credits: [START_CREDITS, START_CREDITS],
     selected: new Set(),
     placing: null,           // { type, ghost:{x,y} } while choosing where to build
@@ -884,6 +885,23 @@ function update(dt) {
     game.effects.push({ kind: 'blast', x: g.x, y: g.y, r: g.r, t: 0 });
   }
   game.grenades = game.grenades.filter(g => !g.done);
+  // rockets in flight: home in on the target and hit hard (double vs vehicles & buildings, weak vs infantry)
+  for (const r of game.rockets) {
+    const t = byId(r.target);
+    if (t && t.hp > 0) { r.tx = t.x; r.ty = t.y; }
+    const dx = r.tx - r.x, dy = r.ty - r.y, d = Math.hypot(dx, dy), step = 480 * dt;
+    r.ang = Math.atan2(dy, dx); r.life -= dt;
+    if (Math.random() < 0.6) game.effects.push({ kind: 'dust', x: r.x, y: r.y, t: 0.2 });
+    if (d <= step + (t ? t.r || 0 : 0) * 0.5 || r.life <= 0) {
+      r.done = true;
+      if (t && t.hp > 0 && d <= step + 30) {
+        const S = STATS.rocket;
+        t.hp -= r.dmg * (isInfantry(t) ? S.vsInfantry : isBuilding(t) ? S.vsBuilding : S.vsVehicle);
+      }
+      game.effects.push({ kind: 'blast', x: r.tx, y: r.ty, r: 16, t: 0 });
+    } else { r.x += dx / d * step; r.y += dy / d * step; }
+  }
+  game.rockets = game.rockets.filter(r => !r.done);
   for (const fx of game.effects) fx.t += dt;
   game.effects = game.effects.filter(fx => fx.t < (fx.kind === 'shot' ? 0.08 : fx.kind === 'text' ? 1.2 : fx.kind === 'spark' ? 0.3 : fx.kind === 'blast' ? 0.45 : 0.6));
 
@@ -905,15 +923,30 @@ function findEnemyNear(e, radius) {
   return best;
 }
 
+function findVehicleNear(e, radius) {   // nearest enemy vehicle (buggy, extractor, settler) in view
+  let best = null, bestD = radius;
+  for (const o of game.ents) {
+    if (o.team === e.team || !isUnit(o) || isInfantry(o) || !visibleAt(o.x, o.y, e.team)) continue;
+    const d = edgeDist(e.x, e.y, o);
+    if (d < bestD) { bestD = d; best = o; }
+  }
+  return best;
+}
+
 function updateSoldier(e, dt) {   // soldiers and buggies
   const s = STATS[e.type];
   e.cooldown -= dt;
   e.revealT = (e.revealT || 0) - dt;
   let o = e.order;
 
+  // rocket soldiers would rather shoot a vehicle: swap to one in range if they're busy with infantry
+  if (s.rocket && o && o.type === 'attack') {
+    const cur = byId(o.target);
+    if (cur && isInfantry(cur)) { const v = findVehicleNear(e, s.range); if (v) { o.target = v.id; } }
+  }
   // idle or attack-moving soldiers look for nearby enemies on their own
   if ((!o && !e.passive) || (o && o.type === 'attackmove')) {
-    const foe = findEnemyNear(e, s.sight);
+    const foe = (s.rocket && findVehicleNear(e, s.sight)) || findEnemyNear(e, s.sight);
     if (foe) { e.order = { type: 'attack', target: foe.id, resume: o }; o = e.order; }
   }
   if (!o) return;
@@ -939,7 +972,10 @@ function updateSoldier(e, dt) {   // soldiers and buggies
       if (e.cooldown <= 0) {
         e.cooldown = s.cooldown;
         e.revealT = 1.5;   // firing gives away your position
-        if (s.splash) {   // grenade: flies for a moment, so fast targets can dodge it
+        if (s.rocket) {   // rocket: flies fast and homes in, so it's hard to dodge
+          game.rockets.push({ x: e.x + Math.cos(e.facing) * 12, y: e.y + Math.sin(e.facing) * 12, target: t.id, tx: t.x, ty: t.y, team: e.team, dmg: s.dmg, life: 1.5 });
+          e.throwT = 0.2;
+        } else if (s.splash) {   // grenade: flies for a moment, so fast targets can dodge it
           game.grenades.push({ x0: e.x, y0: e.y, x: t.x + (Math.random() - .5) * 10, y: t.y + (Math.random() - .5) * 10,
                                t: 0, dur: s.flight, team: e.team, dmg: s.dmg, r: s.splash });
           e.throwT = 0.25;
@@ -1232,12 +1268,16 @@ function runAI(dt) {
   const wantBuggy = D.buggies && of('buggy').length + qBuggies < (of('soldier').length + 2) / 2;   // ~1 buggy per 2 soldiers
   const qOf = t => barracks.reduce((n, b) => n + b.qTypes.filter(q => q === t).length, 0);
   const wantGren = D.grenadiers && of('grenadier').length + qOf('grenadier') < (of('soldier').length + 1) / 3;   // ~1 grenadier per 3 soldiers
+  // rocket soldiers once it has seen your vehicles: about one for each buggy it has spotted
+  ai.seenBuggies = Math.max(ai.seenBuggies || 0, game.ents.filter(v => v.team === 0 && v.type === 'buggy' && visibleAt(v.x, v.y, 1)).length);
+  const wantRocket = D.rockets && (ai.seenBuggies || 0) > 0 && of('rocket').length + qOf('rocket') < Math.min(6, ai.seenBuggies);
   const wantEngineer = of('engineer').length + qOf('engineer') < D.engineers && game.time > 120;
   for (const b of barracks) {
     if (b.queue >= 2) continue;
     if (wantEngineer && game.credits[1] >= COST.engineer) { produce(b, 'engineer'); continue; }
     if (army.length + queued >= D.maxArmy) continue;
-    if (wantBuggy) { if (game.credits[1] >= COST.buggy + reserve) produce(b, 'buggy'); }
+    if (wantRocket) { if (game.credits[1] >= COST.rocket) produce(b, 'rocket'); }   // answering your vehicles comes before saving up
+    else if (wantBuggy) { if (game.credits[1] >= COST.buggy + reserve) produce(b, 'buggy'); }
     else if (wantGren) { if (game.credits[1] >= COST.grenadier + reserve) produce(b, 'grenadier'); }
     else if (game.credits[1] >= COST.soldier + reserve) produce(b, 'soldier');
   }
@@ -1433,7 +1473,7 @@ function draw() {
     else if (e.type === 'settler') drawSettler(e);
     else if (e.type === 'extractor') drawExtractor(e);
     else if (e.type === 'buggy') drawBuggy(e);
-    else if (e.type === 'grenadier' || e.type === 'engineer') drawSoldier(e);
+    else if (e.type === 'grenadier' || e.type === 'engineer' || e.type === 'rocket') drawSoldier(e);
     else if (e.type === 'factory') drawFactory(e);
     else drawSoldier(e);
   }
@@ -1482,6 +1522,16 @@ function draw() {
     if (!visibleAt(x, y + Math.sin(k * Math.PI) * 28)) continue;
     ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.arc(g.x0 + (g.x - g.x0) * k, g.y0 + (g.y - g.y0) * k, 2.5, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#3d4a2a'; ctx.beginPath(); ctx.arc(x, y, 3.2, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // rockets in flight: a small missile with a bright exhaust
+  for (const r of game.rockets) {
+    if (!visibleAt(r.x, r.y)) continue;
+    ctx.save(); ctx.translate(r.x, r.y); ctx.rotate(r.ang || 0);
+    ctx.fillStyle = '#ffb347'; ctx.beginPath(); ctx.arc(-6, 0, 2.6, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#555c48'; ctx.fillRect(-5, -1.6, 9, 3.2);
+    ctx.fillStyle = '#c0392b'; ctx.beginPath(); ctx.moveTo(4, -1.6); ctx.lineTo(7, 0); ctx.lineTo(4, 1.6); ctx.fill();
+    ctx.restore();
   }
 
   // fog on top of the world
@@ -1677,7 +1727,7 @@ function drawSoldier(e) {   // soldiers, grenadiers and engineers share a body; 
   ctx.beginPath(); ctx.ellipse(step, -3.5, 3.5, 2.2, 0, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.ellipse(-step, 3.5, 3.5, 2.2, 0, 0, Math.PI * 2); ctx.fill();
   // pack: backpack, grenade satchel or tool bag
-  ctx.fillStyle = kind === 'engineer' ? '#7a5a32' : kind === 'grenadier' ? '#3f4a2c' : '#4b4f30';
+  ctx.fillStyle = kind === 'engineer' ? '#7a5a32' : kind === 'grenadier' ? '#3f4a2c' : kind === 'rocket' ? '#5a5240' : '#4b4f30';
   ctx.fillRect(-9, -4.5, 5, 9);
   if (kind === 'engineer') { ctx.fillStyle = '#c9a227'; ctx.fillRect(-8.5, -1, 4, 2); }   // tape measure / buckle
   // shoulders / uniform in team colour
@@ -1696,6 +1746,18 @@ function drawSoldier(e) {   // soldiers, grenadiers and engineers share a body; 
     ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(fling ? 10 : -3, fling ? 4 : 9); ctx.stroke();
     ctx.fillStyle = '#e0b48a'; ctx.beginPath(); ctx.arc(fling ? 10.5 : -3.5, fling ? 4 : 9.5, 1.9, 0, Math.PI * 2); ctx.fill();
     if (!fling) { ctx.fillStyle = '#3d4a2a'; ctx.beginPath(); ctx.arc(-3.5, 9.5, 2.2, 0, Math.PI * 2); ctx.fill(); }   // grenade ready
+  } else if (kind === 'rocket') {
+    // launcher tube on the right shoulder, pointing forward (kicks back when it fires)
+    const kick = e.throwT > 0 ? -2.5 : 0;
+    ctx.fillStyle = '#4a5238'; ctx.strokeStyle = '#2b2f20'; ctx.lineWidth = 1;
+    ctx.fillRect(-9 + kick, 2.2, 24, 4.6); ctx.strokeRect(-9 + kick, 2.2, 24, 4.6);
+    ctx.fillStyle = '#2b2f20'; ctx.fillRect(13 + kick, 1.6, 3, 5.8); ctx.fillRect(-10 + kick, 1.6, 2.5, 5.8);   // muzzle and back end
+    if (e.throwT <= 0) { ctx.fillStyle = '#c0392b'; ctx.beginPath(); ctx.moveTo(16 + kick, 2.4); ctx.lineTo(19.5 + kick, 4.5); ctx.lineTo(16 + kick, 6.6); ctx.fill(); }   // warhead loaded
+    ctx.fillStyle = '#e0b48a';
+    ctx.beginPath(); ctx.arc(2, 1.6, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(6.5, 1.8, 2, 0, Math.PI * 2); ctx.fill();
+    // a spare rocket strapped to the pack
+    ctx.fillStyle = '#555c48'; ctx.fillRect(-9.5, -6.5, 7, 2.4); ctx.fillStyle = '#c0392b'; ctx.fillRect(-2.6, -6.5, 1.8, 2.4);
   } else if (kind === 'engineer') {
     // spanner in hand (it bobs while repairing)
     const wob = e.working ? Math.sin(performance.now() / 70) * 0.5 : 0;
@@ -1722,11 +1784,16 @@ function drawSoldier(e) {   // soldiers, grenadiers and engineers share a body; 
     ctx.fillStyle = c.dark;
     ctx.beginPath(); ctx.arc(0.5, 0, 5, 0, Math.PI * 2); ctx.fill();
     if (kind === 'grenadier') { ctx.fillStyle = '#f2c230'; ctx.fillRect(-0.6, -4.8, 2.2, 9.6); }
+    if (kind === 'rocket') { ctx.fillStyle = '#d64535'; ctx.fillRect(-0.6, -4.8, 2.2, 9.6); }   // red stripe
   }
   ctx.fillStyle = 'rgba(255,255,255,0.25)';
   ctx.beginPath(); ctx.arc(-0.5, -1.5, 2, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 
+  if (kind === 'rocket' && e.throwT > 0.1) {   // back-blast
+    ctx.fillStyle = 'rgba(255,200,120,0.7)';
+    ctx.beginPath(); ctx.arc(e.x - Math.cos(e.facing) * 13, e.y - Math.sin(e.facing) * 13, 4, 0, Math.PI * 2); ctx.fill();
+  }
   // muzzle flash right after a rifle shot
   if (kind === 'soldier' && e.cooldown > STATS.soldier.cooldown - 0.07) {
     ctx.fillStyle = '#ffe9a0';
@@ -2566,7 +2633,7 @@ function updateHUD() {
   } else if (sel.length) {
     const counts = {};
     for (const e of sel) counts[e.type] = (counts[e.type] || 0) + 1;
-    const plural = { soldier: 'soldiers', buggy: 'buggies', extractor: 'extractors', grenadier: 'grenadiers', engineer: 'engineers', settler: 'settlers' };
+    const plural = { soldier: 'soldiers', buggy: 'buggies', extractor: 'extractors', grenadier: 'grenadiers', rocket: 'rocket soldiers', engineer: 'engineers', settler: 'settlers' };
     const parts = Object.entries(counts).map(([t, n]) => `${n} ${n > 1 ? plural[t] || t + 's' : (SHORT[t] || NAMES[t]).toLowerCase()}`);
     text = parts.join(', ') + ' — tap to move';
   } else text = hqOf(0) ? 'Drag to scroll, pinch to zoom' : 'Tap your settler to begin';

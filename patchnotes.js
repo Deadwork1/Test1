@@ -2,6 +2,16 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '4.4', date: '16 Nov 2026', title: 'Rocket Soldiers',
+    changes: [
+      'New unit: Rocket Soldier ($200, Barracks). Fires a fast homing rocket every 2.5s with a long range (130), so it can hit buggies before they can shoot back.',
+      'Rockets do double damage to vehicles and buildings, but less than half damage to infantry: soldiers and grenadiers are its counter.',
+      'Rocket soldiers pick vehicles first, and switch to one if it comes into range while they are shooting infantry.',
+      'Can hide in forests like other infantry.',
+      'The computer (Normal and Hard) trains rocket soldiers once it has seen your buggies, about one for each buggy it spotted.',
+    ],
+  },
+  {
     version: '4.3.1', date: '16 Nov 2026', title: 'Buggy balance',
     changes: [
       'Scout Buggy damage lowered from 6 to 5 per shot. One buggy now loses to three soldiers, but a group of buggies is still strong.',
