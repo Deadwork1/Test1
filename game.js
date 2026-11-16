@@ -418,17 +418,26 @@ function updateBuilding(e, dt) {
   if (!e.built) {   // construction happens on its own
     e.progress += dt / s.buildTime;
     e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.9 * dt / s.buildTime);
-    if (e.progress >= 1) { e.progress = 1; e.built = true; }
+    if (e.progress >= 1) {
+      e.progress = 1; e.built = true;
+      if (e.type === 'refinery') releaseUnit(e);   // every refinery comes with one free extractor
+    }
     return;
   }
   if (!PRODUCES[e.type] || e.queue <= 0) return;
   e.trainT += dt;
   if (e.trainT >= s.trainTime) {
     e.trainT = 0; e.queue--;
-    const dir = e.team === 0 ? -1 : 1;
-    const u = spawn(PRODUCES[e.type], e.team, e.x, e.y + dir * (e.size / 2 + 16));
-    u.order = { type: 'move', x: e.x + (Math.random() - .5) * 80, y: e.y + dir * (e.size / 2 + 45) };
+    releaseUnit(e);
   }
+}
+
+// a new unit rolls out of the building's door
+function releaseUnit(b) {
+  const dir = b.team === 0 ? -1 : 1;
+  const u = spawn(PRODUCES[b.type], b.team, b.x, b.y + dir * (b.size / 2 + 16));
+  u.order = { type: 'move', x: b.x + (Math.random() - .5) * 80, y: b.y + dir * (b.size / 2 + 45) };
+  return u;
 }
 
 // keep units from stacking on top of each other or driving through buildings

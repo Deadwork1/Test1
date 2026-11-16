@@ -6,7 +6,7 @@ A small real-time strategy game inspired by classic 90s RTS games, built step by
 
 - Your **settler** deploys into a **Headquarters (HQ)**.
 - The HQ builds a **Refinery** ($400) and a **Barracks** ($300).
-- The Refinery builds **Extractors** ($150). They wait until you tap some **ore**, then run back and forth automatically. When a patch runs out they go idle; **Auto-harvest** sends them to the nearest ore you've discovered.
+- Each Refinery comes with one free **Extractor** and can build more ($150). They wait until you tap some **ore**, then run back and forth automatically. When a patch runs out they go idle; **Auto-harvest** sends them to the nearest ore you've discovered.
 - The Barracks trains **Soldiers** ($100).
 - The big ore field in the middle is the prize. Destroy everything the enemy owns to win.
 

@@ -1,6 +1,6 @@
 // Offline support: serve files from cache, refresh them in the background.
 // Bump VERSION whenever you release changes.
-const VERSION = 'mini-rts-v2';
+const VERSION = 'mini-rts-v3';
 const FILES = ['./', 'index.html', 'game.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {
