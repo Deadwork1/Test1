@@ -2,8 +2,11 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
-    version: '3.5.1', date: '16 Nov 2026', title: 'Normal tuning',
-    changes: ['Normal is a little tougher: the enemy now builds 18% slower than you (was 25%).'],
+    version: '3.5.1', date: '16 Nov 2026', title: 'Difficulty tuning',
+    changes: [
+      'Normal is a little tougher: the enemy now builds 18% slower than you (was 25%).',
+      'Easy is a little tougher too: the enemy now builds 50% slower than you (was 60%).',
+    ],
   },
   {
     version: '3.5', date: '16 Nov 2026', title: 'Difficulty levels',

@@ -32,7 +32,7 @@ const PRODUCES = { barracks: 'soldier', refinery: 'extractor' };
 //  attackAt: army size before it attacks   attackAfter: earliest attack (seconds)   barracks: max barracks
 //  maxArmy: it stops training soldiers at this many
 const DIFFICULTY = {
-  easy:   { label: 'Easy',   think: 2.5, slow: 1.6,  income: 0.7,  attackAt: 5, attackAfter: 300, barracks: 1, maxArmy: 6 },
+  easy:   { label: 'Easy',   think: 2.5, slow: 1.5,  income: 0.7,  attackAt: 5, attackAfter: 300, barracks: 1, maxArmy: 6 },
   normal: { label: 'Normal', think: 1.5, slow: 1.18, income: 0.85, attackAt: 7, attackAfter: 180, barracks: 1, maxArmy: 10 },
   hard:   { label: 'Hard',   think: 1,   slow: 1,    income: 1,    attackAt: 6, attackAfter: 0,   barracks: 2, maxArmy: Infinity },
 };
