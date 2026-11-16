@@ -2,6 +2,15 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '3.10', date: '16 Nov 2026', title: 'Power Plant',
+    changes: [
+      'New building: Power Plant ($300), built from the HQ.',
+      'Each finished Power Plant makes all your construction and unit training 25% faster, up to double speed with 4 plants.',
+      'Your current bonus shows next to your money, e.g. ⚡ +50%.',
+      'The computer builds one on Normal and two on Hard.',
+    ],
+  },
+  {
     version: '3.9', date: '16 Nov 2026', title: 'Growing build area',
     changes: [
       'Your build area now grows as your base spreads out. Every finished building (not walls or gates) adds a circle 200 wide around it, on top of the HQ\'s 300.',

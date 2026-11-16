@@ -16,7 +16,7 @@ const INCOME = 1;                     // small trickle per second so nobody gets
 const BUILD_RADIUS = 300;             // how far from your HQ you can place buildings
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
 
-const COST = { barracks: 300, refinery: 400, factory: 500, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250 };
+const COST = { barracks: 300, refinery: 400, factory: 500, power: 300, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250 };
 const WALL_REACH = 150;              // walls & gates can go this much further out than other buildings
 
 const STATS = {
@@ -28,6 +28,7 @@ const STATS = {
   barracks:  { hp: 500, size: 74, sight: 200, buildTime: 10, trainTime: 4, maxQueue: 5 },
   refinery:  { hp: 600, size: 84, sight: 200, buildTime: 12, trainTime: 6, maxQueue: 3 },
   factory:   { hp: 800, size: 90, sight: 200, buildTime: 14, trainTime: 7, maxQueue: 3 },
+  power:     { hp: 400, size: 60, sight: 160, buildTime: 10 },
   tower:     { hp: 700, size: 46, sight: 230, buildTime: 12, range: 170, dmg: 14, cooldown: 0.9 },
   wall:      { hp: 400, size: 25, sight: 50 },
   gate:      { hp: 600, size: 50, sight: 60 },
@@ -42,15 +43,19 @@ const isCombat = e => e.type === 'soldier' || e.type === 'buggy';
 //  attackAt: army size before it attacks   attackAfter: earliest attack (seconds)   barracks: max barracks
 //  maxArmy: it stops training soldiers at this many
 const DIFFICULTY = {
-  easy:   { label: 'Easy',   think: 2.5, slow: 1.5,  income: 0.7,  attackAt: 5, attackAfter: 300, barracks: 1, maxArmy: 6, towers: 0, buggies: false },
-  normal: { label: 'Normal', think: 1.5, slow: 1.18, income: 0.85, attackAt: 7, attackAfter: 180, barracks: 1, maxArmy: 20, towers: 1, buggies: true },
-  hard:   { label: 'Hard',   think: 1,   slow: 1,    income: 1,    attackAt: 6, attackAfter: 0,   barracks: 2, maxArmy: Infinity, towers: 2, buggies: true },
+  easy:   { label: 'Easy',   think: 2.5, slow: 1.5,  income: 0.7,  attackAt: 5, attackAfter: 300, barracks: 1, maxArmy: 6, towers: 0, buggies: false, plants: 0 },
+  normal: { label: 'Normal', think: 1.5, slow: 1.18, income: 0.85, attackAt: 7, attackAfter: 180, barracks: 1, maxArmy: 20, towers: 1, buggies: true, plants: 1 },
+  hard:   { label: 'Hard',   think: 1,   slow: 1,    income: 1,    attackAt: 6, attackAfter: 0,   barracks: 2, maxArmy: Infinity, towers: 2, buggies: true, plants: 2 },
 };
 let difficulty = 'normal';
 try { if (DIFFICULTY[localStorage.getItem('mini-rts-difficulty')]) difficulty = localStorage.getItem('mini-rts-difficulty'); } catch (err) {}
 const diff = () => DIFFICULTY[difficulty];
-const slowOf = e => e.team === 1 ? diff().slow : 1;
-const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', tower: 'Guard Tower', wall: 'Wall', gate: 'Gate' };
+// Power Plants: each finished one makes building and training 25% faster, up to double speed
+const POWER_BONUS = 0.25, POWER_MAX = 2;
+const powerBoost = team => Math.min(POWER_MAX, 1 + POWER_BONUS * game.ents.filter(b => b.team === team && b.type === 'power' && b.built).length);
+// how many times longer than normal this side takes to build things (difficulty slow-down ÷ power boost)
+const slowOf = e => (e.team === 1 ? diff().slow : 1) / powerBoost(e.team);
+const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', tower: 'Guard Tower', power: 'Power Plant', wall: 'Wall', gate: 'Gate' };
 
 const TEAMS = [
   { name: 'You',   color: '#3b82f6', dark: '#1d3f8f', light: '#93c5fd' },
@@ -440,7 +445,7 @@ function spawn(type, team, x, y) {
   return e;
 }
 
-function isBuildingType(t) { return t === 'hq' || t === 'barracks' || t === 'refinery' || t === 'factory' || t === 'tower' || t === 'wall' || t === 'gate'; }
+function isBuildingType(t) { return t === 'hq' || t === 'barracks' || t === 'refinery' || t === 'factory' || t === 'power' || t === 'tower' || t === 'wall' || t === 'gate'; }
 const isWallType = t => t === 'wall' || t === 'gate';
 const isBuilding = e => isBuildingType(e.type);
 const isUnit = e => !isBuilding(e);
@@ -1009,6 +1014,7 @@ function runAI(dt) {
   if (hq) {
     if (refineries.length === 0) aiPlace(hq, 'refinery');
     else if (barracks.length === 0) aiPlace(hq, 'barracks');
+    else if (of('power').length < diff().plants && cash >= COST.power) aiPlace(hq, 'power');
     else if (of('tower').length < diff().towers && cash >= COST.tower) aiPlace(hq, 'tower');
     else if (barracks.length < diff().barracks && cash >= 900) aiPlace(hq, 'barracks');
   }
@@ -1090,6 +1096,7 @@ function draw() {
     else if (e.type === 'barracks') drawBarracks(e);
     else if (e.type === 'refinery') drawRefinery(e);
     else if (e.type === 'tower') drawTower(e);
+    else if (e.type === 'power') drawPower(e);
     else if (e.type === 'wall') drawWall(e);
     else if (e.type === 'gate') drawGate(e);
     else if (e.type === 'settler') drawSettler(e);
@@ -1635,6 +1642,29 @@ function drawGate(e) {
   }
 }
 
+function drawPower(e) {
+  if (!e.built) return drawConstruction(e);
+  const c = TEAMS[e.team], h = e.size / 2, x0 = e.x - h, y0 = e.y - h, t = performance.now() / 1000;
+  ctx.fillStyle = '#8a857a'; ctx.fillRect(x0 - 3, y0 - 3, e.size + 6, e.size + 6);
+  block(x0 + 3, y0 + 26, e.size - 6, e.size - 30, '#7b766a', '#4c4840', 10);   // generator hall
+  ctx.fillStyle = c.color; ctx.fillRect(x0 + 3, y0 + 26, e.size - 6, 4);
+  // two cooling towers with steam
+  for (const tx of [x0 + 16, x0 + e.size - 16]) {
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.arc(tx + 3, y0 + 17, 12, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#c9c4b8'; ctx.beginPath(); ctx.arc(tx, y0 + 14, 12, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#6d695f'; ctx.beginPath(); ctx.arc(tx, y0 + 14, 7, 0, Math.PI * 2); ctx.fill();
+    for (let k = 0; k < 2; k++) {
+      const p = (t * 0.5 + k / 2 + tx * 0.01) % 1;
+      ctx.fillStyle = `rgba(235,235,235,${0.5 * (1 - p)})`;
+      ctx.beginPath(); ctx.arc(tx + p * 6, y0 + 10 - p * 22, 5 + p * 7, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  // emblem: lightning bolt that pulses
+  emblemPlate(e.x, y0 + 40, 10, e.team);
+  ctx.fillStyle = `rgba(255,222,90,${0.75 + 0.25 * Math.sin(t * 6)})`;
+  ctx.beginPath(); ctx.moveTo(e.x + 2, y0 + 32); ctx.lineTo(e.x - 4, y0 + 41); ctx.lineTo(e.x, y0 + 41); ctx.lineTo(e.x - 2, y0 + 48); ctx.lineTo(e.x + 4, y0 + 39); ctx.lineTo(e.x, y0 + 39); ctx.closePath(); ctx.fill();
+}
+
 function drawRange(x, y, r) {
   ctx.strokeStyle = 'rgba(255,233,160,0.55)'; ctx.fillStyle = 'rgba(255,233,160,0.06)';
   ctx.setLineDash([8, 6]); ctx.lineWidth = 2;
@@ -1839,8 +1869,8 @@ const selectedOfType = type => [...game.selected].map(byId).filter(e => e && e.t
 // ---------- HUD ----------
 const $ = id => document.getElementById(id);
 const ui = {
-  credits: $('credits'), info: $('info'),
-  deploy: $('btnDeploy'), barracks: $('btnBarracks'), refinery: $('btnRefinery'), tower: $('btnTower'), factory: $('btnFactory'), wall: $('btnWall'), gate: $('btnGate'), produce: $('btnProduce'), produce2: $('btnProduce2'),
+  credits: $('credits'), info: $('info'), powerChip: $('powerChip'),
+  deploy: $('btnDeploy'), barracks: $('btnBarracks'), refinery: $('btnRefinery'), tower: $('btnTower'), power: $('btnPower'), factory: $('btnFactory'), wall: $('btnWall'), gate: $('btnGate'), produce: $('btnProduce'), produce2: $('btnProduce2'),
   harvest: $('btnHarvest'), place: $('btnPlace'), cancel: $('btnCancel'), deselect: $('btnDeselect'),
   box: $('btnBox'), all: $('btnAll'), pause: $('btnPause'),
   overlay: $('overlay'), ovTitle: $('ovTitle'), ovText: $('ovText'), ovBtn: $('ovBtn'),
@@ -1862,6 +1892,7 @@ ui.deploy.addEventListener('click', () => {
 ui.barracks.addEventListener('click', () => startPlacing('barracks'));
 ui.refinery.addEventListener('click', () => startPlacing('refinery'));
 ui.tower.addEventListener('click', () => startPlacing('tower'));
+ui.power.addEventListener('click', () => startPlacing('power'));
 ui.factory.addEventListener('click', () => startPlacing('factory'));
 ui.wall.addEventListener('click', () => startPlacing('wall'));
 ui.gate.addEventListener('click', () => startPlacing('gate'));
@@ -1963,6 +1994,7 @@ function updateHUD() {
   show(ui.refinery, !!hq && !placing);
   show(ui.factory, FACTORY_ENABLED && !!hq && !placing);
   show(ui.tower, !!hq && !placing);
+  show(ui.power, !!hq && !placing);
   show(ui.wall, !!hq && !placing);
   show(ui.gate, !!hq && !placing);
   show(ui.produce, !!producer && !placing);
@@ -1975,6 +2007,10 @@ function updateHUD() {
   ui.barracks.disabled = game.credits[0] < COST.barracks;
   ui.refinery.disabled = game.credits[0] < COST.refinery;
   ui.tower.disabled = game.credits[0] < COST.tower;
+  ui.power.disabled = game.credits[0] < COST.power;
+  const boost = powerBoost(0);
+  ui.powerChip.style.display = boost > 1 ? '' : 'none';
+  ui.powerChip.textContent = `⚡ +${Math.round((boost - 1) * 100)}%`;
   ui.factory.disabled = game.credits[0] < COST.factory;
   ui.wall.disabled = game.credits[0] < COST.wall;
   ui.gate.disabled = game.credits[0] < COST.gate;
@@ -2001,6 +2037,9 @@ function updateHUD() {
   else if (hq) text = 'Headquarters';
   else if (sel.length === 1 && sel[0].type === 'gate') text = 'Gate — opens for your units, enemies must destroy it';
   else if (sel.length === 1 && sel[0].type === 'wall') text = 'Wall';
+  else if (sel.length === 1 && sel[0].type === 'power') text = sel[0].built
+    ? `Power Plant — you build ${Math.round((powerBoost(0) - 1) * 100)}% faster${powerBoost(0) >= POWER_MAX ? ' (max)' : ''}`
+    : `Power Plant: ${Math.floor(sel[0].progress * 100)}% built`;
   else if (sel.length === 1 && sel[0].type === 'tower') text = sel[0].built ? 'Guard Tower — fires at enemies in range' : `Guard Tower: ${Math.floor(sel[0].progress * 100)}% built`;
   else if (producer) text = producer.built ? `${NAMES[producer.type]}${producer.queue ? ' — making ×' + producer.queue : ''}` : `${NAMES[producer.type]}: ${Math.floor(producer.progress * 100)}% built`;
   else if (extractors.length === 1 && sel.length === 1) text = extractorStatus(extractors[0]);
