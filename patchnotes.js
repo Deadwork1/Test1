@@ -2,6 +2,12 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '4.3.1', date: '16 Nov 2026', title: 'Buggy balance',
+    changes: [
+      'Scout Buggy damage lowered from 6 to 5 per shot. One buggy now loses to three soldiers, but a group of buggies is still strong.',
+    ],
+  },
+  {
     version: '4.3', date: '16 Nov 2026', title: 'Grenadiers & Engineers',
     changes: [
       'New unit: Grenadier ($160, Barracks). Lobs grenades that hit everything in a small area: great against groups of soldiers. Grenades take a moment to land, so fast units can dodge, and they do half damage to vehicles. Buggies are its counter.',

@@ -67,7 +67,7 @@ const STATS = {
   settler:   { hp: 200, speed: 38, r: 16, sight: 180 },
   soldier:   { hp: 60,  speed: 52, r: 9,  sight: 170, range: 90, dmg: 8, cooldown: 0.8 },
   extractor: { hp: 300, speed: 34, r: 15, sight: 150, capacity: 150, rate: 30, unloadTime: 1.5 },
-  buggy:     { hp: 140, speed: 95, r: 13, sight: 220, range: 110, dmg: 6,  cooldown: 0.25 },   // fast, machine gun
+  buggy:     { hp: 140, speed: 95, r: 13, sight: 220, range: 110, dmg: 5,  cooldown: 0.25 },   // fast, machine gun
   grenadier: { hp: 55,  speed: 48, r: 9,  sight: 170, range: 95,  dmg: 16, cooldown: 2.0, splash: 38, flight: 0.55, vsVehicle: 0.5 },   // lobbed grenades: area damage, half vs vehicles
   engineer:  { hp: 20,  speed: 48, r: 9,  sight: 150, repair: 30 },   // no weapon, very fragile: repairs (hp per second) and captures
   hq:        { hp: 900, size: 92, sight: 280 },
