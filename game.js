@@ -60,12 +60,12 @@ const INCOME = 1;                     // small trickle per second so nobody gets
 const BUILD_RADIUS = 300;             // how far from your HQ you can place buildings
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
 
-const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250, grenadier: 160, engineer: 75, rocket: 200, sniper: 250, light: 500, heavy: 900, tech: 800 };
+const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250, grenadier: 160, engineer: 75, rocket: 200, sniper: 200, light: 500, heavy: 900, tech: 800 };
 const WALL_REACH = 150;              // walls & gates can go this much further out than other buildings
 
 const STATS = {
   settler:   { hp: 200, speed: 38, r: 16, sight: 180 },
-  soldier:   { hp: 60,  speed: 52, r: 9,  sight: 170, range: 90, dmg: 8, cooldown: 0.8 },
+  soldier:   { hp: 60,  speed: 52, r: 9,  sight: 170, range: 85, dmg: 7, cooldown: 0.8 },
   extractor: { hp: 300, speed: 34, r: 15, sight: 150, capacity: 150, rate: 30, unloadTime: 1.5 },
   buggy:     { hp: 140, speed: 95, r: 13, sight: 220, range: 110, dmg: 5,  cooldown: 0.25 },   // fast, machine gun
   light:     { hp: 350, speed: 60, r: 15, sight: 200, range: 130, dmg: 30, cooldown: 1.5, tank: true },   // light tank: all-rounder
@@ -102,12 +102,12 @@ const SHORT = { buggy: 'Buggy', rocket: 'Rocket', sniper: 'Sniper', light: 'Ligh
 //  maxArmy: it stops training soldiers at this many   guard: units it keeps at home   maxWave: biggest attack wave
 //  extractors / refineries: how big its economy gets   walls: whether it builds a wall line with a gate
 const DIFFICULTY = {
-  easy:   { label: 'Easy',   think: 2.5, slow: 1.5,  income: 0.7,  attackAt: 5, attackAfter: 300, barracks: 1, maxArmy: 6, towers: 0, buggies: false, plants: 0,
-            guard: 1, maxWave: 6, extractors: 2, refineries: 1, walls: false, grenadiers: false, engineers: 0, rockets: false, snipers: 0, factory: false, tanks: 0, heavyTanks: false },
+  easy:   { label: 'Easy',   think: 2.5, slow: 1.5,  income: 0.7,  attackAt: 5, attackAfter: 300, barracks: 1, maxArmy: 14, towers: 0, buggies: false, plants: 0,
+            guard: 1, maxWave: 6, extractors: 2, refineries: 1, walls: false, grenadiers: false, engineers: 0, rockets: false, snipers: 0, factory: false, tanks: 0, heavyTanks: false, raidEvery: 0 },
   normal: { label: 'Normal', think: 1.5, slow: 1.18, income: 0.85, attackAt: 7, attackAfter: 180, barracks: 1, maxArmy: 20, towers: 2, buggies: true, plants: 1,
-            guard: 3, maxWave: 14, extractors: 4, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 1, factory: true, tanks: 0.25, heavyTanks: false },
+            guard: 3, maxWave: 14, extractors: 4, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 1, factory: true, tanks: 0.25, heavyTanks: false, raidEvery: 240 },
   hard:   { label: 'Hard',   think: 1,   slow: 1,    income: 1,    attackAt: 6, attackAfter: 0,   barracks: 2, maxArmy: Infinity, towers: 3, buggies: true, plants: 2,
-            guard: 4, maxWave: 22, extractors: 5, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true },
+            guard: 4, maxWave: 22, extractors: 5, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true, raidEvery: 180 },
 };
 let difficulty = 'normal';
 try { if (DIFFICULTY[localStorage.getItem('mini-rts-difficulty')]) difficulty = localStorage.getItem('mini-rts-difficulty'); } catch (err) {}
@@ -1243,6 +1243,49 @@ function aiWallPlan(hq) {
   return { tiles, gate: { ...gateAt, vertical } };
 }
 
+// Engineer raid: pick one of your buildings it knows about (not the HQ), then sneak round the edge of the map to it and capture it
+function aiRaidPlan(en) {
+  const prize = { refinery: 5, factory: 5, tech: 6, power: 3, barracks: 4, tower: 2 };
+  let best = null, bestS = -1;
+  for (const [id] of game.ai.known) {
+    const b = byId(id);
+    if (!b || b.team !== 0 || !canCapture(b) || b.type === 'hq') continue;
+    const sc = (prize[b.type] || 1) + Math.random() * 2;
+    if (sc > bestS) { bestS = sc; best = b; }
+  }
+  if (!best) return null;
+  // the long way round: out to a far corner first, then along the edge towards the target
+  const home = hqOf(1) || best;
+  const corners = [{ x: 90, y: 90 }, { x: W - 90, y: 90 }, { x: 90, y: H - 90 }, { x: W - 90, y: H - 90 }]
+    .filter(k => Math.hypot(k.x - best.x, k.y - best.y) > 500 && Math.hypot(k.x - home.x, k.y - home.y) > 500);   // corners away from both bases
+  const c = corners.length ? corners[Math.floor(Math.random() * corners.length)] : { x: W / 2, y: H / 2 };
+  const mid = { x: c.x < W / 2 ? 90 : W - 90, y: best.y };
+  const along = { x: best.x, y: c.y < H / 2 ? 90 : H - 90 };
+  return { target: best.id, way: [c, Math.abs(best.x - c.x) > Math.abs(best.y - c.y) ? along : mid], step: 0 };
+}
+function aiRunRaid(en) {
+  const r = en.raid;
+  if (!r) return;
+  const t = byId(r.target);
+  if (!t || t.team !== 0) {   // gone or already ours: pick another, or give up and go home
+    en.raid = aiRaidPlan(en);
+    if (!en.raid) en.order = null;
+    return;
+  }
+  if (en.order && en.order.type === 'capture') return;
+  if (r.step < r.way.length) {
+    if (!en.order) {
+      const w = r.way[r.step];
+      if (r.step > 0 && Math.hypot(en.x - w.x, en.y - w.y) < 60) { r.step++; return; }
+      if (en.reached === r.step) { r.step++; en.reached = null; return; }
+      en.order = { type: 'move', x: w.x, y: w.y };
+      en.reached = r.step;
+    }
+    return;
+  }
+  en.order = { type: 'capture', target: t.id };
+}
+
 function runAI(dt) {
   const ai = game.ai;
   ai.timer -= dt;
@@ -1326,19 +1369,31 @@ function runAI(dt) {
   if (defended && (!building || otherExtrasDone)) reserve += wantFactory ? COST.factory : wantTech ? COST.tech : 0;
   const queued = barracks.reduce((n, b) => n + b.queue, 0) + of('factory').reduce((n, f) => n + f.queue, 0);
   const qBuggies = of('factory').reduce((n, b) => n + b.qTypes.filter(t => t === 'buggy').length, 0);
-  const wantBuggy = D.buggies && unlocked(1, 'buggy') && of('buggy').length + qBuggies < (of('soldier').length + 2) / 2;   // ~1 buggy per 2 soldiers
+  const wantBuggy = D.buggies && unlocked(1, 'buggy') && of('buggy').length + qBuggies < (of('soldier').length + 2) / ((game.ai.seen && game.ai.seen.snipers >= 3) ? 1.3 : 2);   // ~1 per 2 soldiers, more if you field snipers/grenadiers
   const qOf = t => barracks.reduce((n, b) => n + b.qTypes.filter(q => q === t).length, 0);
-  const wantGren = D.grenadiers && unlocked(1, 'grenadier') && of('grenadier').length + qOf('grenadier') < (of('soldier').length + 1) / 3;   // ~1 grenadier per 3 soldiers
+  const wantGren = D.grenadiers && unlocked(1, 'grenadier') && of('grenadier').length + qOf('grenadier') < (of('soldier').length + 1) / ((ai.seen && ai.seen.infantry >= 8) ? 2 : 3);   // ~1 per 3 soldiers, 1 per 2 against big infantry armies
   // rocket soldiers once it has seen your vehicles: about one for each buggy it has spotted
+  // what it has seen of your army (the most of each kind at once): it trains counters to match
+  const seenNow = { infantry: 0, vehicles: 0, snipers: 0 };
+  for (const v of game.ents) if (v.team === 0 && isCombat(v) && visibleAt(v.x, v.y, 1) && !hiddenFrom(v, 1)) {
+    if (isInfantry(v)) seenNow.infantry++; else seenNow.vehicles++;
+    if (v.type === 'sniper' || v.type === 'grenadier') seenNow.snipers++;
+  }
+  ai.seen = ai.seen || { infantry: 0, vehicles: 0, snipers: 0 };
+  for (const k in seenNow) ai.seen[k] = Math.max(ai.seen[k], seenNow[k]);
   ai.seenBuggies = Math.max(ai.seenBuggies || 0, game.ents.filter(v => v.team === 0 && (v.type === 'buggy' || isTank(v)) && visibleAt(v.x, v.y, 1)).length);
   const wantRocket = D.rockets && unlocked(1, 'rocket') && (ai.seenBuggies || 0) > 0 && of('rocket').length + qOf('rocket') < Math.min(6, ai.seenBuggies);
   const wantSniper = unlocked(1, 'sniper') && of('sniper').length + qOf('sniper') < D.snipers && game.time > 240;
-  const wantEngineer = of('engineer').length + qOf('engineer') < D.engineers && game.time > 120;
+  // engineers: a repairer only when something is badly damaged, and now and then a raider sent the long way round to steal a building
+  const repairers = of('engineer').filter(en => !en.raid).length + qOf('engineer') - (ai.raidPending ? 1 : 0);
+  const needsFix = mine.some(b => isBuilding(b) && !isWallType(b.type) && b.built && b.hp < b.maxHp * 0.6);
+  const raidDue = D.raidEvery && game.time > 360 && game.time - (ai.lastRaid || 0) > D.raidEvery && !ai.raidPending && [...ai.known.keys()].some(id => { const b = byId(id); return b && b.team === 0 && b.type !== 'hq' && canCapture(b); });
+  const wantEngineer = (D.engineers > 0 && needsFix && repairers < D.engineers) || raidDue;
   // War Factory first: buggies (about one per two soldiers) and tanks (a share of its army; heavies once it has a Tech Centre).
   // While it wants a vehicle, the barracks hold back so the money can build up.
   const qF = t => of('factory').reduce((n, f) => n + f.qTypes.filter(q => q === t).length, 0);
   const lights = of('light').length + qF('light'), heavies = of('heavy').length + qF('heavy');
-  const wantTank = D.tanks > 0 && lights + heavies < Math.max(1, Math.floor(army.length * D.tanks));
+  const wantTank = D.tanks > 0 && lights + heavies < Math.max(1, Math.floor(army.length * D.tanks * ((ai.seen && ai.seen.infantry >= 10) ? 1.5 : 1)));   // more tanks against infantry-heavy armies
   const vehicle = !of('factory').some(f => f.built) ? null
     : wantTank ? (unlocked(1, 'heavy') && D.heavyTanks && heavies <= lights ? 'heavy' : 'light')
     : wantBuggy ? 'buggy' : null;
@@ -1349,7 +1404,7 @@ function runAI(dt) {
   if (vehicle && defended && !of('factory').some(f => f.queue > 0)) reserve += COST[vehicle];
   for (const b of barracks) {
     if (b.queue >= 2) continue;
-    if (wantEngineer && game.credits[1] >= COST.engineer) { produce(b, 'engineer'); continue; }
+    if (wantEngineer && game.credits[1] >= COST.engineer && produce(b, 'engineer')) { if (raidDue) { ai.raidPending = true; ai.lastRaid = game.time; } continue; }
     if (army.length + queued >= D.maxArmy) continue;
     if (wantRocket) { if (game.credits[1] >= COST.rocket) produce(b, 'rocket'); }   // answering your vehicles comes before saving up
     else if (wantSniper) { if (game.credits[1] >= COST.sniper) produce(b, 'sniper'); }   // only 1-2 of them, so they don't wait for savings
@@ -1358,6 +1413,8 @@ function runAI(dt) {
   }
   // engineers fix its most damaged building, and otherwise wait safely by the HQ
   for (const en of of('engineer')) {
+    if (ai.raidPending && !en.raid && !en.order) { en.raid = aiRaidPlan(en); ai.raidPending = false; }
+    if (en.raid) { aiRunRaid(en); continue; }
     if (en.order) continue;
     const hurt = mine.filter(b => isBuilding(b) && !isWallType(b.type) && b.built && b.hp < b.maxHp * 0.75).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
     if (hurt) en.order = { type: 'repair', target: hurt.id };

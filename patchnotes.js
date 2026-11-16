@@ -2,6 +2,16 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.1', date: '16 Nov 2026', title: 'Smarter enemy, balance',
+    changes: [
+      'The computer now trains counters to what it has seen of your army: more grenadiers and tanks against big infantry armies, more buggies against snipers and grenadiers, rocket soldiers against vehicles.',
+      'Enemy engineers: it only keeps one for repairs when a building is badly damaged. On Normal and Hard it now sends an engineer raider every few minutes, sneaking the long way round the edge of the map to steal one of your buildings (never your HQ). Keep a guard at home!',
+      'Soldier: damage 8 to 7 and range 90 to 85 (price unchanged).',
+      'Sniper: price $250 to $200.',
+      'Easy: the enemy army limit is now 14 (was 6).',
+    ],
+  },
+  {
     version: '5.0.1', date: '16 Nov 2026', title: 'Stuck units fix',
     changes: [
       'Fixed: units (especially new extractors leaving a refinery) could get stuck forever just short of where they were sent if someone was parked on the spot. They now count that as arrived and carry on, so extractors start harvesting properly.',
