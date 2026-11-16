@@ -864,6 +864,12 @@ function updateSoldier(e, dt) {   // soldiers and buggies
   } else if (o.type === 'attack') {
     const t = byId(o.target);
     if (!t || hiddenFrom(t, e.team)) { e.order = o.resume || null; return; }
+    // a unit that slips into the fog is lost: go to where it was last seen, then stop (no tracking it through the fog)
+    if (isUnit(t) && !visibleAt(t.x, t.y, e.team)) {
+      e.order = o.resume || { type: 'move', x: o.seenX !== undefined ? o.seenX : t.x, y: o.seenY !== undefined ? o.seenY : t.y };
+      return;
+    }
+    o.seenX = t.x; o.seenY = t.y;
     if (edgeDist(e.x, e.y, t) > s.range) {
       if (navigate(e, t.x, t.y, dt) === 'fail') e.order = o.resume || null;
     } else {

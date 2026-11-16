@@ -2,6 +2,14 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '4.1.1', date: '16 Nov 2026', title: 'No chasing through the fog',
+    changes: [
+      'Units no longer chase an enemy that escapes into the fog of war. They go to where they last saw it and stop there.',
+      'Attacking a building you have already discovered still works, since buildings don\'t move.',
+      'The same goes for the computer: its units lose track of yours in the fog too.',
+    ],
+  },
+  {
     version: '4.1', date: '16 Nov 2026', title: 'Hide the minimap',
     changes: [
       'New Map button in the top bar: tap it to hide the minimap so it doesn\'t cover that corner of the battlefield, and tap again to bring it back.',
