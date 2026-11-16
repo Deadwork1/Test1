@@ -6,6 +6,7 @@ const PATCH_NOTES = [
     changes: [
       'New Map button in the top bar: tap it to hide the minimap so it doesn\'t cover that corner of the battlefield, and tap again to bring it back.',
       'The game remembers whether you like it shown or hidden.',
+      'Fixed: the Power Plant button still said $300 even though it costs $200. Build buttons now always show the real price.',
     ],
   },
   {

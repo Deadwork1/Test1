@@ -2194,6 +2194,9 @@ ui.harvest.addEventListener('click', () => {
   if (!any) flash = { text: 'No known ore — explore to find more', t: performance.now() };
 });
 ui.deselect.addEventListener('click', () => { game.selected.clear(); game.placing = null; });
+// build buttons show the real price from COST, so labels can never drift from what you're charged
+for (const [btn, type, label] of [[ui.barracks, 'barracks', 'Barracks'], [ui.refinery, 'refinery', 'Refinery'], [ui.factory, 'factory', 'War Factory'],
+  [ui.power, 'power', 'Power Plant'], [ui.tower, 'tower', 'Tower'], [ui.wall, 'wall', 'Wall'], [ui.gate, 'gate', 'Gate']]) btn.textContent = `${label} $${COST[type]}`;
 ui.box.addEventListener('click', () => { input.boxMode = !input.boxMode; });
 // minimap: tap Map to hide it (so it doesn't cover the corner of the battlefield) and again to bring it back
 try { MM.hidden = localStorage.getItem('mini-rts-minimap') === 'hidden'; } catch (err) {}
