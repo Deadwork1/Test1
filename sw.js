@@ -1,7 +1,7 @@
 // Offline support: serve files from cache, refresh them in the background.
 // Bump VERSION whenever you release changes.
-const VERSION = 'mini-rts-v5';
-const FILES = ['./', 'index.html', 'game.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
+const VERSION = 'mini-rts-v6';
+const FILES = ['./', 'index.html', 'patchnotes.js', 'game.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));

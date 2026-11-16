@@ -25,4 +25,5 @@ A small real-time strategy game inspired by classic 90s RTS games, built step by
 ## Files
 - `index.html` – page layout and buttons
 - `game.js` – all game logic (balance numbers are at the top)
+- `patchnotes.js` – the patch notes shown on the start screen (add new releases at the top)
 - `manifest.webmanifest`, `sw.js`, `icons/` – make it installable as a phone app

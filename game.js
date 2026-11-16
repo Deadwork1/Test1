@@ -1284,6 +1284,15 @@ ui.pause.addEventListener('click', () => {
   game.paused = !game.paused;
   ui.pause.textContent = game.paused ? '▶' : '❚❚';
 });
+// ---------- Patch notes ----------
+const esc = t => t.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+$('version').textContent = 'Version ' + PATCH_NOTES[0].version;
+$('notesBody').innerHTML = PATCH_NOTES.map(n =>
+  `<h3>v${esc(n.version)} — ${esc(n.title)}<small>${esc(n.date)}</small></h3><ul>${n.changes.map(c => `<li>${esc(c)}</li>`).join('')}</ul>`).join('');
+$('ovNotes').addEventListener('click', () => { $('notes').style.display = 'flex'; });
+$('notesClose').addEventListener('click', () => { $('notes').style.display = 'none'; });
+$('notes').addEventListener('click', ev => { if (ev.target.id === 'notes') $('notes').style.display = 'none'; });
+
 ui.ovBtn.addEventListener('click', () => {
   if (game.over) newGame();
   game.paused = false; ui.overlay.style.display = 'none'; ui.pause.textContent = '❚❚';
