@@ -6,6 +6,7 @@ const PATCH_NOTES = [
     changes: [
       'Normal is a little tougher: the enemy now builds 18% slower than you (was 25%).',
       'Easy is a little tougher too: the enemy now builds 50% slower than you (was 60%).',
+      'On Normal the enemy can now keep up to 20 soldiers (was 10).',
     ],
   },
   {
