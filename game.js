@@ -175,9 +175,9 @@ const wallTeam = new Int8Array(TCOLS * TROWS);
 const wallId = new Int32Array(TCOLS * TROWS);
 // tiles a wall/gate covers
 function wallTiles(b) {
-  const out = [], h = b.size / 2;
-  for (let r = Math.round((b.y - h) / TC); r < Math.round((b.y + h) / TC); r++)
-    for (let c = Math.round((b.x - h) / TC); c < Math.round((b.x + h) / TC); c++) out.push([c, r]);
+  const out = [], hx = halfX(b), hy = halfY(b);
+  for (let r = Math.round((b.y - hy) / TC); r < Math.round((b.y + hy) / TC); r++)
+    for (let c = Math.round((b.x - hx) / TC); c < Math.round((b.x + hx) / TC); c++) out.push([c, r]);
   return out;
 }
 function rebuildBuildingGrid() {
@@ -447,6 +447,9 @@ function spawn(type, team, x, y) {
 
 function isBuildingType(t) { return t === 'hq' || t === 'barracks' || t === 'refinery' || t === 'factory' || t === 'power' || t === 'tower' || t === 'wall' || t === 'gate'; }
 const isWallType = t => t === 'wall' || t === 'gate';
+const gateHalf = vertical => vertical ? { hx: TC / 2, hy: TC } : { hx: TC, hy: TC / 2 };
+const halfX = e => e.type === 'gate' ? gateHalf(e.vertical).hx : e.size / 2;
+const halfY = e => e.type === 'gate' ? gateHalf(e.vertical).hy : e.size / 2;
 const isBuilding = e => isBuildingType(e.type);
 const isUnit = e => !isBuilding(e);
 const byId = id => game.ents.find(e => e.id === id);
@@ -456,8 +459,7 @@ const hqOf = team => game.ents.find(e => e.team === team && e.type === 'hq');
 // distance from a point to the edge of an entity
 function edgeDist(x, y, t) {
   if (isBuilding(t)) {
-    const h = t.size / 2;
-    const dx = Math.max(Math.abs(x - t.x) - h, 0), dy = Math.max(Math.abs(y - t.y) - h, 0);
+    const dx = Math.max(Math.abs(x - t.x) - halfX(t), 0), dy = Math.max(Math.abs(y - t.y) - halfY(t), 0);
     return Math.hypot(dx, dy);
   }
   return Math.max(0, Math.hypot(x - t.x, y - t.y) - t.r);
@@ -576,22 +578,34 @@ function canPlace(team, type, x, y) {
 
 // walls snap to tiles; gates (2×2 tiles) snap to tile corners
 const snapWall = (x, y) => ({ x: Math.floor(x / TC) * TC + TC / 2, y: Math.floor(y / TC) * TC + TC / 2 });
-const snapGate = (x, y) => ({ x: Math.round(x / TC) * TC, y: Math.round(y / TC) * TC });
+// a gate lines up with the tiles; it turns to match the wall it's dropped into unless you've rotated it yourself
+function snapGate(x, y, vertical) {
+  return vertical ? { x: Math.floor(x / TC) * TC + TC / 2, y: Math.round(y / TC) * TC, vertical }
+                  : { x: Math.round(x / TC) * TC, y: Math.floor(y / TC) * TC + TC / 2, vertical };
+}
+function fitGate(x, y, team, forced) {
+  if (forced !== undefined) return snapGate(x, y, forced);
+  const isWall = (c, r) => c >= 0 && r >= 0 && c < TCOLS && r < TROWS && wallKind[r * TCOLS + c] && wallTeam[r * TCOLS + c] === team;
+  const h = snapGate(x, y, false), v = snapGate(x, y, true);
+  const hc = h.x / TC, hr = Math.floor(h.y / TC), vc = Math.floor(v.x / TC), vr = v.y / TC;
+  const hs = isWall(hc - 2, hr) + isWall(hc + 1, hr), vs = isWall(vc, vr - 2) + isWall(vc, vr + 1);
+  return vs > hs ? v : h;
+}
 
-function canPlaceWallPiece(team, type, x, y) {
-  const h = STATS[type].size / 2;
+function canPlaceWallPiece(team, type, x, y, vertical = false) {
+  const { hx, hy } = type === 'gate' ? gateHalf(vertical) : { hx: TC / 2, hy: TC / 2 };
   if (!inBuildArea(team, x, y, WALL_REACH)) return false;
-  if (x - h < 0 || y - h < 0 || x + h > W || y + h > H) return false;
-  for (let yy = y - h + TC / 2; yy < y + h; yy += TC)
-    for (let xx = x - h + TC / 2; xx < x + h; xx += TC) if (terrainAt(xx, yy) !== T.GRASS) return false;
-  if (game.ore.some(o => Math.abs(o.x - x) < h + 10 && Math.abs(o.y - y) < h + 10)) return false;
+  if (x - hx < 0 || y - hy < 0 || x + hx > W || y + hy > H) return false;
+  for (let yy = y - hy + TC / 2; yy < y + hy; yy += TC)
+    for (let xx = x - hx + TC / 2; xx < x + hx; xx += TC) if (terrainAt(xx, yy) !== T.GRASS) return false;
+  if (game.ore.some(o => Math.abs(o.x - x) < hx + 10 && Math.abs(o.y - y) < hy + 10)) return false;
   for (const b of game.ents) {
     if (!isBuilding(b)) continue;
     const gap = isWallType(b.type) ? 0 : 6;   // walls can touch each other, but not other buildings
-    if (Math.abs(b.x - x) < b.size / 2 + h + gap - 0.5 && Math.abs(b.y - y) < b.size / 2 + h + gap - 0.5) return false;
+    if (Math.abs(b.x - x) < halfX(b) + hx + gap - 0.5 && Math.abs(b.y - y) < halfY(b) + hy + gap - 0.5) return false;
     if (PRODUCES[b.type]) {   // keep doorways clear
       const d = frontDoor(b);
-      if (Math.abs(d.x - x) < h + 24 && Math.abs(d.y - y) < h + 22) return false;
+      if (Math.abs(d.x - x) < hx + 24 && Math.abs(d.y - y) < hy + 22) return false;
     }
   }
   return true;
@@ -622,11 +636,12 @@ function buildWallLine(team, tiles) {
   return built;
 }
 
-function placeBuilding(team, type, x, y) {
+function placeBuilding(team, type, x, y, vertical) {
   if (type === 'gate') {
-    const g = snapGate(x, y);
-    if (game.credits[team] < COST.gate || !canPlaceWallPiece(team, 'gate', g.x, g.y)) return false;
-    game.credits[team] -= COST.gate; spawn('gate', team, g.x, g.y);
+    const g = snapGate(x, y, !!vertical);
+    if (game.credits[team] < COST.gate || !canPlaceWallPiece(team, 'gate', g.x, g.y, g.vertical)) return false;
+    game.credits[team] -= COST.gate;
+    const e = spawn('gate', team, g.x, g.y); e.vertical = g.vertical; bldDirty = true;
     return true;
   }
   if (game.credits[team] < COST[type] || !canPlace(team, type, x, y)) return false;
@@ -952,10 +967,10 @@ function separate() {
       if (!isBuilding(bld)) continue;
       if (a.docked && a.order && a.order.ref === bld.id) continue;
       if (bld.type === 'gate' && bld.team === a.team) continue;
-      const h = bld.size / 2 + a.r, dx = a.x - bld.x, dy = a.y - bld.y;
-      if (Math.abs(dx) < h && Math.abs(dy) < h) {
-        if (h - Math.abs(dx) < h - Math.abs(dy)) a.x = bld.x + Math.sign(dx || 1) * h;
-        else a.y = bld.y + Math.sign(dy || 1) * h;
+      const hx = halfX(bld) + a.r, hy = halfY(bld) + a.r, dx = a.x - bld.x, dy = a.y - bld.y;
+      if (Math.abs(dx) < hx && Math.abs(dy) < hy) {
+        if (hx - Math.abs(dx) < hy - Math.abs(dy)) a.x = bld.x + Math.sign(dx || 1) * hx;
+        else a.y = bld.y + Math.sign(dy || 1) * hy;
       }
     }
     a.x = Math.min(W - a.r, Math.max(a.r, a.x));
@@ -1181,12 +1196,13 @@ function drawPlacement() {
   const g = game.placing.ghost;
   if (!g) return;
   if (type === 'gate') {
-    const ok = canPlaceWallPiece(0, 'gate', g.x, g.y) && game.credits[0] >= COST.gate;
+    const ok = canPlaceWallPiece(0, 'gate', g.x, g.y, g.vertical) && game.credits[0] >= COST.gate;
+    const { hx, hy } = gateHalf(g.vertical);
     ctx.fillStyle = ok ? 'rgba(80,255,80,0.35)' : 'rgba(255,60,60,0.35)';
     ctx.strokeStyle = ok ? '#7dff7d' : '#ff6b6b'; ctx.lineWidth = 2;
-    ctx.fillRect(g.x - 25, g.y - 25, 50, 50); ctx.strokeRect(g.x - 25, g.y - 25, 50, 50);
+    ctx.fillRect(g.x - hx, g.y - hy, hx * 2, hy * 2); ctx.strokeRect(g.x - hx, g.y - hy, hx * 2, hy * 2);
     ctx.fillStyle = '#fff'; ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center';
-    ctx.fillText(ok ? 'Gate — tap again' : "Can't build here", g.x, g.y - 32);
+    ctx.fillText(ok ? 'Gate — tap again' : "Can't build here", g.x, g.y - hy - 8);
     return;
   }
   const ok = canPlace(0, type, g.x, g.y) && game.credits[0] >= COST[type];
@@ -1247,16 +1263,16 @@ function drawOre(o) {
 function drawSelection(e) {
   ctx.strokeStyle = '#7dff7d'; ctx.lineWidth = 2;
   if (isBuilding(e)) {
-    const h = e.size / 2 + 5;
-    ctx.strokeRect(e.x - h, e.y - h, h * 2, h * 2);
+    const hx = halfX(e) + 5, hy = halfY(e) + 5;
+    ctx.strokeRect(e.x - hx, e.y - hy, hx * 2, hy * 2);
   } else {
     ctx.beginPath(); ctx.ellipse(e.x, e.y + e.r * 0.5, e.r + 5, (e.r + 5) * 0.6, 0, 0, Math.PI * 2); ctx.stroke();
   }
 }
 
 function drawHealth(e) {
-  const w = isBuilding(e) ? e.size : e.r * 2.6;
-  const top = isBuilding(e) ? e.y - e.size / 2 - 10 : e.y - e.r - 9;
+  const w = isBuilding(e) ? halfX(e) * 2 : e.r * 2.6;
+  const top = isBuilding(e) ? e.y - halfY(e) - 10 : e.y - e.r - 9;
   const k = Math.max(0, e.hp / e.maxHp);
   ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(e.x - w / 2 - 1, top - 1, w + 2, 6);
   ctx.fillStyle = k > 0.5 ? '#4ade80' : k > 0.25 ? '#facc15' : '#ef4444';
@@ -1621,48 +1637,46 @@ function drawWall(e) {
 }
 
 function drawGate(e) {
-  const c = TEAMS[e.team], h = e.size / 2;
+  const c = TEAMS[e.team];
   // opens when one of its own units is close
   const near = game.ents.some(u => u.team === e.team && isUnit(u) && Math.abs(u.x - e.x) < 55 && Math.abs(u.y - e.y) < 55);
   e.openK = Math.max(0, Math.min(1, (e.openK || 0) + (near ? 0.08 : -0.05)));
-  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(e.x - h + 3, e.y - h + 4, e.size, e.size);
-  ctx.fillStyle = '#5a564c'; ctx.fillRect(e.x - h, e.y - h, e.size, e.size);   // gateway floor
-  // posts
-  ctx.fillStyle = '#9b968b';
-  for (const [px, py] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) ctx.fillRect(e.x + px * (h - 6) - 6, e.y + py * (h - 6) - 6, 12, 12);
-  // two sliding steel doors (striped in team colour)
-  const slide = (h - 6) * e.openK;
+  const k = e.openK, L = TC, T = TC / 2;   // half-length along the wall, half-thickness
+  ctx.save(); ctx.translate(e.x, e.y); if (e.vertical) ctx.rotate(Math.PI / 2);
+  // ground: track the doors run in
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(-L + 3, -T + 4, L * 2, T * 2);
+  ctx.fillStyle = '#6a665c'; ctx.fillRect(-L, -5, L * 2, 10);
+  ctx.strokeStyle = '#3e3b35'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(-L, 0); ctx.lineTo(L, 0); ctx.stroke();
+  // two sliding doors: steel frame, cross-braced, hazard stripes where they meet
+  const P = 7, span = L - P;                 // post width, length of each door
+  ctx.save(); ctx.beginPath(); ctx.rect(-L + P, -T, (L - P) * 2, T * 2); ctx.clip();   // doors slide into the posts
   for (const side of [-1, 1]) {
-    const x = side < 0 ? e.x - h + 6 - slide : e.x + slide;
-    ctx.save(); ctx.beginPath(); ctx.rect(e.x - h + 6, e.y - h, e.size - 12, e.size); ctx.clip();
-    ctx.fillStyle = '#7d786c'; ctx.fillRect(x, e.y - 7, h - 6, 14);
-    ctx.fillStyle = c.color;
-    for (let k = 0; k < h - 6; k += 8) ctx.fillRect(x + k, e.y - 7, 4, 14);
-    ctx.restore();
+    const left = side < 0 ? -span - span * k : span * k;   // left edge of the door
+    ctx.fillStyle = '#8d887c'; ctx.fillRect(left, -6, span, 12);
+    ctx.strokeStyle = '#55524a'; ctx.lineWidth = 1.2; ctx.strokeRect(left + 0.5, -5.5, span - 1, 11);
+    ctx.beginPath();   // cross bracing
+    ctx.moveTo(left + 2, -4); ctx.lineTo(left + span - 2, 4); ctx.moveTo(left + 2, 4); ctx.lineTo(left + span - 2, -4);
+    ctx.stroke();
+    ctx.fillStyle = c.color; ctx.fillRect(left + 2, -1.2, span - 4, 2.4);          // team stripe
+    // hazard stripes on the edge that meets the other door
+    const edge = side < 0 ? left + span - 4 : left;
+    for (let j = 0; j < 4; j++) { ctx.fillStyle = j % 2 ? '#1e1e1e' : '#f2c230'; ctx.fillRect(edge, -6 + j * 3, 4, 3); }
   }
-}
-
-function drawPower(e) {
-  if (!e.built) return drawConstruction(e);
-  const c = TEAMS[e.team], h = e.size / 2, x0 = e.x - h, y0 = e.y - h, t = performance.now() / 1000;
-  ctx.fillStyle = '#8a857a'; ctx.fillRect(x0 - 3, y0 - 3, e.size + 6, e.size + 6);
-  block(x0 + 3, y0 + 26, e.size - 6, e.size - 30, '#7b766a', '#4c4840', 10);   // generator hall
-  ctx.fillStyle = c.color; ctx.fillRect(x0 + 3, y0 + 26, e.size - 6, 4);
-  // two cooling towers with steam
-  for (const tx of [x0 + 16, x0 + e.size - 16]) {
-    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.arc(tx + 3, y0 + 17, 12, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#c9c4b8'; ctx.beginPath(); ctx.arc(tx, y0 + 14, 12, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#6d695f'; ctx.beginPath(); ctx.arc(tx, y0 + 14, 7, 0, Math.PI * 2); ctx.fill();
-    for (let k = 0; k < 2; k++) {
-      const p = (t * 0.5 + k / 2 + tx * 0.01) % 1;
-      ctx.fillStyle = `rgba(235,235,235,${0.5 * (1 - p)})`;
-      ctx.beginPath(); ctx.arc(tx + p * 6, y0 + 10 - p * 22, 5 + p * 7, 0, Math.PI * 2); ctx.fill();
-    }
+  ctx.restore();
+  // heavy posts with a team cap and a signal lamp (red = shut, green = opening)
+  for (const side of [-1, 1]) {
+    const px = side < 0 ? -L : L - P, PH = 9;   // posts match the thickness of the wall posts
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(px + 2, -PH + 3, P, PH * 2);
+    ctx.fillStyle = '#a7a296'; ctx.fillRect(px, -PH, P, PH * 2);
+    ctx.fillStyle = '#7d786c'; ctx.fillRect(px, PH - 3, P, 3);
+    ctx.fillStyle = c.color; ctx.fillRect(px, -PH, P, 3);
+    ctx.fillStyle = k > 0.05 ? '#5dff7a' : '#ff5a5a';
+    ctx.beginPath(); ctx.arc(px + P / 2, -PH + 6, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = k > 0.05 ? 'rgba(93,255,122,0.25)' : 'rgba(255,90,90,0.25)';
+    ctx.beginPath(); ctx.arc(px + P / 2, -PH + 6, 4, 0, Math.PI * 2); ctx.fill();
   }
-  // emblem: lightning bolt that pulses
-  emblemPlate(e.x, y0 + 40, 10, e.team);
-  ctx.fillStyle = `rgba(255,222,90,${0.75 + 0.25 * Math.sin(t * 6)})`;
-  ctx.beginPath(); ctx.moveTo(e.x + 2, y0 + 32); ctx.lineTo(e.x - 4, y0 + 41); ctx.lineTo(e.x, y0 + 41); ctx.lineTo(e.x - 2, y0 + 48); ctx.lineTo(e.x + 4, y0 + 39); ctx.lineTo(e.x, y0 + 39); ctx.closePath(); ctx.fill();
+  ctx.restore();
 }
 
 function drawRange(x, y, r) {
@@ -1675,7 +1689,7 @@ function drawRange(x, y, r) {
 function drawNameTag(e) {
   const txt = NAMES[e.type];
   ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center';
-  const w = ctx.measureText(txt).width + 12, y = e.y - e.size / 2 - 32;   // above the health bar, clear of the door
+  const w = ctx.measureText(txt).width + 12, y = e.y - halfY(e) - 32;   // above the health bar, clear of the door
   ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(e.x - w / 2, y, w, 17);
   ctx.fillStyle = '#fff'; ctx.fillText(txt, e.x, y + 13);
 }
@@ -1707,7 +1721,7 @@ canvas.addEventListener('pointermove', ev => {
   if (game.placing && ev.pointerType === 'mouse' && input.pointers.size === 0) {
     const w = toWorld(ev.clientX, ev.clientY);
     if (game.placing.type === 'wall') { if (game.placing.anchor) game.placing.end = snapWall(w.x, w.y); }
-    else game.placing.ghost = game.placing.type === 'gate' ? snapGate(w.x, w.y) : w;
+    else game.placing.ghost = game.placing.type === 'gate' ? fitGate(w.x, w.y, 0, game.placing.manual ? !!game.placing.vertical : undefined) : w;
   }
   if (!input.pointers.has(ev.pointerId)) return;
   input.pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
@@ -1810,7 +1824,7 @@ function confirmWall() {
 function tryPlace() {
   const p = game.placing;
   if (p && p.type === 'wall') return confirmWall();
-  if (p && p.ghost && placeBuilding(0, p.type, p.ghost.x, p.ghost.y)) game.placing = null;
+  if (p && p.ghost && placeBuilding(0, p.type, p.ghost.x, p.ghost.y, p.ghost.vertical)) game.placing = null;
 }
 
 function handleTap(x, y) {
@@ -1818,9 +1832,11 @@ function handleTap(x, y) {
 
   if (game.placing && game.placing.type === 'wall') { wallTap(x, y); return; }
   if (game.placing) {
-    const pt = game.placing.type === 'gate' ? snapGate(x, y) : { x, y };
-    const g = game.placing.ghost, h = STATS[game.placing.type].size / 2;
-    if (g && Math.abs(x - g.x) < h && Math.abs(y - g.y) < h) tryPlace();
+    const pt = game.placing.type === 'gate' ? fitGate(x, y, 0, game.placing.manual ? !!game.placing.vertical : undefined) : { x, y };
+    const g = game.placing.ghost;
+    const hx = game.placing.type === 'gate' ? gateHalf(g && g.vertical).hx : STATS[game.placing.type].size / 2;
+    const hy = game.placing.type === 'gate' ? gateHalf(g && g.vertical).hy : STATS[game.placing.type].size / 2;
+    if (g && Math.abs(x - g.x) < hx + 6 && Math.abs(y - g.y) < hy + 6) tryPlace();
     else game.placing.ghost = pt;
     return;
   }
@@ -1870,7 +1886,7 @@ const selectedOfType = type => [...game.selected].map(byId).filter(e => e && e.t
 const $ = id => document.getElementById(id);
 const ui = {
   credits: $('credits'), info: $('info'), powerChip: $('powerChip'),
-  deploy: $('btnDeploy'), barracks: $('btnBarracks'), refinery: $('btnRefinery'), tower: $('btnTower'), power: $('btnPower'), factory: $('btnFactory'), wall: $('btnWall'), gate: $('btnGate'), produce: $('btnProduce'), produce2: $('btnProduce2'),
+  deploy: $('btnDeploy'), barracks: $('btnBarracks'), refinery: $('btnRefinery'), tower: $('btnTower'), power: $('btnPower'), factory: $('btnFactory'), wall: $('btnWall'), gate: $('btnGate'), rotate: $('btnRotate'), produce: $('btnProduce'), produce2: $('btnProduce2'),
   harvest: $('btnHarvest'), place: $('btnPlace'), cancel: $('btnCancel'), deselect: $('btnDeselect'),
   box: $('btnBox'), all: $('btnAll'), pause: $('btnPause'),
   overlay: $('overlay'), ovTitle: $('ovTitle'), ovText: $('ovText'), ovBtn: $('ovBtn'),
@@ -1896,6 +1912,12 @@ ui.power.addEventListener('click', () => startPlacing('power'));
 ui.factory.addEventListener('click', () => startPlacing('factory'));
 ui.wall.addEventListener('click', () => startPlacing('wall'));
 ui.gate.addEventListener('click', () => startPlacing('gate'));
+ui.rotate.addEventListener('click', () => {
+  const p = game.placing;
+  if (!p || p.type !== 'gate') return;
+  p.manual = true; p.vertical = !(p.ghost ? p.ghost.vertical : p.vertical);
+  if (p.ghost) p.ghost = snapGate(p.ghost.x, p.ghost.y, p.vertical);
+});
 ui.place.addEventListener('click', tryPlace);
 ui.cancel.addEventListener('click', () => { game.placing = null; });
 ui.produce.addEventListener('click', () => {
@@ -2002,6 +2024,7 @@ function updateHUD() {
   show(ui.harvest, extractors.length > 0 && !placing);
   show(ui.place, !!(placing && (placing.ghost || (placing.type === 'wall' && placing.anchor))));
   show(ui.cancel, !!placing);
+  show(ui.rotate, !!(placing && placing.type === 'gate'));
   show(ui.deselect, sel.length > 0 && !placing);
 
   ui.barracks.disabled = game.credits[0] < COST.barracks;
@@ -2017,7 +2040,7 @@ function updateHUD() {
   const wallMode = placing && placing.type === 'wall';
   ui.cancel.textContent = wallMode ? 'Done' : 'Cancel';
   ui.place.textContent = wallMode ? 'Build wall' : 'Place here';
-  if (placing && placing.ghost && placing.type === 'gate') ui.place.disabled = !canPlaceWallPiece(0, 'gate', placing.ghost.x, placing.ghost.y) || game.credits[0] < COST.gate;
+  if (placing && placing.ghost && placing.type === 'gate') ui.place.disabled = !canPlaceWallPiece(0, 'gate', placing.ghost.x, placing.ghost.y, placing.ghost.vertical) || game.credits[0] < COST.gate;
   else if (placing && placing.ghost) ui.place.disabled = !canPlace(0, placing.type, placing.ghost.x, placing.ghost.y) || game.credits[0] < COST[placing.type];
   else if (placing) ui.place.disabled = false;
   if (producer) {

@@ -2,6 +2,14 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '3.11', date: '16 Nov 2026', title: 'New gate design',
+    changes: [
+      'Gates are now slim: two wall sections wide and one deep, so they sit in line with your walls.',
+      'They turn automatically to match the wall you put them in. A Rotate button lets you turn them yourself.',
+      'More detail: heavy posts with signal lamps (red when shut, green when opening), cross-braced steel doors with hazard stripes that slide into the posts along a track.',
+    ],
+  },
+  {
     version: '3.10', date: '16 Nov 2026', title: 'Power Plant',
     changes: [
       'New building: Power Plant ($300), built from the HQ.',
