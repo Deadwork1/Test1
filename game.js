@@ -72,6 +72,193 @@ function setZoom(z) { cam.zoom = Math.min(2.2, Math.max(0.45, z)); }
 
 const toWorld = (sx, sy) => { const s = scale(); return { x: (sx - scr.w / 2) / s + cam.x, y: (sy - scr.h / 2) / s + cam.y }; };
 
+// ---------- Terrain (rocks, river, bridges, forests) ----------
+// The map is a grid of 25×25 tiles. Layout is mirrored so both sides are fair.
+const TC = 25, TCOLS = W / TC, TROWS = H / TC;
+const T = { GRASS: 0, ROCK: 1, WATER: 2, BRIDGE: 3, FOREST: 4 };
+const terrain = new Uint8Array(TCOLS * TROWS);
+
+const mirror = ([x, y]) => [W - x, H - y];
+// cliff ridges: lines of rock [points], thickness
+const RIDGES = [
+  [[[110, 900], [300, 860], [470, 885]], 30],      // wall north of your base
+  [[[880, 1050], [935, 1210], [905, 1385]], 30],   // wall east of your base (gap at the bottom)
+  [[[620, 610], [770, 700]], 28],                  // outcrop by the west ore field
+];
+// forests: [x, y, radius]
+const FORESTS = [[430, 620, 115], [1010, 1270, 85], [150, 600, 95], [800, 230, 90]];
+const riverX = y => W / 2 + 70 * Math.sin((y - H / 2) / 230);
+const ISLAND = { x: W / 2, y: H / 2, r: 280 };         // the middle ore field sits on an island
+// bridges: centre x, centre y, half-width, half-height
+const BRIDGES = [
+  { x: riverX(230), y: 230, hw: 62, hh: 24 },
+  { x: ISLAND.x - ISLAND.r, y: H / 2, hw: 58, hh: 24 },
+];
+for (const b of [...BRIDGES]) { const [x, y] = mirror([b.x, b.y]); BRIDGES.push({ ...b, x, y }); }
+
+function segDist(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay, l = dx * dx + dy * dy;
+  const t = l ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l)) : 0;
+  return Math.hypot(px - ax - t * dx, py - ay - t * dy);
+}
+
+(function buildTerrain() {
+  const ridges = [];
+  for (const [pts, th] of RIDGES) { ridges.push([pts, th]); ridges.push([pts.map(mirror), th]); }
+  const forests = [];
+  for (const f of FORESTS) { forests.push(f); const [x, y] = mirror(f); forests.push([x, y, f[2]]); }
+  for (let r = 0; r < TROWS; r++) {
+    for (let c = 0; c < TCOLS; c++) {
+      const x = c * TC + TC / 2, y = r * TC + TC / 2;
+      const dI = Math.hypot(x - ISLAND.x, y - ISLAND.y);
+      let t = T.GRASS;
+      for (const [x0, y0, rad] of forests) {
+        const a = Math.atan2(y - y0, x - x0);
+        if (Math.hypot(x - x0, y - y0) < rad * (0.85 + 0.15 * Math.sin(a * 5 + x0))) t = T.FOREST;
+      }
+      for (const [pts, th] of ridges) {
+        for (let i = 0; i < pts.length - 1; i++) {
+          if (segDist(x, y, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]) < th) t = T.ROCK;
+        }
+      }
+      if (Math.abs(dI - ISLAND.r) < 34 || (Math.abs(x - riverX(y)) < 36 && dI > ISLAND.r)) t = T.WATER;
+      for (const b of BRIDGES) if (Math.abs(x - b.x) < b.hw && Math.abs(y - b.y) < b.hh) t = T.BRIDGE;
+      terrain[r * TCOLS + c] = t;
+    }
+  }
+})();
+
+const terrainAt = (x, y) => {
+  const c = Math.floor(x / TC), r = Math.floor(y / TC);
+  if (c < 0 || r < 0 || c >= TCOLS || r >= TROWS) return T.ROCK;
+  return terrain[r * TCOLS + c];
+};
+const isVehicle = e => e.type === 'settler' || e.type === 'extractor';
+// can this kind of unit stand on this terrain? (ignores buildings)
+const walkable = (t, vehicle) => t === T.GRASS || t === T.BRIDGE || (t === T.FOREST && !vehicle);
+
+// ---------- Pathfinding (A* on the tile grid) ----------
+const bldGrid = new Uint8Array(TCOLS * TROWS);   // tiles covered by buildings
+let bldDirty = true;
+function rebuildBuildingGrid() {
+  bldGrid.fill(0);
+  for (const b of game.ents) {
+    if (!isBuilding(b)) continue;
+    const h = b.size / 2;
+    for (let r = Math.floor((b.y - h) / TC); r <= Math.floor((b.y + h) / TC); r++) {
+      for (let c = Math.floor((b.x - h) / TC); c <= Math.floor((b.x + h) / TC); c++) {
+        if (c < 0 || r < 0 || c >= TCOLS || r >= TROWS) continue;
+        const cx = c * TC + TC / 2, cy = r * TC + TC / 2;
+        if (Math.abs(cx - b.x) < h && Math.abs(cy - b.y) < h) bldGrid[r * TCOLS + c] = 1;
+      }
+    }
+  }
+  bldDirty = false;
+  for (const e of game.ents) e.nav = null;   // routes may have changed
+}
+
+function passable(c, r, vehicle) {
+  if (c < 0 || r < 0 || c >= TCOLS || r >= TROWS) return false;
+  const i = r * TCOLS + c;
+  return !bldGrid[i] && walkable(terrain[i], vehicle);
+}
+
+function nearestPassable(c, r, vehicle) {
+  if (passable(c, r, vehicle)) return [c, r];
+  for (let rad = 1; rad < 14; rad++) {
+    let best = null, bestD = Infinity;
+    for (let dr = -rad; dr <= rad; dr++) for (let dc = -rad; dc <= rad; dc++) {
+      if (Math.max(Math.abs(dr), Math.abs(dc)) !== rad || !passable(c + dc, r + dr, vehicle)) continue;
+      const d = dc * dc + dr * dr;
+      if (d < bestD) { bestD = d; best = [c + dc, r + dr]; }
+    }
+    if (best) return best;
+  }
+  return null;
+}
+
+// straight line between two points that never touches a blocked tile?
+function lineClear(x0, y0, x1, y1, vehicle) {
+  const d = Math.hypot(x1 - x0, y1 - y0), steps = Math.ceil(d / (TC / 3));
+  for (let i = 1; i <= steps; i++) {
+    const x = x0 + (x1 - x0) * i / steps, y = y0 + (y1 - y0) * i / steps;
+    if (!passable(Math.floor(x / TC), Math.floor(y / TC), vehicle)) return false;
+  }
+  return true;
+}
+
+const N = TCOLS * TROWS;
+const gScore = new Float32Array(N), cameFrom = new Int32Array(N), stamp = new Uint32Array(N), closed = new Uint32Array(N);
+let searchId = 0;
+const NB = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
+
+function findPath(sx, sy, tx, ty, vehicle) {
+  if (bldDirty) rebuildBuildingGrid();
+  let start = nearestPassable(Math.floor(sx / TC), Math.floor(sy / TC), vehicle);
+  const goal = nearestPassable(Math.floor(tx / TC), Math.floor(ty / TC), vehicle);
+  if (!start || !goal) return null;
+  const goalExact = passable(Math.floor(tx / TC), Math.floor(ty / TC), vehicle);
+  const end = goalExact ? { x: tx, y: ty } : { x: goal[0] * TC + TC / 2, y: goal[1] * TC + TC / 2 };
+  if (lineClear(sx, sy, end.x, end.y, vehicle)) return [end];
+
+  searchId++;
+  const s = start[1] * TCOLS + start[0], g = goal[1] * TCOLS + goal[0];
+  const heap = [];   // binary heap of [f, index]
+  const push = (f, i) => { heap.push([f, i]); let k = heap.length - 1; while (k > 0) { const p = (k - 1) >> 1; if (heap[p][0] <= heap[k][0]) break; [heap[p], heap[k]] = [heap[k], heap[p]]; k = p; } };
+  const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let k = 0; for (;;) { const l = 2 * k + 1, r = l + 1; let m = k; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === k) break; [heap[m], heap[k]] = [heap[k], heap[m]]; k = m; } } return top; };
+  const h = i => { const dx = Math.abs(i % TCOLS - goal[0]), dy = Math.abs(((i / TCOLS) | 0) - goal[1]); return Math.max(dx, dy) + 0.414 * Math.min(dx, dy); };
+  stamp[s] = searchId; gScore[s] = 0; cameFrom[s] = -1;
+  push(h(s), s);
+  let found = false;
+  while (heap.length) {
+    const [, cur] = pop();
+    if (closed[cur] === searchId) continue;
+    closed[cur] = searchId;
+    if (cur === g) { found = true; break; }
+    const cc = cur % TCOLS, cr = (cur / TCOLS) | 0;
+    for (const [dc, dr, cost] of NB) {
+      const nc = cc + dc, nr = cr + dr;
+      if (!passable(nc, nr, vehicle)) continue;
+      if (dc && dr && (!passable(cc + dc, cr, vehicle) || !passable(cc, cr + dr, vehicle))) continue;  // no corner cutting
+      const ni = nr * TCOLS + nc;
+      if (closed[ni] === searchId) continue;
+      const ng = gScore[cur] + cost * (terrain[ni] === T.FOREST ? 1.8 : 1);
+      if (stamp[ni] !== searchId || ng < gScore[ni]) {
+        stamp[ni] = searchId; gScore[ni] = ng; cameFrom[ni] = cur;
+        push(ng + h(ni), ni);
+      }
+    }
+  }
+  if (!found) return null;
+  const cells = [];
+  for (let i = g; i !== -1; i = cameFrom[i]) cells.push({ x: (i % TCOLS) * TC + TC / 2, y: ((i / TCOLS) | 0) * TC + TC / 2 });
+  cells.reverse(); cells[cells.length - 1] = end;
+  // smooth: skip corners we can see past
+  const path = [];
+  let ax = sx, ay = sy, k = 0;
+  while (k < cells.length) {
+    let far = k;
+    for (let j = cells.length - 1; j > k; j--) if (lineClear(ax, ay, cells[j].x, cells[j].y, vehicle)) { far = j; break; }
+    path.push(cells[far]); ax = cells[far].x; ay = cells[far].y; k = far + 1;
+  }
+  return path;
+}
+
+// move a unit toward (tx, ty) along a route. Returns true when it gets there, 'fail' if it can't.
+function navigate(e, tx, ty, dt) {
+  const n = e.nav;
+  if (!n || Math.hypot(n.tx - tx, n.ty - ty) > 30 && game.time - n.t > 0.4 || (n.fail && game.time - n.t > 2)) {
+    const path = findPath(e.x, e.y, tx, ty, isVehicle(e));
+    e.nav = { tx, ty, t: game.time, path: path || [], i: 0, fail: !path };
+  }
+  const nav = e.nav;
+  if (nav.fail) return 'fail';
+  if (nav.i >= nav.path.length) return true;
+  const p = nav.path[nav.i];
+  if (moveToward(e, p.x, p.y, dt)) { nav.i++; if (nav.i >= nav.path.length) return true; }
+  return false;
+}
+
 // ---------- Background (drawn once) ----------
 const bg = document.createElement('canvas');
 (function drawBackground() {
@@ -89,10 +276,40 @@ const bg = document.createElement('canvas');
     b.fillStyle = 'rgba(110,95,60,0.25)';
     b.beginPath(); b.ellipse(rnd() * W, rnd() * H, 60 + rnd() * 120, 30 + rnd() * 60, rnd() * 3, 0, Math.PI * 2); b.fill();
   }
-  // dirt road between the bases
-  b.strokeStyle = 'rgba(140,110,70,0.45)'; b.lineWidth = 40; b.lineCap = 'round';
-  b.beginPath(); b.moveTo(START[0].x, START[0].y);
-  b.bezierCurveTo(900, H - 150, 1500, 150, START[1].x, START[1].y); b.stroke();
+  const each = (type, fn) => {
+    for (let r = 0; r < TROWS; r++) for (let c = 0; c < TCOLS; c++)
+      if (terrain[r * TCOLS + c] === type) fn(c * TC + TC / 2, r * TC + TC / 2);
+  };
+  const dot = (x, y, rad, col) => { b.fillStyle = col; b.beginPath(); b.arc(x, y, rad, 0, Math.PI * 2); b.fill(); };
+  // river: sandy banks, deep water, lighter middle
+  each(T.WATER, (x, y) => dot(x, y, TC * 1.05, '#9c8a5c'));
+  each(T.BRIDGE, (x, y) => dot(x, y, TC * 0.9, '#9c8a5c'));
+  each(T.WATER, (x, y) => dot(x, y, TC * 0.8, '#2d5f8a'));
+  each(T.BRIDGE, (x, y) => dot(x, y, TC * 0.75, '#2d5f8a'));
+  each(T.WATER, (x, y) => dot(x + (rnd() - .5) * 6, y + (rnd() - .5) * 6, TC * 0.35, 'rgba(110,170,220,0.35)'));
+  // bridges: wooden planks
+  for (const br of BRIDGES) {
+    b.fillStyle = 'rgba(0,0,0,0.35)'; b.fillRect(br.x - br.hw + 4, br.y - br.hh + 5, br.hw * 2, br.hh * 2);
+    b.fillStyle = '#8b6a3e'; b.fillRect(br.x - br.hw, br.y - br.hh, br.hw * 2, br.hh * 2);
+    b.strokeStyle = '#5e4526'; b.lineWidth = 2;
+    for (let x = br.x - br.hw + 8; x < br.x + br.hw; x += 9) { b.beginPath(); b.moveTo(x, br.y - br.hh); b.lineTo(x, br.y + br.hh); b.stroke(); }
+    b.fillStyle = '#4a3720'; b.fillRect(br.x - br.hw, br.y - br.hh, br.hw * 2, 4); b.fillRect(br.x - br.hw, br.y + br.hh - 4, br.hw * 2, 4);
+  }
+  // rocks and cliffs
+  each(T.ROCK, (x, y) => dot(x + 4, y + 5, TC * 0.85, 'rgba(0,0,0,0.35)'));
+  each(T.ROCK, (x, y) => dot(x, y, TC * 0.85, '#6f6a62'));
+  each(T.ROCK, (x, y) => dot(x - 3 + (rnd() - .5) * 6, y - 3 + (rnd() - .5) * 6, TC * 0.5, '#8d877c'));
+  each(T.ROCK, (x, y) => { if (rnd() < 0.4) dot(x + (rnd() - .5) * 14, y + (rnd() - .5) * 14, 3 + rnd() * 4, '#a8a295'); });
+  // forests: ground then tree canopies
+  each(T.FOREST, (x, y) => dot(x, y, TC * 0.85, '#2f4a24'));
+  each(T.FOREST, (x, y) => {
+    for (let i = 0; i < 2; i++) {
+      const tx = x + (rnd() - .5) * TC, ty = y + (rnd() - .5) * TC, rad = 9 + rnd() * 7;
+      dot(tx + 3, ty + 4, rad, 'rgba(0,0,0,0.3)');
+      dot(tx, ty, rad, rnd() < 0.5 ? '#2c5a26' : '#356b2c');
+      dot(tx - rad * 0.3, ty - rad * 0.3, rad * 0.45, 'rgba(140,190,90,0.35)');
+    }
+  });
   b.strokeStyle = 'rgba(0,0,0,0.5)'; b.lineWidth = 6; b.strokeRect(3, 3, W - 6, H - 6);
 })();
 
@@ -101,7 +318,7 @@ let game;
 
 function newGame() {
   game = {
-    ents: [], ore: [], nextId: 1,
+    ents: [], ore: [], nextId: 1, time: 0,
     credits: [START_CREDITS, START_CREDITS],
     selected: new Set(),
     placing: null,           // { type, ghost:{x,y} } while choosing where to build
@@ -110,13 +327,15 @@ function newGame() {
     ai: { timer: 0, attacking: false, known: new Map(), scout: null, exploreTarget: null },
   };
   for (const f of fog) { f.vis.fill(0); f.exp.fill(0); }
+  bldDirty = true;
   let seed = 99;
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   for (const f of ORE_FIELDS) {
     for (let i = 0; i < f.nodes; i++) {
-      const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * f.spread;
-      game.ore.push({ id: game.nextId++, x: f.x + Math.cos(a) * d, y: f.y + Math.sin(a) * d,
-                      amount: f.amount, max: f.amount, rot: rnd() * 6 });
+      let x, y, tries = 0;
+      do { const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * f.spread; x = f.x + Math.cos(a) * d; y = f.y + Math.sin(a) * d; }
+      while (terrainAt(x, y) !== T.GRASS && ++tries < 30);
+      game.ore.push({ id: game.nextId++, x, y, amount: f.amount, max: f.amount, rot: rnd() * 6 });
     }
   }
   spawn('settler', 0, START[0].x, START[0].y);
@@ -130,6 +349,7 @@ function spawn(type, team, x, y) {
   const e = { id: game.nextId++, type, team, x, y, hp: s.hp, maxHp: s.hp, order: null,
               cooldown: 0, facing: team === 0 ? -0.6 : 2.5 };
   if (isBuildingType(type)) {
+    bldDirty = true;
     e.size = s.size;
     if (type === 'hq') { e.built = true; e.progress = 1; }
     else { e.built = false; e.progress = 0; e.hp = s.hp * 0.1; }
@@ -161,7 +381,7 @@ function edgeDist(x, y, t) {
 
 function moveToward(e, tx, ty, dt) {
   const dx = tx - e.x, dy = ty - e.y, d = Math.hypot(dx, dy);
-  const step = STATS[e.type].speed * dt;
+  const step = STATS[e.type].speed * dt * (terrainAt(e.x, e.y) === T.FOREST ? 0.55 : 1);
   if (d <= step || d < 0.5) { e.x = tx; e.y = ty; return true; }
   e.x += dx / d * step; e.y += dy / d * step;
   e.facing = Math.atan2(dy, dx);
@@ -206,10 +426,17 @@ function updateFog() {
   fogCtx.putImageData(fogImg, 0, 0);
 }
 
+// soldiers in a forest can't be seen unless an enemy unit is close, or they've just fired
+function hiddenFrom(e, team) {
+  if (e.type !== 'soldier' || e.revealT > 0 || terrainAt(e.x, e.y) !== T.FOREST) return false;
+  return !game.ents.some(o => o.team === team && isUnit(o) && Math.abs(o.x - e.x) < 90 && Math.abs(o.y - e.y) < 90 &&
+    Math.hypot(o.x - e.x, o.y - e.y) < 90);
+}
+
 // can the human player see this thing?
 function canSee(e) {
   if (e.team === 0) return true;
-  return isBuilding(e) ? exploredAt(e.x, e.y) : visibleAt(e.x, e.y);
+  return isBuilding(e) ? exploredAt(e.x, e.y) : visibleAt(e.x, e.y) && !hiddenFrom(e, 0);
 }
 
 // ---------- Deploying & building ----------
@@ -217,6 +444,8 @@ function siteIsFree(x, y, size) {
   const h = size / 2;
   if (x - h < 10 || y - h < 10 || x + h > W - 10 || y + h > H - 10) return false;
   if (game.ore.some(o => Math.abs(o.x - x) < h + 14 && Math.abs(o.y - y) < h + 14)) return false;
+  for (let yy = y - h + 6; yy <= y + h - 6; yy += TC / 2)
+    for (let xx = x - h + 6; xx <= x + h - 6; xx += TC / 2) if (terrainAt(xx, yy) !== T.GRASS) return false;
   return !game.ents.some(o => isBuilding(o) &&
     Math.abs(o.x - x) < o.size / 2 + h + 12 && Math.abs(o.y - y) < o.size / 2 + h + 12);
 }
@@ -290,7 +519,7 @@ function updateExtractor(e, dt) {
   const s = STATS.extractor, o = e.order;
   e.mining = false;
   if (!o) return;
-  if (o.type === 'move') { if (moveToward(e, o.x, o.y, dt)) e.order = null; return; }
+  if (o.type === 'move') { if (navigate(e, o.x, o.y, dt)) e.order = null; return; }
 
   if (o.phase === 'toNode' || o.phase === 'mining') {
     let node = oreById(o.node);
@@ -306,8 +535,9 @@ function updateExtractor(e, dt) {
     }
     o.lastX = node.x; o.lastY = node.y;
     if (o.phase === 'toNode') {
-      if (Math.hypot(node.x - e.x, node.y - e.y) > e.r + 10) moveToward(e, node.x, node.y, dt);
-      else o.phase = 'mining';
+      const arrived = Math.hypot(node.x - e.x, node.y - e.y) <= e.r + 10 || navigate(e, node.x, node.y, dt);
+      if (arrived === 'fail') { e.order = null; return; }
+      if (arrived) o.phase = 'mining';
     } else {
       const take = Math.min(s.rate * dt, node.amount, s.capacity - e.cargo);
       node.amount -= take; e.cargo += take; e.mining = true;
@@ -320,8 +550,9 @@ function updateExtractor(e, dt) {
   if (o.phase === 'toBase') {
     const ref = nearestRefinery(e);
     if (!ref) return;                       // no refinery: wait with the load
-    if (edgeDist(e.x, e.y, ref) > e.r + 6) moveToward(e, ref.x, ref.y, dt);
-    else { o.phase = 'unloading'; o.t = 0; }
+    const near = edgeDist(e.x, e.y, ref) <= e.r + 6;
+    const arrived = near || navigate(e, ref.x, ref.y, dt);
+    if (arrived === true && (near || edgeDist(e.x, e.y, ref) < 40)) { o.phase = 'unloading'; o.t = 0; }
     return;
   }
 
@@ -340,11 +571,13 @@ function updateExtractor(e, dt) {
 function update(dt) {
   if (game.over || game.paused) return;
 
+  game.time += dt;
   game.credits[0] += INCOME * dt;
   game.credits[1] += INCOME * dt;
+  if (bldDirty) rebuildBuildingGrid();
 
   for (const e of game.ents) {
-    if (e.type === 'settler') { if (e.order && moveToward(e, e.order.x, e.order.y, dt)) e.order = null; }
+    if (e.type === 'settler') { if (e.order && navigate(e, e.order.x, e.order.y, dt)) e.order = null; }
     else if (e.type === 'soldier') updateSoldier(e, dt);
     else if (e.type === 'extractor') updateExtractor(e, dt);
     else if (isBuilding(e)) updateBuilding(e, dt);
@@ -355,6 +588,7 @@ function update(dt) {
   for (const e of game.ents) {
     if (e.hp <= 0) {
       game.selected.delete(e.id);
+      if (isBuilding(e)) bldDirty = true;
       if (!e.deployed) game.effects.push({ kind: 'boom', x: e.x, y: e.y, t: 0, big: e.type !== 'soldier' });
     }
   }
@@ -375,7 +609,7 @@ function update(dt) {
 function findEnemyNear(e, radius) {
   let best = null, bestD = radius;
   for (const o of game.ents) {
-    if (o.team === e.team) continue;
+    if (o.team === e.team || hiddenFrom(o, e.team)) continue;
     const d = edgeDist(e.x, e.y, o);
     if (d < bestD) { bestD = d; best = o; }
   }
@@ -385,6 +619,7 @@ function findEnemyNear(e, radius) {
 function updateSoldier(e, dt) {
   const s = STATS.soldier;
   e.cooldown -= dt;
+  e.revealT = (e.revealT || 0) - dt;
   let o = e.order;
 
   // idle or attack-moving soldiers look for nearby enemies on their own
@@ -395,16 +630,17 @@ function updateSoldier(e, dt) {
   if (!o) return;
 
   if (o.type === 'move' || o.type === 'attackmove') {
-    if (moveToward(e, o.x, o.y, dt)) e.order = null;
+    if (navigate(e, o.x, o.y, dt)) e.order = null;   // arrived (true) or can't get there ('fail')
   } else if (o.type === 'attack') {
     const t = byId(o.target);
-    if (!t) { e.order = o.resume || null; return; }
+    if (!t || hiddenFrom(t, e.team)) { e.order = o.resume || null; return; }
     if (edgeDist(e.x, e.y, t) > s.range) {
-      moveToward(e, t.x, t.y, dt);
+      if (navigate(e, t.x, t.y, dt) === 'fail') e.order = o.resume || null;
     } else {
       e.facing = Math.atan2(t.y - e.y, t.x - e.x);
       if (e.cooldown <= 0) {
         e.cooldown = s.cooldown;
+        e.revealT = 1.5;   // firing gives away your position
         t.hp -= s.dmg;
         game.effects.push({ kind: 'shot', x: e.x, y: e.y, x2: t.x + (Math.random() - .5) * 8,
                             y2: t.y + (Math.random() - .5) * 8, team: e.team, t: 0 });
@@ -444,6 +680,7 @@ function releaseUnit(b) {
 // keep units from stacking on top of each other or driving through buildings
 function separate() {
   const units = game.ents.filter(isUnit);
+  for (const u of units) { u.px = u.x; u.py = u.y; }
   for (let i = 0; i < units.length; i++) {
     const a = units[i];
     for (let j = i + 1; j < units.length; j++) {
@@ -467,6 +704,9 @@ function separate() {
     }
     a.x = Math.min(W - a.r, Math.max(a.r, a.x));
     a.y = Math.min(H - a.r, Math.max(a.r, a.y));
+  }
+  for (const u of units) {
+    if (!walkable(terrainAt(u.x, u.y), isVehicle(u))) { u.x = u.px; u.y = u.py; }
   }
 }
 
@@ -530,7 +770,7 @@ function runAI(dt) {
   for (const b of barracks) if (b.queue < 2 && game.credits[1] >= COST.soldier + reserve) produce(b);
 
   // targets = your things it can see right now + buildings it remembers
-  const targets = game.ents.filter(e => e.team === 0 && visibleAt(e.x, e.y, 1)).map(e => ({ x: e.x, y: e.y }));
+  const targets = game.ents.filter(e => e.team === 0 && visibleAt(e.x, e.y, 1) && !hiddenFrom(e, 1)).map(e => ({ x: e.x, y: e.y }));
   for (const k of ai.known.values()) targets.push(k);
 
   // send one soldier out to scout until it has found your base
@@ -750,6 +990,8 @@ function drawExtractor(e) {
 
 function drawSoldier(e) {
   const c = TEAMS[e.team];
+  const hidden = e.team === 0 && hiddenFrom(e, 1);   // your soldier is hidden in a forest
+  if (hidden) ctx.globalAlpha = 0.55;
   ctx.fillStyle = 'rgba(0,0,0,0.3)';
   ctx.beginPath(); ctx.ellipse(e.x + 2, e.y + 4, e.r, e.r * 0.6, 0, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = '#222'; ctx.lineWidth = 2.5;
@@ -759,6 +1001,7 @@ function drawSoldier(e) {
   ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   ctx.fillStyle = c.light;
   ctx.beginPath(); ctx.arc(e.x - 2, e.y - 2, e.r * 0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
 }
 
 function drawConstruction(e) {

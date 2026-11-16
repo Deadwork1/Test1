@@ -2,7 +2,7 @@
 
 A small real-time strategy game inspired by classic 90s RTS games, built step by step.
 
-**Current version (v2):** 1v1 against the computer on a large map with fog of war.
+**Current version (v3):** 1v1 against the computer on a large map with terrain and fog of war.
 
 - Your **settler** deploys into a **Headquarters (HQ)**.
 - The HQ builds a **Refinery** ($400) and a **Barracks** ($300).
@@ -10,6 +10,12 @@ A small real-time strategy game inspired by classic 90s RTS games, built step by
 - The Barracks trains **Soldiers** ($100).
 - The big ore field in the middle is the prize. Destroy everything the enemy owns to win.
 - The computer plays under the same fog of war: it has to scout to find ore and your base.
+
+## Terrain
+- **Rocks & cliffs** block everything. Each base has a cliff wall with a gap.
+- **River** blocks all ground units; cross at the **bridges**. The rich ore field sits on an island in the middle, reached by two bridges.
+- **Forests** stop vehicles. Soldiers can walk through slowly and are hidden inside unless an enemy gets close or they open fire.
+- Units find their own way around obstacles and buildings.
 
 ## Controls (touch or mouse)
 - Drag to scroll, pinch (or mouse wheel) to zoom, tap the minimap to jump.
