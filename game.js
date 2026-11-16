@@ -1400,11 +1400,16 @@ function drawFactory(e) {
     ctx.beginPath(); ctx.moveTo(x0 + 8, yy + 12); ctx.lineTo(x0 + e.size - 8, yy + 12); ctx.lineTo(x0 + e.size - 8, yy); ctx.closePath(); ctx.fill();
   }
   ctx.fillStyle = c.color; ctx.fillRect(x0 + 4, y0 + 6, e.size - 8, 5);
-  // emblem: gear
-  emblemPlate(x0 + e.size - 22, y0 + 26, 12, e.team);
-  ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.arc(x0 + e.size - 22, y0 + 26, 5, 0, Math.PI * 2); ctx.stroke();
-  for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3; ctx.beginPath(); ctx.moveTo(x0 + e.size - 22 + Math.cos(a) * 6, y0 + 26 + Math.sin(a) * 6); ctx.lineTo(x0 + e.size - 22 + Math.cos(a) * 9, y0 + 26 + Math.sin(a) * 9); ctx.stroke(); }
+  // emblem: a little tank seen from the side
+  const ex = x0 + e.size - 22, ey = y0 + 26;
+  emblemPlate(ex, ey, 12, e.team);
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.moveTo(ex - 8, ey + 2); ctx.lineTo(ex + 8, ey + 2); ctx.lineTo(ex + 6, ey + 6); ctx.lineTo(ex - 6, ey + 6); ctx.closePath(); ctx.fill();   // tracks
+  ctx.fillRect(ex - 6, ey - 2, 12, 4);                                   // hull
+  ctx.beginPath(); ctx.arc(ex - 1, ey - 3, 3.5, Math.PI, 0); ctx.fill(); // turret
+  ctx.fillRect(ex + 1, ey - 5, 8, 2);                                    // barrel
+  ctx.fillStyle = TEAMS[e.team].dark;
+  for (const wx of [-4, 0, 4]) { ctx.beginPath(); ctx.arc(ex + wx, ey + 4, 1, 0, Math.PI * 2); ctx.fill(); }   // road wheels
   // large garage door in the front wall (rolls up while a vehicle is being made)
   const dw = 44, dh = 20, dy = y0 + e.size - 6 - dh;
   ctx.fillStyle = '#222'; ctx.fillRect(e.x - dw / 2, dy, dw, dh);
@@ -1412,7 +1417,28 @@ function drawFactory(e) {
   ctx.fillStyle = '#9a958a';
   for (let k = 0; k < dh * (1 - open); k += 4) ctx.fillRect(e.x - dw / 2, dy + k, dw, 3);
   ctx.fillStyle = c.color; ctx.fillRect(e.x - dw / 2 - 3, dy - 3, dw + 6, 3);
-  frontApron(e, 50);
+  // vehicle ramp sloping down from the garage door: ribbed steel, hazard-striped edges, side rails
+  const ry = y0 + e.size, rl = 18, topW = dw + 4, botW = dw + 16;
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath(); ctx.moveTo(e.x - topW / 2 + 3, ry + 3); ctx.lineTo(e.x + topW / 2 + 3, ry + 3); ctx.lineTo(e.x + botW / 2 + 3, ry + rl + 3); ctx.lineTo(e.x - botW / 2 + 3, ry + rl + 3); ctx.closePath(); ctx.fill();
+  const rg = ctx.createLinearGradient(0, ry, 0, ry + rl);
+  rg.addColorStop(0, '#9c978b'); rg.addColorStop(1, '#6f6b61');   // lighter at the top: it slopes away from you
+  ctx.fillStyle = rg;
+  ctx.beginPath(); ctx.moveTo(e.x - topW / 2, ry); ctx.lineTo(e.x + topW / 2, ry); ctx.lineTo(e.x + botW / 2, ry + rl); ctx.lineTo(e.x - botW / 2, ry + rl); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 1;
+  for (let k = 3; k < rl; k += 3) {   // anti-slip ribs
+    const w = topW + (botW - topW) * k / rl;
+    ctx.beginPath(); ctx.moveTo(e.x - w / 2 + 5, ry + k); ctx.lineTo(e.x + w / 2 - 5, ry + k); ctx.stroke();
+  }
+  for (const side of [-1, 1]) {        // hazard-striped edges
+    for (let k = 0; k < rl; k += 3) {
+      const w = topW + (botW - topW) * k / rl;
+      ctx.fillStyle = (k / 3) % 2 ? '#1e1e1e' : '#f2c230';
+      ctx.fillRect(e.x + side * (w / 2) - (side > 0 ? 4 : 0), ry + k, 4, 3);
+    }
+    ctx.strokeStyle = '#4a4740'; ctx.lineWidth = 2;   // rails
+    ctx.beginPath(); ctx.moveTo(e.x + side * (topW / 2 + 2), ry); ctx.lineTo(e.x + side * (botW / 2 + 2), ry + rl); ctx.stroke();
+  }
   drawQueue(e);
 }
 

@@ -6,6 +6,7 @@ const PATCH_NOTES = [
     changes: [
       'Fixed: the game could freeze once a Power Plant was built (introduced in 3.11).',
       'Power Plants are more detailed: shaded cooling towers with rising steam, pipes into a generator hall with roof vents and glowing windows, and a transformer that sparks now and then.',
+      'War Factory (still shelved) redesigned: a tank emblem instead of the gear, and a vehicle ramp leading down from its garage door.',
     ],
   },
   {
