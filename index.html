@@ -12,29 +12,31 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; height: 100%; background: #0d130b; overflow: hidden;
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden;
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #e8efe2;
     user-select: none; -webkit-user-select: none; touch-action: none; }
   canvas { display: block; position: fixed; inset: 0; width: 100%; height: 100%; }
-  .bar { position: fixed; left: 0; right: 0; display: flex; align-items: center; gap: 8px;
-    padding: 6px max(10px, env(safe-area-inset-left)); pointer-events: none; }
-  .bar > * { pointer-events: auto; }
+  .bar { position: fixed; left: 0; right: 0; display: flex; align-items: center; gap: 6px;
+    padding: 6px max(8px, env(safe-area-inset-right)) 6px max(8px, env(safe-area-inset-left));
+    pointer-events: none; white-space: nowrap; }
+  .bar > * { pointer-events: auto; flex-shrink: 0; }
   #top { top: 0; padding-top: max(6px, env(safe-area-inset-top)); }
-  #panel { bottom: 0; padding-bottom: max(6px, env(safe-area-inset-bottom)); }
-  .chip { background: rgba(10,16,8,.78); border: 1px solid rgba(255,255,255,.12); border-radius: 10px;
-    padding: 6px 10px; font-weight: 600; font-size: 15px; }
-  #credits { color: #ffd86b; font-variant-numeric: tabular-nums; }
-  .spacer { flex: 1; pointer-events: none; }
-  button { font: inherit; font-size: 15px; font-weight: 600; color: #e8efe2; background: #2c4a22;
-    border: 1px solid #5b8a45; border-radius: 10px; padding: 9px 14px; min-height: 42px; }
+  #panel { bottom: 0; padding-bottom: max(6px, env(safe-area-inset-bottom)); overflow-x: auto; }
+  .chip { background: rgba(10,16,8,.82); border: 1px solid rgba(255,255,255,.12); border-radius: 10px;
+    padding: 7px 10px; font-weight: 600; font-size: 14px; }
+  #credits { color: #ffd86b; font-variant-numeric: tabular-nums; min-width: 70px; }
+  #info { font-weight: 500; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
+  .spacer { flex: 1 1 auto !important; pointer-events: none; }
+  button { font: inherit; font-size: 14px; font-weight: 600; color: #e8efe2; background: #2c4a22;
+    border: 1px solid #5b8a45; border-radius: 10px; padding: 8px 12px; min-height: 40px; }
   button:active { background: #3d6630; }
   button:disabled { opacity: .45; }
-  button.ghost { background: rgba(10,16,8,.78); border-color: rgba(255,255,255,.18); }
-  #info { font-weight: 500; }
+  button.ghost { background: rgba(10,16,8,.82); border-color: rgba(255,255,255,.2); }
+  button.on { background: #6b5a1a; border-color: #ffd86b; }
   #overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
-    background: rgba(0,0,0,.6); flex-direction: column; gap: 14px; text-align: center; padding: 20px; }
-  #overlay h1 { margin: 0; font-size: 34px; }
-  #overlay p { margin: 0; max-width: 460px; line-height: 1.4; opacity: .9; }
+    background: rgba(0,0,0,.7); flex-direction: column; gap: 14px; text-align: center; padding: 20px; }
+  #overlay h1 { margin: 0; font-size: 32px; }
+  #overlay p { margin: 0; max-width: 520px; line-height: 1.45; opacity: .9; font-size: 15px; }
 </style>
 </head>
 <body>
@@ -42,20 +44,23 @@
 
 <div id="top" class="bar">
   <span id="credits" class="chip">$0</span>
-  <span id="enemyInfo" class="chip"></span>
   <span class="spacer"></span>
-  <button id="btnAll" class="ghost">Select soldiers</button>
+  <button id="btnBox" class="ghost">Box select</button>
+  <button id="btnAll" class="ghost">Soldiers</button>
   <button id="btnPause" class="ghost">❚❚</button>
 </div>
 
 <div id="panel" class="bar">
   <span id="info" class="chip">Tap your settler to begin</span>
   <button id="btnDeploy">Deploy HQ</button>
-  <button id="btnBuild">Build Barracks $300</button>
-  <button id="btnTrain">Train Soldier $100</button>
+  <button id="btnBarracks">Barracks $300</button>
+  <button id="btnRefinery">Refinery $400</button>
+  <button id="btnProduce">Train</button>
+  <button id="btnHarvest">Auto-harvest</button>
+  <button id="btnPlace">Place here</button>
   <button id="btnCancel" class="ghost">Cancel</button>
   <span class="spacer"></span>
-  <button id="btnDeselect" class="ghost">Deselect</button>
+  <button id="btnDeselect" class="ghost">✕</button>
 </div>
 
 <div id="overlay">
