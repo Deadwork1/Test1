@@ -2,6 +2,18 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '3.2', date: '16 Nov 2026', title: 'Building makeover',
+    changes: [
+      'Headquarters: command building with a star emblem, spinning radar dish and blinking antenna.',
+      'Barracks: two army huts with sergeant-stripes emblem and sandbags by the door.',
+      'Refinery: storage tanks, smoking chimney, ore emblem and a striped unloading pad.',
+      'Selected buildings show their name, and the placement preview shows what you are building.',
+      'Every building now has a front door facing the bottom of the screen. Units leave through it.',
+      'Extractors drive into the Refinery through its front unloading bay, one at a time, then reverse back out. Others queue at the door.',
+      'Buildings need open ground in front of their door, and can\'t be built on another building\'s doorstep.',
+    ],
+  },
+  {
     version: '3.1', date: '16 Nov 2026', title: 'Soldier makeover',
     changes: [
       'Soldiers now look like soldiers: helmet, backpack and a rifle pointing where they aim.',

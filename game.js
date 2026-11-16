@@ -460,8 +460,19 @@ function deploy(settler) {
 }
 
 function canPlace(team, type, x, y) {
-  const hq = hqOf(team);
-  return !!hq && edgeDist(x, y, hq) <= BUILD_RADIUS && siteIsFree(x, y, STATS[type].size);
+  const hq = hqOf(team), size = STATS[type].size;
+  if (!hq || edgeDist(x, y, hq) > BUILD_RADIUS || !siteIsFree(x, y, size)) return false;
+  // the new building's front door needs open ground in front of it
+  const door = { x, y: y + size / 2 + 18 };
+  for (const dx of [-16, 0, 16]) if (!walkable(terrainAt(door.x + dx, door.y), true) || terrainAt(door.x + dx, door.y) === T.BRIDGE) return false;
+  if (door.y + 14 > H) return false;
+  for (const b of game.ents) {
+    if (!isBuilding(b)) continue;
+    if (edgeDist(door.x, door.y, b) < 16) return false;                 // our door would face a wall
+    const od = frontDoor(b);                                            // we'd sit on someone's doorstep
+    if (Math.abs(od.x - x) < size / 2 + 14 && Math.abs(od.y - y) < size / 2 + 14) return false;
+  }
+  return true;
 }
 
 function placeBuilding(team, type, x, y) {
@@ -518,6 +529,7 @@ function autoHarvest(e) {
 function updateExtractor(e, dt) {
   const s = STATS.extractor, o = e.order;
   e.mining = false;
+  if (e.docked && (!o || o.type !== 'harvest' || !['docking', 'unloading', 'undocking'].includes(o.phase))) e.docked = false;
   if (!o) return;
   if (o.type === 'move') { if (navigate(e, o.x, o.y, dt)) e.order = null; return; }
 
@@ -528,7 +540,11 @@ function updateExtractor(e, dt) {
       node = findOre(o.lastX, o.lastY, 260, e.team, false);
       if (!node) {
         if (e.cargo > 0) { o.phase = 'toBase'; o.finish = true; }
-        else { e.order = null; e.outOfOre = true; }
+        else {
+          e.order = null; e.outOfOre = true;
+          const r = nearestRefinery(e);   // don't go idle right on a refinery's doorstep
+          if (r && Math.hypot(e.x - frontDoor(r).x, e.y - frontDoor(r).y) < 45) { const w = waitSpot(r, e); e.order = { type: 'move', x: w.x, y: w.y }; }
+        }
         return;
       }
       o.node = node.id; o.phase = 'toNode';
@@ -547,12 +563,34 @@ function updateExtractor(e, dt) {
     return;
   }
 
+  const ref = o.ref && byId(o.ref);
+  if (o.phase !== 'toBase' && !ref) {   // refinery destroyed mid-unload
+    e.docked = false; o.phase = 'toBase'; o.ref = null; return;
+  }
+
   if (o.phase === 'toBase') {
-    const ref = nearestRefinery(e);
-    if (!ref) return;                       // no refinery: wait with the load
-    const near = edgeDist(e.x, e.y, ref) <= e.r + 6;
-    const arrived = near || navigate(e, ref.x, ref.y, dt);
-    if (arrived === true && (near || edgeDist(e.x, e.y, ref) < 40)) { o.phase = 'unloading'; o.t = 0; }
+    const r = (ref && ref.built) ? ref : nearestRefinery(e);
+    if (!r) { o.waiting = false; return; }   // no refinery: wait with the load
+    o.ref = r.id;
+    const d = dockOf(r), dist = Math.hypot(e.x - d.out.x, e.y - d.out.y);
+    if (dist > 140) { navigate(e, d.out.x, d.out.y, dt); o.waiting = false; return; }
+    if (dockBusy(r, e)) {                    // bay in use: wait to the side, out of the way
+      const w = waitSpot(r, e);
+      o.waiting = true;
+      if (Math.hypot(e.x - w.x, e.y - w.y) > 10) navigate(e, w.x, w.y, dt);
+      return;
+    }
+    o.waiting = false;
+    r.dockedBy = e.id;                       // reserve the bay
+    if (dist > 22) { navigate(e, d.out.x, d.out.y, dt); return; }
+    e.docked = true; o.phase = 'docking';
+    return;
+  }
+
+  const d = dockOf(ref);
+  if (o.phase === 'docking') {
+    if (moveToward(e, d.pad.x, d.pad.y, dt)) { o.phase = 'unloading'; o.t = 0; }
+    e.facing = -Math.PI / 2;   // drive in nose-first
     return;
   }
 
@@ -562,7 +600,20 @@ function updateExtractor(e, dt) {
       const amount = Math.round(e.cargo);
       game.credits[e.team] += amount; e.cargo = 0;
       if (e.team === 0) game.effects.push({ kind: 'text', x: e.x, y: e.y - 20, text: '+$' + amount, t: 0 });
-      if (o.finish) { e.order = null; e.outOfOre = true; } else o.phase = 'toNode';
+      o.phase = 'undocking';
+    }
+    return;
+  }
+
+  if (o.phase === 'undocking') {
+    const done = moveToward(e, d.out.x, d.out.y, dt);
+    e.facing = -Math.PI / 2;   // reverse back out
+    if (done || edgeDist(e.x, e.y, ref) > e.r) {
+      e.docked = false; if (ref.dockedBy === e.id) ref.dockedBy = null;
+      if (o.finish) {   // nothing left to collect: park beside the door, not on it
+        const w = waitSpot(ref, e);
+        e.order = { type: 'move', x: w.x, y: w.y }; e.outOfOre = true;
+      } else { o.phase = 'toNode'; o.ref = null; }
     }
   }
 }
@@ -623,7 +674,7 @@ function updateSoldier(e, dt) {
   let o = e.order;
 
   // idle or attack-moving soldiers look for nearby enemies on their own
-  if (!o || o.type === 'attackmove') {
+  if ((!o && !e.passive) || (o && o.type === 'attackmove')) {
     const foe = findEnemyNear(e, s.sight);
     if (foe) { e.order = { type: 'attack', target: foe.id, resume: o }; o = e.order; }
   }
@@ -670,11 +721,36 @@ function updateBuilding(e, dt) {
 }
 
 // a new unit rolls out of the building's door
+// Every building's front door faces the bottom of the screen.
+const frontDoor = b => ({ x: b.x, y: b.y + b.size / 2 + 18 });
+
 function releaseUnit(b) {
-  const dir = b.team === 0 ? -1 : 1;
-  const u = spawn(PRODUCES[b.type], b.team, b.x, b.y + dir * (b.size / 2 + 16));
-  u.order = { type: 'move', x: b.x + (Math.random() - .5) * 80, y: b.y + dir * (b.size / 2 + 45) };
+  const d = frontDoor(b);
+  const u = spawn(PRODUCES[b.type], b.team, d.x, d.y - 6);
+  u.facing = Math.PI / 2;
+  u.order = { type: 'move', x: d.x + (Math.random() - .5) * 70, y: d.y + 28 };
   return u;
+}
+
+// Refinery unloading bay: extractors line up at the front door, drive onto the pad, unload, back out.
+const dockOf = r => ({ out: frontDoor(r), pad: { x: r.x, y: r.y + r.size / 2 - 15 } });
+// is the bay reserved by another extractor that's still using it?
+function dockBusy(ref, e) {
+  const id = ref.dockedBy;
+  if (!id || id === e.id) return false;
+  const o = byId(id), ord = o && o.order;
+  const using = ord && ord.type === 'harvest' && ord.ref === ref.id && ['toBase', 'docking', 'unloading', 'undocking'].includes(ord.phase);
+  if (!using) { ref.dockedBy = null; return false; }
+  return true;
+}
+// where to wait (off to the side of the door) while the bay is in use
+function waitSpot(ref, e) {
+  const d = frontDoor(ref), side = e.id % 2 ? -1 : 1;
+  for (const [dx, dy] of [[side * 50, 26], [-side * 50, 26], [side * 30, 55], [0, 60]]) {
+    const x = d.x + dx, y = d.y + dy;
+    if (walkable(terrainAt(x, y), true) && !game.ents.some(b => isBuilding(b) && edgeDist(x, y, b) < 16)) return { x, y };
+  }
+  return { x: d.x, y: d.y + 40 };
 }
 
 // keep units from stacking on top of each other or driving through buildings
@@ -690,12 +766,14 @@ function separate() {
       const d = Math.hypot(dx, dy) || 0.01, min = a.r + b.r;
       if (d < min) {
         const push = (min - d) / 2;
-        a.x -= dx / d * push; a.y -= dy / d * push;
-        b.x += dx / d * push; b.y += dy / d * push;
+        const wa = a.docked ? 0 : b.docked ? 2 : 1, wb = b.docked ? 0 : a.docked ? 2 : 1;
+        a.x -= dx / d * push * wa; a.y -= dy / d * push * wa;
+        b.x += dx / d * push * wb; b.y += dy / d * push * wb;
       }
     }
     for (const bld of game.ents) {
       if (!isBuilding(bld)) continue;
+      if (a.docked && a.order && a.order.ref === bld.id) continue;
       const h = bld.size / 2 + a.r, dx = a.x - bld.x, dy = a.y - bld.y;
       if (Math.abs(dx) < h && Math.abs(dy) < h) {
         if (h - Math.abs(dx) < h - Math.abs(dy)) a.x = bld.x + Math.sign(dx || 1) * h;
@@ -777,15 +855,15 @@ function runAI(dt) {
   const scout = ai.scout && byId(ai.scout);
   if (!ai.known.size && soldiers.length && !ai.attacking) {
     const sc = scout || soldiers[0];
-    ai.scout = sc.id;
+    ai.scout = sc.id; sc.passive = true;   // scouts look, they don't pick fights
     if (!sc.order) { const spot = aiExploreSpot(sc.x, sc.y, true); if (spot) sc.order = { type: 'move', x: spot.x, y: spot.y }; }
   } else if (scout && ai.known.size && !ai.attacking && hq) {
     // found you: the scout runs home to report instead of fighting alone
     scout.order = { type: 'move', x: hq.x - 120, y: hq.y + 120 };
-    ai.scout = null;
+    scout.passive = false; ai.scout = null;
   }
 
-  if (soldiers.length >= 6) ai.attacking = true;
+  if (soldiers.length >= 6) { ai.attacking = true; for (const s of soldiers) s.passive = false; }
   if (soldiers.length < 2) ai.attacking = false;
 
   if (ai.attacking) {
@@ -830,6 +908,7 @@ function draw() {
     else drawSoldier(e);
   }
   for (const e of ents) if (sel.has(e.id) || e.hp < e.maxHp) drawHealth(e);
+  for (const e of ents) if (sel.has(e.id) && isBuilding(e)) drawNameTag(e);
 
   for (const fx of game.effects) {
     if (fx.kind !== 'marker' && fx.kind !== 'text' && !visibleAt(fx.x, fx.y)) continue;
@@ -882,8 +961,12 @@ function drawPlacement() {
   ctx.strokeStyle = ok ? '#7dff7d' : '#ff6b6b'; ctx.lineWidth = 2;
   ctx.fillRect(g.x - size / 2, g.y - size / 2, size, size);
   ctx.strokeRect(g.x - size / 2, g.y - size / 2, size, size);
+  ctx.fillRect(g.x - 14, g.y + size / 2, 28, 12);   // front door / apron
+  ctx.strokeRect(g.x - 14, g.y + size / 2, 28, 12);
   ctx.fillStyle = '#fff'; ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'center';
-  ctx.fillText(ok ? 'Tap again to build' : "Can't build here", g.x, g.y + 5);
+  ctx.fillText(NAMES[type], g.x, g.y - 4);
+  ctx.font = '11px system-ui';
+  ctx.fillText(ok ? 'Tap again to build' : "Can't build here", g.x, g.y + 12);
 }
 
 function drawMinimap() {
@@ -1044,60 +1127,174 @@ function drawConstruction(e) {
 function drawQueue(e) {
   if (!e.queue) return;
   const h = e.size / 2, k = e.trainT / STATS[e.type].trainTime;
-  ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(e.x - h, e.y + h + 4, e.size, 6);
-  ctx.fillStyle = '#ffd86b'; ctx.fillRect(e.x - h, e.y + h + 4, e.size * k, 6);
-  ctx.fillStyle = '#fff'; ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center';
-  ctx.fillText('×' + e.queue, e.x, e.y + h + 22);
+  ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(e.x - h + 4, e.y - h + 4, e.size - 8, 7);
+  ctx.fillStyle = '#ffd86b'; ctx.fillRect(e.x - h + 4, e.y - h + 4, (e.size - 8) * k, 7);
+  ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(e.x - h + 4, e.y - h + 12, 26, 15);
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'left';
+  ctx.fillText('×' + e.queue, e.x - h + 8, e.y - h + 24);
+}
+
+// shared helpers for buildings (slight 3D: lit roof, darker front wall)
+function block(x, y, w, h, roof, wall, wallH) {
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(x + 5, y + 6, w, h);
+  ctx.fillStyle = wall; ctx.fillRect(x, y + h - wallH, w, wallH);
+  ctx.fillStyle = roof; ctx.fillRect(x, y, w, h - wallH);
+}
+function emblemPlate(x, y, r, team) {
+  ctx.fillStyle = TEAMS[team].dark; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = TEAMS[team].light; ctx.lineWidth = 1.5; ctx.stroke();
+}
+function flag(x, y, team) {
+  ctx.strokeStyle = '#ddd'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 22); ctx.stroke();
+  const wave = Math.sin(performance.now() / 300 + x) * 1.5;
+  ctx.fillStyle = TEAMS[team].color;
+  ctx.beginPath(); ctx.moveTo(x, y - 22); ctx.lineTo(x + 15, y - 19 + wave); ctx.lineTo(x, y - 13); ctx.fill();
+}
+function star(x, y, r, col) {
+  ctx.fillStyle = col; ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * 0.45 : r;
+    ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+  }
+  ctx.fill();
+}
+
+// concrete apron in front of the door so you can see where units come and go
+function frontApron(e, w) {
+  const y = e.y + e.size / 2;
+  ctx.fillStyle = '#a39e92'; ctx.fillRect(e.x - w / 2, y, w, 12);
+  ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(e.x - w / 2, y + 10, w, 2);
+}
+function door(e, w, hgt) {
+  const y = e.y + e.size / 2 - hgt;
+  ctx.fillStyle = '#2a2824'; ctx.fillRect(e.x - w / 2, y, w, hgt);
+  ctx.fillStyle = TEAMS[e.team].color; ctx.fillRect(e.x - w / 2 - 2, y - 2, w + 4, 2);
 }
 
 function drawHQ(e) {
-  const c = TEAMS[e.team], h = e.size / 2;
-  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(e.x - h + 6, e.y - h + 7, e.size, e.size);
-  ctx.fillStyle = '#8a8476'; ctx.fillRect(e.x - h, e.y - h, e.size, e.size);
-  ctx.fillStyle = '#5f5a4f'; ctx.fillRect(e.x - h + 5, e.y - h + 5, e.size - 10, e.size - 10);
-  ctx.fillStyle = c.dark; ctx.beginPath(); ctx.arc(e.x, e.y, h * 0.55, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = c.color; ctx.beginPath(); ctx.arc(e.x, e.y, h * 0.4, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#fff'; ctx.font = 'bold 16px system-ui'; ctx.textAlign = 'center';
-  ctx.fillText('HQ', e.x, e.y + 6);
-  ctx.strokeStyle = '#ddd'; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.arc(e.x + h - 14, e.y - h + 14, 8, Math.PI * 0.8, Math.PI * 1.9); ctx.stroke();
-  for (const [cx, cy] of [[-1, -1], [1, 1], [-1, 1]]) {
-    ctx.fillStyle = c.color; ctx.fillRect(e.x + cx * (h - 10) - 4, e.y + cy * (h - 10) - 4, 8, 8);
-  }
+  const c = TEAMS[e.team], h = e.size / 2, x0 = e.x - h, y0 = e.y - h, t = performance.now() / 1000;
+  // concrete pad
+  ctx.fillStyle = '#9a958a'; ctx.fillRect(x0 - 4, y0 - 4, e.size + 8, e.size + 8);
+  // main command building
+  block(x0 + 6, y0 + 10, e.size - 12, e.size - 18, '#7d786c', '#4e4a42', 16);
+  ctx.fillStyle = c.color; ctx.fillRect(x0 + 6, y0 + 10, e.size - 12, 7);             // team roof trim
+  // windows along the front wall
+  ctx.fillStyle = '#a9d4ff';
+  for (const i of [0, 1, 3, 4]) ctx.fillRect(x0 + 14 + i * 14, y0 + e.size - 20, 8, 5);
+  frontApron(e, 30);
+  ctx.fillStyle = '#2a2824'; ctx.fillRect(e.x - 8, y0 + e.size - 22, 16, 14);
+  ctx.fillStyle = c.color; ctx.fillRect(e.x - 10, y0 + e.size - 24, 20, 2);
+  // dome with a star
+  emblemPlate(e.x - 6, e.y - 4, 17, e.team);
+  star(e.x - 6, e.y - 4, 11, '#fff');
+  // rotating radar dish
+  const rx = x0 + e.size - 20, ry = y0 + 24;
+  ctx.fillStyle = '#555'; ctx.beginPath(); ctx.arc(rx, ry, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.save(); ctx.translate(rx, ry); ctx.rotate(t * 1.5);
+  ctx.strokeStyle = '#e6e6e6'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(0, 0, 10, -0.9, 0.9); ctx.stroke();
+  ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(10, 0); ctx.stroke();
+  ctx.restore();
+  // antenna with blinking light
+  ctx.strokeStyle = '#ccc'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(x0 + e.size - 20, y0 + 52); ctx.lineTo(x0 + e.size - 20, y0 + 38); ctx.stroke();
+  if (Math.floor(t * 2) % 2) { ctx.fillStyle = '#ff5a5a'; ctx.beginPath(); ctx.arc(x0 + e.size - 20, y0 + 37, 2.5, 0, Math.PI * 2); ctx.fill(); }
+  flag(x0 + 4, y0 + 4, e.team);
 }
 
 function drawBarracks(e) {
   if (!e.built) return drawConstruction(e);
-  const c = TEAMS[e.team], h = e.size / 2;
-  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(e.x - h + 5, e.y - h + 6, e.size, e.size);
-  ctx.fillStyle = '#7a7466'; ctx.fillRect(e.x - h, e.y - h, e.size, e.size);
-  ctx.fillStyle = c.dark; ctx.fillRect(e.x - h + 6, e.y - h + 6, e.size - 12, e.size - 12);
-  ctx.fillStyle = c.color;
-  for (let i = 0; i < 3; i++) ctx.fillRect(e.x - h + 10, e.y - h + 12 + i * 18, e.size - 20, 9);
-  const dir = e.team === 0 ? -1 : 1;
-  ctx.fillStyle = '#222'; ctx.fillRect(e.x - 9, dir < 0 ? e.y - h : e.y + h - 8, 18, 8);
-  ctx.strokeStyle = '#ddd'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(e.x + h - 8, e.y - h + 4); ctx.lineTo(e.x + h - 8, e.y - h - 18); ctx.stroke();
-  ctx.fillStyle = c.color; ctx.fillRect(e.x + h - 8, e.y - h - 18, 14, 9);
+  const c = TEAMS[e.team], h = e.size / 2, x0 = e.x - h, y0 = e.y - h;
+  ctx.fillStyle = '#8f8a74'; ctx.fillRect(x0 - 3, y0 - 3, e.size + 6, e.size + 6);   // gravel yard
+  // two curved-roof huts
+  for (let i = 0; i < 2; i++) {
+    const hy = y0 + 6 + i * 30, hw = e.size - 12, hh = 24;
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(x0 + 10, hy + 5, hw, hh);
+    const g = ctx.createLinearGradient(0, hy, 0, hy + hh);
+    g.addColorStop(0, '#8c9a5b'); g.addColorStop(0.45, '#6d7a43'); g.addColorStop(1, '#3f4826');
+    ctx.fillStyle = g; ctx.fillRect(x0 + 6, hy, hw, hh);
+    ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 1;
+    for (let k = x0 + 14; k < x0 + 6 + hw; k += 8) { ctx.beginPath(); ctx.moveTo(k, hy); ctx.lineTo(k, hy + hh); ctx.stroke(); }
+    ctx.fillStyle = c.color; ctx.fillRect(x0 + 6, hy, 5, hh); ctx.fillRect(x0 + 1 + hw, hy, 5, hh);   // team-coloured ends
+  }
+  // emblem: sergeant chevrons
+  emblemPlate(e.x, e.y + 3, 12, e.team);
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
+  for (let k = 0; k < 2; k++) { ctx.beginPath(); ctx.moveTo(e.x - 7, e.y + 1 + k * 5); ctx.lineTo(e.x, e.y - 4 + k * 5); ctx.lineTo(e.x + 7, e.y + 1 + k * 5); ctx.stroke(); }
+  // front door + sandbags either side of it
+  frontApron(e, 26);
+  door(e, 16, 10);
+  const sy = y0 + e.size + 3;
+  ctx.fillStyle = '#c2ad7c'; ctx.strokeStyle = '#7d6c45'; ctx.lineWidth = 1;
+  for (let k = x0; k < x0 + e.size; k += 9) {
+    if (Math.abs(k + 4 - e.x) < 15) continue;   // gap for the door
+    ctx.beginPath(); ctx.ellipse(k + 4, sy, 4.5, 3, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  flag(x0 + e.size - 4, y0 + 2, e.team);
   drawQueue(e);
 }
 
 function drawRefinery(e) {
   if (!e.built) return drawConstruction(e);
-  const c = TEAMS[e.team], h = e.size / 2;
-  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(e.x - h + 5, e.y - h + 6, e.size, e.size);
-  ctx.fillStyle = '#7f7a6c'; ctx.fillRect(e.x - h, e.y - h, e.size, e.size);
-  // unloading pad
-  ctx.fillStyle = '#5a5548'; ctx.fillRect(e.x - h + 6, e.y + 4, e.size - 12, h - 10);
-  ctx.strokeStyle = '#e6c34a'; ctx.lineWidth = 2; ctx.setLineDash([5, 4]);
-  ctx.strokeRect(e.x - h + 9, e.y + 7, e.size - 18, h - 16); ctx.setLineDash([]);
-  // silos
-  for (const sx of [-h * 0.45, h * 0.45]) {
-    ctx.fillStyle = c.dark; ctx.beginPath(); ctx.arc(e.x + sx, e.y - h * 0.4, h * 0.36, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = c.color; ctx.beginPath(); ctx.arc(e.x + sx, e.y - h * 0.4, h * 0.25, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#e6c34a'; ctx.beginPath(); ctx.arc(e.x + sx, e.y - h * 0.4, h * 0.1, 0, Math.PI * 2); ctx.fill();
+  const c = TEAMS[e.team], h = e.size / 2, x0 = e.x - h, y0 = e.y - h, t = performance.now() / 1000;
+  ctx.fillStyle = '#8a857a'; ctx.fillRect(x0 - 3, y0 - 3, e.size + 6, e.size + 6);   // concrete
+  // processing hall (right)
+  block(x0 + 40, y0 + 6, e.size - 46, 40, '#857f70', '#55504a', 10);
+  ctx.fillStyle = c.color; ctx.fillRect(x0 + 40, y0 + 6, e.size - 46, 5);
+  // chimney with smoke
+  ctx.fillStyle = '#444'; ctx.fillRect(x0 + e.size - 16, y0 + 2, 8, 14);
+  for (let k = 0; k < 3; k++) {
+    const p = (t * 0.6 + k / 3) % 1;
+    ctx.fillStyle = `rgba(200,200,200,${0.45 * (1 - p)})`;
+    ctx.beginPath(); ctx.arc(x0 + e.size - 12 + p * 8, y0 - p * 22, 3 + p * 6, 0, Math.PI * 2); ctx.fill();
   }
+  // two storage tanks (left)
+  for (const [tx, ty] of [[x0 + 17, y0 + 16], [x0 + 17, y0 + 42]]) {
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.arc(tx + 4, ty + 5, 12, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#b8b3a6'; ctx.beginPath(); ctx.arc(tx, ty, 12, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = c.color; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(tx, ty, 9, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.beginPath(); ctx.arc(tx - 4, ty - 4, 3, 0, Math.PI * 2); ctx.fill();
+  }
+  // pipe from tanks to the hall
+  ctx.strokeStyle = '#6a665d'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(x0 + 29, y0 + 29); ctx.lineTo(x0 + 42, y0 + 29); ctx.stroke();
+  // emblem: ore crystal
+  emblemPlate(x0 + 59, y0 + 24, 11, e.team);
+  ctx.fillStyle = '#f5dc72';
+  ctx.beginPath(); ctx.moveTo(x0 + 59, y0 + 16); ctx.lineTo(x0 + 64, y0 + 24); ctx.lineTo(x0 + 59, y0 + 31); ctx.lineTo(x0 + 54, y0 + 24); ctx.fill();
+  // unloading pad with hazard stripes
+  const py = y0 + e.size - 26;
+  ctx.fillStyle = '#5a564c'; ctx.fillRect(x0 + 4, py, e.size - 8, 22);
+  ctx.save(); ctx.beginPath(); ctx.rect(x0 + 4, py, e.size - 8, 22); ctx.clip();
+  ctx.strokeStyle = '#e6c34a'; ctx.lineWidth = 3;
+  for (let k = -30; k < e.size; k += 10) { ctx.beginPath(); ctx.moveTo(x0 + k, py + 22); ctx.lineTo(x0 + k + 22, py); ctx.stroke(); }
+  ctx.restore();
+  // the bay itself: open at the front so trucks can drive in
+  ctx.fillStyle = '#3d3a33'; ctx.fillRect(e.x - 20, py + 2, 40, 24);
+  ctx.fillStyle = '#a39e92'; ctx.fillRect(e.x - 22, y0 + e.size, 44, 14);           // apron outside the bay
+  ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(e.x - 22, y0 + e.size + 12, 44, 2);
+  // arrows pointing into the bay (they light up while someone is unloading)
+  const busy = e.dockedBy && byId(e.dockedBy);
+  ctx.strokeStyle = busy ? '#ffd86b' : 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2;
+  for (let k = 0; k < 2; k++) {
+    const ay = y0 + e.size + 9 - k * 6;
+    ctx.beginPath(); ctx.moveTo(e.x - 6, ay); ctx.lineTo(e.x, ay - 4); ctx.lineTo(e.x + 6, ay); ctx.stroke();
+  }
+  // little piles of ore beside the bay
+  ctx.fillStyle = '#c9a227';
+  ctx.beginPath(); ctx.moveTo(x0 + 8, py + 18); ctx.lineTo(x0 + 14, py + 9); ctx.lineTo(x0 + 20, py + 18); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x0 + e.size - 20, py + 18); ctx.lineTo(x0 + e.size - 14, py + 9); ctx.lineTo(x0 + e.size - 8, py + 18); ctx.fill();
   drawQueue(e);
+}
+
+// name tag under a selected building
+function drawNameTag(e) {
+  const txt = NAMES[e.type];
+  ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center';
+  const w = ctx.measureText(txt).width + 12, y = e.y - e.size / 2 - 32;   // above the health bar, clear of the door
+  ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(e.x - w / 2, y, w, 17);
+  ctx.fillStyle = '#fff'; ctx.fillText(txt, e.x, y + 13);
 }
 
 // ---------- Input: drag to scroll, pinch to zoom, tap to select / command ----------
@@ -1331,7 +1528,9 @@ function extractorStatus(e) {
   if (o.type === 'move') return 'Extractor: moving';
   if (o.phase === 'toNode') return `Extractor: heading to ore (${load})`;
   if (o.phase === 'mining') return `Extractor: collecting ${load}`;
-  if (o.phase === 'toBase') return nearestRefinery(e) ? `Extractor: returning (${load})` : 'Extractor: needs a refinery!';
+  if (o.phase === 'toBase') return !nearestRefinery(e) ? 'Extractor: needs a refinery!' : o.waiting ? 'Extractor: waiting for the unloading bay' : `Extractor: returning (${load})`;
+  if (o.phase === 'docking') return 'Extractor: driving into the bay';
+  if (o.phase === 'undocking') return 'Extractor: leaving the bay';
   return 'Extractor: unloading';
 }
 
