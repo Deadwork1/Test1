@@ -2,6 +2,15 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '3.5', date: '16 Nov 2026', title: 'Difficulty levels',
+    changes: [
+      'Choose Easy, Normal or Hard on the start screen. Your choice is remembered.',
+      'Easy: the enemy builds 60% slower, earns 30% less from ore, keeps at most 6 soldiers and waits about 5 minutes before attacking.',
+      'Normal (new default): the enemy builds 25% slower, earns 15% less, keeps at most 10 soldiers and waits about 3 minutes.',
+      'Hard: the previous behaviour, full speed with two barracks and an early attack.',
+    ],
+  },
+  {
     version: '3.4', date: '16 Nov 2026', title: 'Pause menu',
     changes: [
       'Pausing now opens a menu with Resume, Restart and Patch notes.',

@@ -26,6 +26,20 @@ const STATS = {
   refinery:  { hp: 600, size: 84, sight: 200, buildTime: 12, trainTime: 6, maxQueue: 3 },
 };
 const PRODUCES = { barracks: 'soldier', refinery: 'extractor' };
+
+// How the computer plays at each difficulty.
+//  think: seconds between decisions   slow: build/train time multiplier   income: share of ore value it earns
+//  attackAt: army size before it attacks   attackAfter: earliest attack (seconds)   barracks: max barracks
+//  maxArmy: it stops training soldiers at this many
+const DIFFICULTY = {
+  easy:   { label: 'Easy',   think: 2.5, slow: 1.6,  income: 0.7,  attackAt: 5, attackAfter: 300, barracks: 1, maxArmy: 6 },
+  normal: { label: 'Normal', think: 1.5, slow: 1.25, income: 0.85, attackAt: 7, attackAfter: 180, barracks: 1, maxArmy: 10 },
+  hard:   { label: 'Hard',   think: 1,   slow: 1,    income: 1,    attackAt: 6, attackAfter: 0,   barracks: 2, maxArmy: Infinity },
+};
+let difficulty = 'normal';
+try { if (DIFFICULTY[localStorage.getItem('mini-rts-difficulty')]) difficulty = localStorage.getItem('mini-rts-difficulty'); } catch (err) {}
+const diff = () => DIFFICULTY[difficulty];
+const slowOf = e => e.team === 1 ? diff().slow : 1;
 const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery' };
 
 const TEAMS = [
@@ -612,7 +626,7 @@ function updateExtractor(e, dt) {
     o.t += dt;
     if (o.t >= s.unloadTime) {
       const amount = Math.round(e.cargo);
-      game.credits[e.team] += amount; e.cargo = 0;
+      game.credits[e.team] += e.team === 1 ? Math.round(amount * diff().income) : amount; e.cargo = 0;
       if (e.team === 0) game.effects.push({ kind: 'text', x: e.x, y: e.y - 20, text: '+$' + amount, t: 0 });
       o.phase = 'undocking';
     }
@@ -718,8 +732,8 @@ function updateSoldier(e, dt) {
 function updateBuilding(e, dt) {
   const s = STATS[e.type];
   if (!e.built) {   // construction happens on its own
-    e.progress += dt / s.buildTime;
-    e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.9 * dt / s.buildTime);
+    e.progress += dt / (s.buildTime * slowOf(e));
+    e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.9 * dt / (s.buildTime * slowOf(e)));
     if (e.progress >= 1) {
       e.progress = 1; e.built = true;
       if (e.type === 'refinery') releaseUnit(e);   // every refinery comes with one free extractor
@@ -728,7 +742,7 @@ function updateBuilding(e, dt) {
   }
   if (!PRODUCES[e.type] || e.queue <= 0) return;
   e.trainT += dt;
-  if (e.trainT >= s.trainTime) {
+  if (e.trainT >= s.trainTime * slowOf(e)) {
     e.trainT = 0; e.queue--;
     releaseUnit(e);
   }
@@ -830,7 +844,7 @@ function runAI(dt) {
   const ai = game.ai;
   ai.timer -= dt;
   if (ai.timer > 0) return;
-  ai.timer = 1;
+  ai.timer = diff().think;
 
   const mine = game.ents.filter(e => e.team === 1);
   const of = t => mine.filter(e => e.type === t);
@@ -847,7 +861,7 @@ function runAI(dt) {
   if (hq) {
     if (refineries.length === 0) aiPlace(hq, 'refinery');
     else if (barracks.length === 0) aiPlace(hq, 'barracks');
-    else if (barracks.length < 2 && cash >= 900) aiPlace(hq, 'barracks');
+    else if (barracks.length < diff().barracks && cash >= 900) aiPlace(hq, 'barracks');
   }
 
   for (const r of refineries) if (extractors.length + r.queue < 2 * refineries.length && r.queue === 0) produce(r);
@@ -859,7 +873,8 @@ function runAI(dt) {
   }
 
   const reserve = extractors.length < 2 && refineries.length ? COST.extractor : 0;
-  for (const b of barracks) if (b.queue < 2 && game.credits[1] >= COST.soldier + reserve) produce(b);
+  const queued = barracks.reduce((n, b) => n + b.queue, 0);
+  for (const b of barracks) if (b.queue < 2 && soldiers.length + queued < diff().maxArmy && game.credits[1] >= COST.soldier + reserve) produce(b);
 
   // targets = your things it can see right now + buildings it remembers
   const targets = game.ents.filter(e => e.team === 0 && visibleAt(e.x, e.y, 1) && !hiddenFrom(e, 1)).map(e => ({ x: e.x, y: e.y }));
@@ -877,7 +892,7 @@ function runAI(dt) {
     scout.passive = false; ai.scout = null;
   }
 
-  if (soldiers.length >= 6) { ai.attacking = true; for (const s of soldiers) s.passive = false; }
+  if (soldiers.length >= diff().attackAt && game.time >= diff().attackAfter) { ai.attacking = true; for (const s of soldiers) s.passive = false; }
   if (soldiers.length < 2) ai.attacking = false;
 
   if (ai.attacking) {
@@ -1140,7 +1155,7 @@ function drawConstruction(e) {
 
 function drawQueue(e) {
   if (!e.queue) return;
-  const h = e.size / 2, k = e.trainT / STATS[e.type].trainTime;
+  const h = e.size / 2, k = e.trainT / (STATS[e.type].trainTime * slowOf(e));
   ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(e.x - h + 4, e.y - h + 4, e.size - 8, 7);
   ctx.fillStyle = '#ffd86b'; ctx.fillRect(e.x - h + 4, e.y - h + 4, (e.size - 8) * k, 7);
   ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(e.x - h + 4, e.y - h + 12, 26, 15);
@@ -1545,6 +1560,24 @@ $('ovNotes').addEventListener('click', () => { $('notes').style.display = 'flex'
 $('notesClose').addEventListener('click', () => { $('notes').style.display = 'none'; });
 $('notes').addEventListener('click', ev => { if (ev.target.id === 'notes') $('notes').style.display = 'none'; });
 
+// ---------- Difficulty picker ----------
+function showDifficulty() {
+  for (const b of document.querySelectorAll('#diffRow button')) b.classList.toggle('on', b.dataset.d === difficulty);
+  $('diffInfo').textContent = {
+    easy: 'Easy: the enemy builds slowly, earns less and waits about 5 minutes before attacking.',
+    normal: 'Normal: the enemy is a fair match and gives you about 3 minutes before attacking.',
+    hard: 'Hard: the enemy builds at full speed and attacks as soon as it can.',
+  }[difficulty];
+}
+for (const b of document.querySelectorAll('#diffRow button')) {
+  b.addEventListener('click', () => {
+    difficulty = b.dataset.d;
+    try { localStorage.setItem('mini-rts-difficulty', difficulty); } catch (err) {}
+    showDifficulty();
+  });
+}
+showDifficulty();
+
 ui.ovBtn.addEventListener('click', () => {
   if (game.over) newGame();
   game.paused = false; ui.overlay.style.display = 'none'; ui.pause.textContent = '❚❚';
@@ -1631,6 +1664,6 @@ window.addEventListener('resize', resize);
 resize();
 newGame();
 game.paused = true;
-ui.ovText.innerHTML = 'Deploy your settler into a Headquarters. Build a <b>Refinery</b> and send <b>Extractors</b> to collect ore, then a <b>Barracks</b> for soldiers. The big ore field in the middle is worth fighting for.<br><br>Drag to scroll · pinch to zoom · tap the minimap to jump · best in landscape.';
+ui.ovText.innerHTML = 'Deploy your settler, build a <b>Refinery</b> for ore and a <b>Barracks</b> for soldiers, and fight for the big ore field in the middle.<br>Drag to scroll · pinch to zoom · best in landscape.';
 ui.overlay.style.display = 'flex';
 requestAnimationFrame(frame);
