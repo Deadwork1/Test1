@@ -2,6 +2,17 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '4.3', date: '16 Nov 2026', title: 'Grenadiers & Engineers',
+    changes: [
+      'New unit: Grenadier ($160, Barracks). Lobs grenades that hit everything in a small area: great against groups of soldiers. Grenades take a moment to land, so fast units can dodge, and they do half damage to vehicles. Buggies are its counter.',
+      'New unit: Engineer ($75, Barracks). No weapon and very fragile (20 HP), so escort it. Select it and tap one of your damaged buildings to repair it, or tap an enemy building to walk in and capture it (the engineer is used up). Walls and gates can\'t be captured.',
+      'The Barracks now shows a button for each of its units.',
+      'Grenadiers and engineers can hide in forests like soldiers.',
+      'The computer trains grenadiers (about one per three soldiers) and keeps an engineer to repair its base on Normal and Hard.',
+      'Fixed: units that lost sight of a target could get stuck trying to reach the exact spot it was last seen.',
+    ],
+  },
+  {
     version: '4.2', date: '16 Nov 2026', title: 'Large map',
     changes: [
       'New Large map (1.5× bigger each way), now the default. Pick Classic or Large on the start screen.',

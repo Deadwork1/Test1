@@ -60,7 +60,7 @@ const INCOME = 1;                     // small trickle per second so nobody gets
 const BUILD_RADIUS = 300;             // how far from your HQ you can place buildings
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
 
-const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250 };
+const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250, grenadier: 160, engineer: 75 };
 const WALL_REACH = 150;              // walls & gates can go this much further out than other buildings
 
 const STATS = {
@@ -68,6 +68,8 @@ const STATS = {
   soldier:   { hp: 60,  speed: 52, r: 9,  sight: 170, range: 90, dmg: 8, cooldown: 0.8 },
   extractor: { hp: 300, speed: 34, r: 15, sight: 150, capacity: 150, rate: 30, unloadTime: 1.5 },
   buggy:     { hp: 140, speed: 95, r: 13, sight: 220, range: 110, dmg: 6,  cooldown: 0.25 },   // fast, machine gun
+  grenadier: { hp: 55,  speed: 48, r: 9,  sight: 170, range: 95,  dmg: 16, cooldown: 2.0, splash: 38, flight: 0.55, vsVehicle: 0.5 },   // lobbed grenades: area damage, half vs vehicles
+  engineer:  { hp: 20,  speed: 48, r: 9,  sight: 150, repair: 30 },   // no weapon, very fragile: repairs (hp per second) and captures
   hq:        { hp: 900, size: 92, sight: 280 },
   barracks:  { hp: 500, size: 74, sight: 200, buildTime: 10, trainTime: 4, maxQueue: 5 },
   refinery:  { hp: 600, size: 84, sight: 200, buildTime: 12, trainTime: 6, maxQueue: 3 },
@@ -77,10 +79,12 @@ const STATS = {
   wall:      { hp: 400, size: 25, sight: 50 },
   gate:      { hp: 600, size: 50, sight: 60 },
 };
-const PRODUCES = { barracks: ['soldier', 'buggy'], refinery: ['extractor'], factory: ['buggy'] };
-const TRAIN_TIME = { soldier: 4, buggy: 6, extractor: 6 };   // seconds to make each unit
+const PRODUCES = { barracks: ['soldier', 'grenadier', 'buggy', 'engineer'], refinery: ['extractor'], factory: ['buggy'] };
+const TRAIN_TIME = { soldier: 4, buggy: 6, extractor: 6, grenadier: 4.5, engineer: 5 };   // seconds to make each unit
 const FACTORY_ENABLED = false;   // War Factory is shelved for now (set true to bring it back)
-const isCombat = e => e.type === 'soldier' || e.type === 'buggy';
+const isCombat = e => e.type === 'soldier' || e.type === 'buggy' || e.type === 'grenadier';
+const isInfantry = e => e.type === 'soldier' || e.type === 'grenadier' || e.type === 'engineer';
+const SHORT = { buggy: 'Buggy' };   // shorter names for buttons
 
 // How the computer plays at each difficulty.
 //  think: seconds between decisions   slow: build/train time multiplier   income: share of ore value it earns
@@ -89,11 +93,11 @@ const isCombat = e => e.type === 'soldier' || e.type === 'buggy';
 //  extractors / refineries: how big its economy gets   walls: whether it builds a wall line with a gate
 const DIFFICULTY = {
   easy:   { label: 'Easy',   think: 2.5, slow: 1.5,  income: 0.7,  attackAt: 5, attackAfter: 300, barracks: 1, maxArmy: 6, towers: 0, buggies: false, plants: 0,
-            guard: 1, maxWave: 6, extractors: 2, refineries: 1, walls: false },
+            guard: 1, maxWave: 6, extractors: 2, refineries: 1, walls: false, grenadiers: false, engineers: 0 },
   normal: { label: 'Normal', think: 1.5, slow: 1.18, income: 0.85, attackAt: 7, attackAfter: 180, barracks: 1, maxArmy: 20, towers: 2, buggies: true, plants: 1,
-            guard: 3, maxWave: 14, extractors: 4, refineries: 2, walls: true },
+            guard: 3, maxWave: 14, extractors: 4, refineries: 2, walls: true, grenadiers: true, engineers: 1 },
   hard:   { label: 'Hard',   think: 1,   slow: 1,    income: 1,    attackAt: 6, attackAfter: 0,   barracks: 2, maxArmy: Infinity, towers: 3, buggies: true, plants: 2,
-            guard: 4, maxWave: 22, extractors: 5, refineries: 2, walls: true },
+            guard: 4, maxWave: 22, extractors: 5, refineries: 2, walls: true, grenadiers: true, engineers: 1 },
 };
 let difficulty = 'normal';
 try { if (DIFFICULTY[localStorage.getItem('mini-rts-difficulty')]) difficulty = localStorage.getItem('mini-rts-difficulty'); } catch (err) {}
@@ -103,7 +107,7 @@ const POWER_BONUS = 0.25, POWER_MAX = 2;
 const powerBoost = team => Math.min(POWER_MAX, 1 + POWER_BONUS * game.ents.filter(b => b.team === team && b.type === 'power' && b.built).length);
 // how many times longer than normal this side takes to build things (difficulty slow-down ÷ power boost)
 const slowOf = e => (e.team === 1 ? diff().slow : 1) / powerBoost(e.team);
-const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', tower: 'Guard Tower', power: 'Power Plant', wall: 'Wall', gate: 'Gate' };
+const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', tower: 'Guard Tower', power: 'Power Plant', wall: 'Wall', gate: 'Gate' };
 
 const TEAMS = [
   { name: 'You',   color: '#3b82f6', dark: '#1d3f8f', light: '#93c5fd' },
@@ -446,7 +450,7 @@ let game;
 
 function newGame() {
   game = {
-    ents: [], ore: [], nextId: 1, time: 0,
+    ents: [], ore: [], nextId: 1, time: 0, grenades: [],
     credits: [START_CREDITS, START_CREDITS],
     selected: new Set(),
     placing: null,           // { type, ghost:{x,y} } while choosing where to build
@@ -559,7 +563,7 @@ function updateFog() {
 
 // soldiers in a forest can't be seen unless an enemy unit is close, or they've just fired
 function hiddenFrom(e, team) {
-  if (e.type !== 'soldier' || e.revealT > 0 || terrainAt(e.x, e.y) !== T.FOREST) return false;
+  if (!isInfantry(e) || e.revealT > 0 || terrainAt(e.x, e.y) !== T.FOREST) return false;
   return !game.ents.some(o => o.team === team && isUnit(o) && Math.abs(o.x - e.x) < 90 && Math.abs(o.y - e.y) < 90 &&
     Math.hypot(o.x - e.x, o.y - e.y) < 90);
 }
@@ -848,6 +852,7 @@ function update(dt) {
   for (const e of game.ents) {
     if (e.type === 'settler') { if (e.order && navigate(e, e.order.x, e.order.y, dt)) e.order = null; }
     else if (isCombat(e)) updateSoldier(e, dt);
+    else if (e.type === 'engineer') updateEngineer(e, dt);
     else if (e.type === 'extractor') updateExtractor(e, dt);
     else if (e.type === 'tower') updateTower(e, dt);
     else if (isBuilding(e)) updateBuilding(e, dt);
@@ -865,8 +870,22 @@ function update(dt) {
   game.ents = game.ents.filter(e => e.hp > 0);
   game.ore = game.ore.filter(o => o.amount > 0);
 
+  // grenades in flight: when one lands it hurts every enemy close by (most in the middle, half at the edge)
+  for (const g of game.grenades) {
+    g.t += dt;
+    if (g.t < g.dur) continue;
+    g.done = true;
+    for (const o of game.ents) {
+      if (o.team === g.team || o.hp <= 0) continue;
+      const d = edgeDist(g.x, g.y, o);
+      const vehicle = o.type === 'buggy' || o.type === 'extractor' || o.type === 'settler';
+      if (d <= g.r) o.hp -= g.dmg * (1 - 0.5 * d / g.r) * (vehicle ? STATS.grenadier.vsVehicle : 1);
+    }
+    game.effects.push({ kind: 'blast', x: g.x, y: g.y, r: g.r, t: 0 });
+  }
+  game.grenades = game.grenades.filter(g => !g.done);
   for (const fx of game.effects) fx.t += dt;
-  game.effects = game.effects.filter(fx => fx.t < (fx.kind === 'shot' ? 0.08 : fx.kind === 'text' ? 1.2 : 0.6));
+  game.effects = game.effects.filter(fx => fx.t < (fx.kind === 'shot' ? 0.08 : fx.kind === 'text' ? 1.2 : fx.kind === 'spark' ? 0.3 : fx.kind === 'blast' ? 0.45 : 0.6));
 
   runAI(dt);
   updateFog();
@@ -901,13 +920,15 @@ function updateSoldier(e, dt) {   // soldiers and buggies
 
   if (o.type === 'attackmove' && e.holdUntil > game.time) return;   // waiting for the rest of its wave
   if (o.type === 'move' || o.type === 'attackmove') {
+    if (Math.hypot(o.x - e.x, o.y - e.y) < e.r + 6) { e.order = null; return; }   // close enough (someone may be standing on the exact spot)
     if (navigate(e, o.x, o.y, dt)) e.order = null;   // arrived (true) or can't get there ('fail')
   } else if (o.type === 'attack') {
     const t = byId(o.target);
     if (!t || hiddenFrom(t, e.team)) { e.order = o.resume || null; return; }
     // a unit that slips into the fog is lost: go to where it was last seen, then stop (no tracking it through the fog)
-    if (isUnit(t) && !visibleAt(t.x, t.y, e.team)) {
-      e.order = o.resume || { type: 'move', x: o.seenX !== undefined ? o.seenX : t.x, y: o.seenY !== undefined ? o.seenY : t.y };
+    if (isUnit(t) && !visibleAt(t.x, t.y, e.team) && Math.hypot(t.x - e.x, t.y - e.y) > s.sight) {
+      // head for the last spot it was seen, ready to fight anything met on the way
+      e.order = o.resume || { type: 'attackmove', x: o.seenX !== undefined ? o.seenX : t.x, y: o.seenY !== undefined ? o.seenY : t.y };
       return;
     }
     o.seenX = t.x; o.seenY = t.y;
@@ -918,13 +939,58 @@ function updateSoldier(e, dt) {   // soldiers and buggies
       if (e.cooldown <= 0) {
         e.cooldown = s.cooldown;
         e.revealT = 1.5;   // firing gives away your position
-        t.hp -= s.dmg;
-        game.effects.push({ kind: 'shot', x: e.x, y: e.y, x2: t.x + (Math.random() - .5) * 8,
-                            y2: t.y + (Math.random() - .5) * 8, team: e.team, t: 0 });
+        if (s.splash) {   // grenade: flies for a moment, so fast targets can dodge it
+          game.grenades.push({ x0: e.x, y0: e.y, x: t.x + (Math.random() - .5) * 10, y: t.y + (Math.random() - .5) * 10,
+                               t: 0, dur: s.flight, team: e.team, dmg: s.dmg, r: s.splash });
+          e.throwT = 0.25;
+        } else {
+          t.hp -= s.dmg;
+          game.effects.push({ kind: 'shot', x: e.x, y: e.y, x2: t.x + (Math.random() - .5) * 8,
+                              y2: t.y + (Math.random() - .5) * 8, team: e.team, t: 0 });
+        }
         if (isCombat(t) && !t.order) t.order = { type: 'attack', target: e.id };
       }
     }
   }
+}
+
+// Engineers: walk to a building, then either repair it (yours) or capture it (theirs). They're very fragile, so escort them.
+const canCapture = b => isBuilding(b) && !isWallType(b.type) && b.built;   // any finished building except walls & gates
+function updateEngineer(e, dt) {
+  const o = e.order;
+  e.working = false;
+  if (!o) return;
+  if (o.type === 'move') { if (navigate(e, o.x, o.y, dt)) e.order = null; return; }
+  const b = byId(o.target);
+  if (!b) { e.order = null; return; }
+  if (o.type === 'repair' && (b.team !== e.team || b.hp >= b.maxHp)) { e.order = null; return; }
+  if (o.type === 'capture' && b.team === e.team) { e.order = null; return; }
+  if (edgeDist(e.x, e.y, b) > e.r + 22) {   // close enough to work (routes keep a small gap from walls)
+    if (navigate(e, b.x, b.y, dt) === 'fail') e.order = null;
+    return;
+  }
+  e.facing = Math.atan2(b.y - e.y, b.x - e.x);
+  if (o.type === 'repair') {
+    b.hp = Math.min(b.maxHp, b.hp + STATS.engineer.repair * dt);
+    e.working = true;
+    if (Math.random() < dt * 8) game.effects.push({ kind: 'spark', x: b.x + (Math.random() - .5) * halfX(b) * 1.6, y: b.y + (Math.random() - .5) * halfY(b) * 1.6, t: 0 });
+    if (b.hp >= b.maxHp) e.order = null;
+  } else if (o.type === 'capture') {
+    if (!canCapture(b)) { e.order = null; return; }
+    captureBuilding(b, e.team);
+    e.hp = 0; e.deployed = true;   // the engineer goes inside and takes it over
+  }
+}
+
+function captureBuilding(b, team) {
+  const was = b.team;
+  b.team = team;
+  b.queue = 0; b.qTypes = []; b.trainT = 0; b.dockedBy = null; b.target = null;
+  if (game.selected.has(b.id) && team !== 0) game.selected.delete(b.id);
+  game.ai.known.delete(b.id);
+  game.effects.push({ kind: 'text', x: b.x, y: b.y - 30, text: team === 0 ? 'Captured!' : 'Lost!', t: 0, color: team === 0 ? '#7dff7d' : '#ff6b6b' });
+  bldDirty = true;
+  if (team === 0 && was === 1) game.selected = new Set([b.id]);
 }
 
 function updateBuilding(e, dt) {
@@ -1164,10 +1230,23 @@ function runAI(dt) {
   const queued = barracks.reduce((n, b) => n + b.queue, 0);
   const qBuggies = barracks.reduce((n, b) => n + b.qTypes.filter(t => t === 'buggy').length, 0);
   const wantBuggy = D.buggies && of('buggy').length + qBuggies < (of('soldier').length + 2) / 2;   // ~1 buggy per 2 soldiers
+  const qOf = t => barracks.reduce((n, b) => n + b.qTypes.filter(q => q === t).length, 0);
+  const wantGren = D.grenadiers && of('grenadier').length + qOf('grenadier') < (of('soldier').length + 1) / 3;   // ~1 grenadier per 3 soldiers
+  const wantEngineer = of('engineer').length + qOf('engineer') < D.engineers && game.time > 120;
   for (const b of barracks) {
-    if (b.queue >= 2 || army.length + queued >= D.maxArmy) continue;
+    if (b.queue >= 2) continue;
+    if (wantEngineer && game.credits[1] >= COST.engineer) { produce(b, 'engineer'); continue; }
+    if (army.length + queued >= D.maxArmy) continue;
     if (wantBuggy) { if (game.credits[1] >= COST.buggy + reserve) produce(b, 'buggy'); }
+    else if (wantGren) { if (game.credits[1] >= COST.grenadier + reserve) produce(b, 'grenadier'); }
     else if (game.credits[1] >= COST.soldier + reserve) produce(b, 'soldier');
+  }
+  // engineers fix its most damaged building, and otherwise wait safely by the HQ
+  for (const en of of('engineer')) {
+    if (en.order) continue;
+    const hurt = mine.filter(b => isBuilding(b) && !isWallType(b.type) && b.built && b.hp < b.maxHp * 0.75).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
+    if (hurt) en.order = { type: 'repair', target: hurt.id };
+    else if (Math.hypot(en.x - hq.x, en.y - hq.y) > 140) en.order = { type: 'move', x: hq.x + (Math.random() - .5) * 80, y: hq.y + hq.size / 2 + 50 };
   }
 
   // ---- army ----
@@ -1354,6 +1433,7 @@ function draw() {
     else if (e.type === 'settler') drawSettler(e);
     else if (e.type === 'extractor') drawExtractor(e);
     else if (e.type === 'buggy') drawBuggy(e);
+    else if (e.type === 'grenadier' || e.type === 'engineer') drawSoldier(e);
     else if (e.type === 'factory') drawFactory(e);
     else drawSoldier(e);
   }
@@ -1374,15 +1454,34 @@ function draw() {
       const k = fx.t / 0.6;
       ctx.strokeStyle = fx.color || `rgba(120,255,120,${1 - k})`; ctx.globalAlpha = 1 - k; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(fx.x, fx.y, 6 + 14 * k, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
+    } else if (fx.kind === 'blast') {   // grenade explosion
+      const k = fx.t / 0.45;
+      ctx.fillStyle = `rgba(255,${190 - 120 * k | 0},60,${0.75 * (1 - k)})`;
+      ctx.beginPath(); ctx.arc(fx.x, fx.y, fx.r * (0.35 + 0.65 * k), 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = `rgba(80,70,60,${0.6 * (1 - k)})`; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(fx.x, fx.y, fx.r * (0.5 + 0.6 * k), 0, Math.PI * 2); ctx.stroke();
+    } else if (fx.kind === 'spark') {   // engineer repairing
+      const k = fx.t / 0.3;
+      ctx.fillStyle = `rgba(150,255,170,${1 - k})`;
+      ctx.beginPath(); ctx.arc(fx.x, fx.y - k * 8, 2.5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillRect(fx.x - 4, fx.y - k * 8 - 0.8, 8, 1.6); ctx.fillRect(fx.x - 0.8, fx.y - k * 8 - 4, 1.6, 8);
     } else if (fx.kind === 'dust') {
       const k = fx.t / 0.6;
       ctx.fillStyle = `rgba(170,150,110,${0.35 * (1 - k)})`;
       ctx.beginPath(); ctx.arc(fx.x, fx.y, 3 + k * 7, 0, Math.PI * 2); ctx.fill();
     } else if (fx.kind === 'text') {
       const k = fx.t / 1.2;
-      ctx.globalAlpha = 1 - k; ctx.fillStyle = '#ffd86b'; ctx.font = 'bold 16px system-ui'; ctx.textAlign = 'center';
+      ctx.globalAlpha = 1 - k; ctx.fillStyle = fx.color || '#ffd86b'; ctx.font = 'bold 16px system-ui'; ctx.textAlign = 'center';
       ctx.fillText(fx.text, fx.x, fx.y - 25 * k); ctx.globalAlpha = 1;
     }
+  }
+
+  // grenades in flight: a little ball on an arc
+  for (const g of game.grenades) {
+    const k = g.t / g.dur, x = g.x0 + (g.x - g.x0) * k, y = g.y0 + (g.y - g.y0) * k - Math.sin(k * Math.PI) * 28;
+    if (!visibleAt(x, y + Math.sin(k * Math.PI) * 28)) continue;
+    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.arc(g.x0 + (g.x - g.x0) * k, g.y0 + (g.y - g.y0) * k, 2.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#3d4a2a'; ctx.beginPath(); ctx.arc(x, y, 3.2, 0, Math.PI * 2); ctx.fill();
   }
 
   // fog on top of the world
@@ -1558,43 +1657,78 @@ function drawExtractor(e) {
   }
 }
 
-function drawSoldier(e) {
+function drawSoldier(e) {   // soldiers, grenadiers and engineers share a body; their kit differs
   const c = TEAMS[e.team];
-  const hidden = e.team === 0 && hiddenFrom(e, 1);   // your soldier is hidden in a forest
+  const hidden = e.team === 0 && hiddenFrom(e, 1);   // your infantry is hidden in a forest
   const moving = e.lx !== undefined && Math.hypot(e.x - e.lx, e.y - e.ly) > 0.05;
   e.lx = e.x; e.ly = e.y;
   if (hidden) ctx.globalAlpha = 0.55;
+  const kind = e.type;
+  e.throwT = Math.max(0, (e.throwT || 0) - 1 / 60);
 
   ctx.fillStyle = 'rgba(0,0,0,0.3)';
   ctx.beginPath(); ctx.ellipse(e.x + 2, e.y + 4, 9, 7, 0, 0, Math.PI * 2); ctx.fill();
 
-  // drawn from above, facing along +x, then rotated to where the soldier is looking
+  // drawn from above, facing along +x, then rotated to where they're looking
   ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.facing); ctx.scale(1.15, 1.15);
   // legs (step back and forth while walking)
   const step = moving ? Math.sin(performance.now() / 90 + e.id) * 4 : 0;
   ctx.fillStyle = '#2a2a24';
   ctx.beginPath(); ctx.ellipse(step, -3.5, 3.5, 2.2, 0, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.ellipse(-step, 3.5, 3.5, 2.2, 0, 0, Math.PI * 2); ctx.fill();
-  // backpack
-  ctx.fillStyle = '#4b4f30'; ctx.fillRect(-9, -4.5, 5, 9);
+  // pack: backpack, grenade satchel or tool bag
+  ctx.fillStyle = kind === 'engineer' ? '#7a5a32' : kind === 'grenadier' ? '#3f4a2c' : '#4b4f30';
+  ctx.fillRect(-9, -4.5, 5, 9);
+  if (kind === 'engineer') { ctx.fillStyle = '#c9a227'; ctx.fillRect(-8.5, -1, 4, 2); }   // tape measure / buckle
   // shoulders / uniform in team colour
   ctx.fillStyle = c.color; ctx.strokeStyle = c.dark; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.ellipse(-0.5, 0, 5.5, 8.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  // rifle held forward, with both hands on it
-  ctx.strokeStyle = '#1c1c1c'; ctx.lineWidth = 2.6; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(-1, 4); ctx.lineTo(15, 2.5); ctx.stroke();
-  ctx.fillStyle = '#e0b48a';
-  ctx.beginPath(); ctx.arc(3, 4.6, 2, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(8.5, 2.9, 2, 0, Math.PI * 2); ctx.fill();
-  // helmet
-  ctx.fillStyle = c.dark;
-  ctx.beginPath(); ctx.arc(0.5, 0, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.lineCap = 'round';
+  if (kind === 'grenadier') {
+    // bandolier of grenades across the chest
+    ctx.strokeStyle = '#3a3226'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(-4, -6); ctx.lineTo(3, 6); ctx.stroke();
+    ctx.fillStyle = '#3d4a2a';
+    for (const [gx, gy] of [[-2.6, -3.6], [-0.6, 0], [1.4, 3.6]]) { ctx.beginPath(); ctx.arc(gx, gy, 1.5, 0, Math.PI * 2); ctx.fill(); }
+    // throwing arm: pulled back, then flung forward when it throws
+    const fling = e.throwT > 0;
+    ctx.strokeStyle = c.dark; ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(fling ? 10 : -3, fling ? 4 : 9); ctx.stroke();
+    ctx.fillStyle = '#e0b48a'; ctx.beginPath(); ctx.arc(fling ? 10.5 : -3.5, fling ? 4 : 9.5, 1.9, 0, Math.PI * 2); ctx.fill();
+    if (!fling) { ctx.fillStyle = '#3d4a2a'; ctx.beginPath(); ctx.arc(-3.5, 9.5, 2.2, 0, Math.PI * 2); ctx.fill(); }   // grenade ready
+  } else if (kind === 'engineer') {
+    // spanner in hand (it bobs while repairing)
+    const wob = e.working ? Math.sin(performance.now() / 70) * 0.5 : 0;
+    ctx.save(); ctx.translate(4, 4.5); ctx.rotate(wob);
+    ctx.strokeStyle = '#9aa0a6'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(9, -1); ctx.stroke();
+    ctx.beginPath(); ctx.arc(10, -1, 2.2, -2.2, 2.2); ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = '#e0b48a'; ctx.beginPath(); ctx.arc(4, 4.6, 2, 0, Math.PI * 2); ctx.fill();
+  } else {
+    // rifle held forward, with both hands on it
+    ctx.strokeStyle = '#1c1c1c'; ctx.lineWidth = 2.6;
+    ctx.beginPath(); ctx.moveTo(-1, 4); ctx.lineTo(15, 2.5); ctx.stroke();
+    ctx.fillStyle = '#e0b48a';
+    ctx.beginPath(); ctx.arc(3, 4.6, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(8.5, 2.9, 2, 0, Math.PI * 2); ctx.fill();
+  }
+  // headgear: engineers wear a yellow hard hat, grenadiers a helmet with a team stripe
+  if (kind === 'engineer') {
+    ctx.fillStyle = '#f2c230'; ctx.beginPath(); ctx.arc(0.5, 0, 5.3, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#b8901c'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-4.5, 0); ctx.lineTo(5.5, 0); ctx.stroke();
+    ctx.fillStyle = c.color; ctx.fillRect(-1, -4.6, 3, 9.2);
+  } else {
+    ctx.fillStyle = c.dark;
+    ctx.beginPath(); ctx.arc(0.5, 0, 5, 0, Math.PI * 2); ctx.fill();
+    if (kind === 'grenadier') { ctx.fillStyle = '#f2c230'; ctx.fillRect(-0.6, -4.8, 2.2, 9.6); }
+  }
   ctx.fillStyle = 'rgba(255,255,255,0.25)';
   ctx.beginPath(); ctx.arc(-0.5, -1.5, 2, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 
-  // muzzle flash right after firing
-  if (e.cooldown > STATS.soldier.cooldown - 0.07) {
+  // muzzle flash right after a rifle shot
+  if (kind === 'soldier' && e.cooldown > STATS.soldier.cooldown - 0.07) {
     ctx.fillStyle = '#ffe9a0';
     ctx.beginPath(); ctx.arc(e.x + Math.cos(e.facing) * 17, e.y + Math.sin(e.facing) * 17, 3, 0, Math.PI * 2); ctx.fill();
   }
@@ -2163,14 +2297,27 @@ function handleTap(x, y) {
   const hit = hitTest(x, y);
   const myUnits = [...game.selected].map(byId).filter(e => e && e.team === 0 && isUnit(e));
 
-  if (hit && hit.team === 0) { game.selected = new Set([hit.id]); return; }
+  const engineers = myUnits.filter(e => e.type === 'engineer');
+  if (hit && hit.team === 0) {
+    // engineers selected + one of your damaged buildings tapped = repair it
+    if (engineers.length && isBuilding(hit) && !isWallType(hit.type) && hit.hp < hit.maxHp) {
+      for (const en of engineers) en.order = { type: 'repair', target: hit.id };
+      game.effects.push({ kind: 'marker', x: hit.x, y: hit.y, t: 0, color: '#7dff7d' });
+      return;
+    }
+    game.selected = new Set([hit.id]);
+    return;
+  }
 
   if (hit && hit.team === 1) {
     const soldiers = myUnits.filter(isCombat);
-    if (soldiers.length) {
-      for (const s of soldiers) s.order = { type: 'attack', target: hit.id };
-      game.effects.push({ kind: 'marker', x: hit.x, y: hit.y, t: 0, color: '#ff6b6b' });
+    for (const s of soldiers) s.order = { type: 'attack', target: hit.id };
+    if (engineers.length && canCapture(hit)) {
+      // send the nearest engineer in to capture it; any others follow along as backups
+      engineers.sort((a, b) => Math.hypot(a.x - hit.x, a.y - hit.y) - Math.hypot(b.x - hit.x, b.y - hit.y));
+      for (const en of engineers) en.order = { type: 'capture', target: hit.id };
     }
+    if (soldiers.length || engineers.length) game.effects.push({ kind: 'marker', x: hit.x, y: hit.y, t: 0, color: '#ff6b6b' });
     return;
   }
 
@@ -2205,7 +2352,7 @@ const selectedOfType = type => [...game.selected].map(byId).filter(e => e && e.t
 const $ = id => document.getElementById(id);
 const ui = {
   credits: $('credits'), info: $('info'), powerChip: $('powerChip'),
-  deploy: $('btnDeploy'), barracks: $('btnBarracks'), refinery: $('btnRefinery'), tower: $('btnTower'), power: $('btnPower'), factory: $('btnFactory'), wall: $('btnWall'), gate: $('btnGate'), rotate: $('btnRotate'), produce: $('btnProduce'), produce2: $('btnProduce2'),
+  deploy: $('btnDeploy'), barracks: $('btnBarracks'), refinery: $('btnRefinery'), tower: $('btnTower'), power: $('btnPower'), factory: $('btnFactory'), wall: $('btnWall'), gate: $('btnGate'), rotate: $('btnRotate'), 
   harvest: $('btnHarvest'), place: $('btnPlace'), cancel: $('btnCancel'), deselect: $('btnDeselect'),
   box: $('btnBox'), all: $('btnAll'), pause: $('btnPause'), map: $('btnMap'),
   overlay: $('overlay'), ovTitle: $('ovTitle'), ovText: $('ovText'), ovBtn: $('ovBtn'),
@@ -2239,11 +2386,18 @@ ui.rotate.addEventListener('click', () => {
 });
 ui.place.addEventListener('click', tryPlace);
 ui.cancel.addEventListener('click', () => { game.placing = null; });
-ui.produce.addEventListener('click', () => {
-  for (const b of [...game.selected].map(byId)) if (b && b.team === 0 && PRODUCES[b.type]) produce(b, PRODUCES[b.type][0]);
-});
-ui.produce2.addEventListener('click', () => {
-  for (const b of [...game.selected].map(byId)) if (b && b.team === 0 && PRODUCES[b.type] && PRODUCES[b.type][1]) produce(b, PRODUCES[b.type][1]);
+// one button per unit the selected building can make (built when you select a different kind of building)
+const produceBox = document.getElementById('produceBtns');
+let produceFor = null;
+function syncProduceButtons(type) {
+  if (type === produceFor) return;
+  produceFor = type;
+  produceBox.innerHTML = type ? PRODUCES[type].map(u => `<button data-unit="${u}">${SHORT[u] || NAMES[u]} $${COST[u]}</button>`).join('') : '';
+}
+produceBox.addEventListener('click', ev => {
+  const btn = ev.target.closest('button[data-unit]');
+  if (!btn) return;
+  for (const b of [...game.selected].map(byId)) if (b && b.team === 0 && PRODUCES[b.type] && PRODUCES[b.type].includes(btn.dataset.unit)) produce(b, btn.dataset.unit);
 });
 ui.harvest.addEventListener('click', () => {
   let any = false;
@@ -2361,8 +2515,7 @@ function updateHUD() {
   show(ui.power, !!hq && !placing);
   show(ui.wall, !!hq && !placing);
   show(ui.gate, !!hq && !placing);
-  show(ui.produce, !!producer && !placing);
-  show(ui.produce2, !!producer && !!PRODUCES[producer.type][1] && !placing);
+  syncProduceButtons(producer && !placing ? producer.type : null);
   show(ui.harvest, extractors.length > 0 && !placing);
   show(ui.place, !!(placing && (placing.ghost || (placing.type === 'wall' && placing.anchor))));
   show(ui.cancel, !!placing);
@@ -2386,11 +2539,10 @@ function updateHUD() {
   else if (placing && placing.ghost) ui.place.disabled = !canPlace(0, placing.type, placing.ghost.x, placing.ghost.y) || game.credits[0] < COST[placing.type];
   else if (placing) ui.place.disabled = false;
   if (producer) {
-    PRODUCES[producer.type].forEach((unit, i) => {
-      const btn = i ? ui.produce2 : ui.produce;
-      btn.textContent = `${NAMES[unit]} $${COST[unit]}`;
+    for (const btn of produceBox.children) {
+      const unit = btn.dataset.unit;
       btn.disabled = !producer.built || producer.queue >= STATS[producer.type].maxQueue || game.credits[0] < COST[unit];
-    });
+    }
   }
 
   let text;
@@ -2408,11 +2560,14 @@ function updateHUD() {
   else if (sel.length === 1 && sel[0].type === 'tower') text = sel[0].built ? 'Guard Tower — fires at enemies in range' : `Guard Tower: ${Math.floor(sel[0].progress * 100)}% built`;
   else if (producer) text = producer.built ? `${NAMES[producer.type]}${producer.queue ? ' — making ×' + producer.queue : ''}` : `${NAMES[producer.type]}: ${Math.floor(producer.progress * 100)}% built`;
   else if (extractors.length === 1 && sel.length === 1) text = extractorStatus(extractors[0]);
-  else if (sel.length) {
-    const parts = [];
-    if (soldiers.length) parts.push(`${soldiers.length} soldier${soldiers.length > 1 ? 's' : ''}`);
-    if (buggies.length) parts.push(`${buggies.length} bugg${buggies.length > 1 ? 'ies' : 'y'}`);
-    if (extractors.length) parts.push(`${extractors.length} extractor${extractors.length > 1 ? 's' : ''}`);
+  else if (sel.length === 1 && sel[0].type === 'engineer') {
+    const o = sel[0].order;
+    text = o && o.type === 'repair' ? 'Engineer: repairing' : o && o.type === 'capture' ? 'Engineer: going in to capture' : 'Engineer — tap your damaged building to repair, or an enemy building to capture';
+  } else if (sel.length) {
+    const counts = {};
+    for (const e of sel) counts[e.type] = (counts[e.type] || 0) + 1;
+    const plural = { soldier: 'soldiers', buggy: 'buggies', extractor: 'extractors', grenadier: 'grenadiers', engineer: 'engineers', settler: 'settlers' };
+    const parts = Object.entries(counts).map(([t, n]) => `${n} ${n > 1 ? plural[t] || t + 's' : (SHORT[t] || NAMES[t]).toLowerCase()}`);
     text = parts.join(', ') + ' — tap to move';
   } else text = hqOf(0) ? 'Drag to scroll, pinch to zoom' : 'Tap your settler to begin';
   ui.info.textContent = text;
