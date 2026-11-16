@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '4.1', date: '16 Nov 2026', title: 'Hide the minimap',
+    changes: [
+      'New Map button in the top bar: tap it to hide the minimap so it doesn\'t cover that corner of the battlefield, and tap again to bring it back.',
+      'The game remembers whether you like it shown or hidden.',
+    ],
+  },
+  {
     version: '4.0', date: '16 Nov 2026', title: 'A smarter enemy',
     changes: [
       'The computer now attacks in proper waves: its army gathers outside its base, then marches together. Units that run ahead wait for the rest. Each wave is a bit bigger than the last.',

@@ -1341,7 +1341,7 @@ function draw() {
     ctx.strokeRect(b.x1, b.y1, b.x2 - b.x1, b.y2 - b.y1);
   }
 
-  drawMinimap();
+  if (!MM.hidden) drawMinimap();
 }
 
 function drawPlacement() {
@@ -1959,7 +1959,7 @@ function drawNameTag(e) {
 // ---------- Input: drag to scroll, pinch to zoom, tap to select / command ----------
 const input = { pointers: new Map(), mode: null, sx: 0, sy: 0, camX: 0, camY: 0, pinch: null, box: null, boxMode: false };
 
-const inMinimap = (x, y) => x >= MM.x && x <= MM.x + MM.w && y >= MM.y && y <= MM.y + MM.h;
+const inMinimap = (x, y) => !MM.hidden && x >= MM.x && x <= MM.x + MM.w && y >= MM.y && y <= MM.y + MM.h;
 function minimapJump(x, y) {
   cam.x = (x - MM.x) / MM.w * W; cam.y = (y - MM.y) / MM.h * H; clampCam();
 }
@@ -2150,7 +2150,7 @@ const ui = {
   credits: $('credits'), info: $('info'), powerChip: $('powerChip'),
   deploy: $('btnDeploy'), barracks: $('btnBarracks'), refinery: $('btnRefinery'), tower: $('btnTower'), power: $('btnPower'), factory: $('btnFactory'), wall: $('btnWall'), gate: $('btnGate'), rotate: $('btnRotate'), produce: $('btnProduce'), produce2: $('btnProduce2'),
   harvest: $('btnHarvest'), place: $('btnPlace'), cancel: $('btnCancel'), deselect: $('btnDeselect'),
-  box: $('btnBox'), all: $('btnAll'), pause: $('btnPause'),
+  box: $('btnBox'), all: $('btnAll'), pause: $('btnPause'), map: $('btnMap'),
   overlay: $('overlay'), ovTitle: $('ovTitle'), ovText: $('ovText'), ovBtn: $('ovBtn'),
 };
 const show = (el, on) => { el.style.display = on ? '' : 'none'; };
@@ -2195,6 +2195,12 @@ ui.harvest.addEventListener('click', () => {
 });
 ui.deselect.addEventListener('click', () => { game.selected.clear(); game.placing = null; });
 ui.box.addEventListener('click', () => { input.boxMode = !input.boxMode; });
+// minimap: tap Map to hide it (so it doesn't cover the corner of the battlefield) and again to bring it back
+try { MM.hidden = localStorage.getItem('mini-rts-minimap') === 'hidden'; } catch (err) {}
+ui.map.addEventListener('click', () => {
+  MM.hidden = !MM.hidden;
+  try { localStorage.setItem('mini-rts-minimap', MM.hidden ? 'hidden' : 'shown'); } catch (err) {}
+});
 ui.all.addEventListener('click', () => {
   game.placing = null;
   const soldiers = game.ents.filter(e => e.team === 0 && isCombat(e));
@@ -2266,6 +2272,7 @@ function extractorStatus(e) {
 function updateHUD() {
   ui.credits.textContent = '$' + Math.floor(game.credits[0]);
   ui.box.classList.toggle('on', input.boxMode);
+  ui.map.classList.toggle('on', !MM.hidden);
 
   const sel = [...game.selected].map(byId).filter(Boolean);
   const one = t => sel.find(e => e.type === t);
