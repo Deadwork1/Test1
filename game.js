@@ -1787,14 +1787,17 @@ function drawSoldier(e) {   // soldiers, grenadiers and engineers share a body; 
     ctx.beginPath(); ctx.arc(2, 4.6, 2, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(11, 3.2, 2, 0, Math.PI * 2); ctx.fill();
   } else if (kind === 'engineer') {
-    // spanner in hand (it bobs while repairing)
-    const wob = e.working ? Math.sin(performance.now() / 70) * 0.5 : 0;
-    ctx.save(); ctx.translate(4, 4.5); ctx.rotate(wob);
-    ctx.strokeStyle = '#9aa0a6'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(9, -1); ctx.stroke();
-    ctx.beginPath(); ctx.arc(10, -1, 2.2, -2.2, 2.2); ctx.stroke();
-    ctx.restore();
-    ctx.fillStyle = '#e0b48a'; ctx.beginPath(); ctx.arc(4, 4.6, 2, 0, Math.PI * 2); ctx.fill();
+    // toolbox carried at the side; when working, it's set down and the free hand reaches forward
+    const work = e.working, wob = work ? Math.sin(performance.now() / 70) * 1.5 : 0;
+    const bx = work ? 5 : -2, by = work ? 8.5 : 7.5;
+    ctx.fillStyle = '#c0392b'; ctx.strokeStyle = '#6e1f17'; ctx.lineWidth = 0.9;
+    ctx.fillRect(bx - 4, by - 2.2, 8, 4.4); ctx.strokeRect(bx - 4, by - 2.2, 8, 4.4);
+    ctx.fillStyle = '#9aa0a6'; ctx.fillRect(bx - 4, by - 0.5, 8, 1);   // metal latch strip
+    ctx.strokeStyle = '#2b2b2b'; ctx.lineWidth = 1.1;
+    ctx.beginPath(); ctx.moveTo(bx - 1.8, by - 2.2); ctx.lineTo(bx - 1.2, by - 3.6); ctx.lineTo(bx + 1.2, by - 3.6); ctx.lineTo(bx + 1.8, by - 2.2); ctx.stroke();   // handle
+    ctx.fillStyle = '#e0b48a';
+    if (work) { ctx.beginPath(); ctx.arc(9 + wob, -3, 2, 0, Math.PI * 2); ctx.fill(); }   // reaching in to fix something
+    else { ctx.beginPath(); ctx.arc(-1.5, 5.2, 2, 0, Math.PI * 2); ctx.fill(); }          // hand on the toolbox handle
   } else {
     // rifle held forward, with both hands on it
     ctx.strokeStyle = '#1c1c1c'; ctx.lineWidth = 2.6;
@@ -1805,9 +1808,12 @@ function drawSoldier(e) {   // soldiers, grenadiers and engineers share a body; 
   }
   // headgear: engineers wear a yellow hard hat, grenadiers a helmet with a team stripe
   if (kind === 'engineer') {
-    ctx.fillStyle = '#f2c230'; ctx.beginPath(); ctx.arc(0.5, 0, 5.3, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#b8901c'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-4.5, 0); ctx.lineTo(5.5, 0); ctx.stroke();
-    ctx.fillStyle = c.color; ctx.fillRect(-1, -4.6, 3, 9.2);
+    // white hard hat: wide brim that sticks out at the front, a dome, and a raised ridge front-to-back
+    ctx.fillStyle = '#e9e6dc'; ctx.strokeStyle = '#9c988c'; ctx.lineWidth = 0.9;
+    ctx.beginPath(); ctx.ellipse(1.3, 0, 6, 5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();   // brim
+    ctx.fillStyle = '#fbfaf5'; ctx.beginPath(); ctx.arc(0, 0, 3.8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();   // dome
+    ctx.fillStyle = '#d8d4c8'; ctx.fillRect(-3.6, -0.8, 7.2, 1.6);   // ridge
+    ctx.fillStyle = c.color; ctx.beginPath(); ctx.arc(4.6, 0, 1.4, 0, Math.PI * 2); ctx.fill();   // team badge on the front
   } else if (kind === 'sniper') {
     // camouflage hood with leafy patches over the shoulders, team colour band
     ctx.fillStyle = '#6b8a40'; for (const [px, py, pr] of [[-3.5, -5, 2], [-3.5, 5, 2], [-5.5, 0, 2], [0.5, -6, 1.6], [0.5, 6, 1.6]]) { ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2); ctx.fill(); }

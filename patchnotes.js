@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '4.5.1', date: '16 Nov 2026', title: 'New engineer look',
+    changes: [
+      'Engineers now wear a white hard hat with a brim and a team-colour badge.',
+      'The spanner is replaced by a red toolbox: carried at their side, and set down while they repair.',
+    ],
+  },
+  {
     version: '4.5', date: '16 Nov 2026', title: 'Snipers',
     changes: [
       'New unit: Sniper ($250, Barracks). Longest range of any unit (160, still short of a Guard Tower) and one shot kills any infantry, but it only fires every 3 seconds.',
