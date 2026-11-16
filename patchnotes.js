@@ -2,6 +2,14 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.4', date: '16 Nov 2026', title: 'Smoother movement, stronger Hard',
+    changes: [
+      'Units no longer bump into each other as much: a moving unit steers around anyone in its way, and friendly units standing still step aside to let it through.',
+      'The enemy\'s attack waves spread out around their target instead of all queueing for the same spot.',
+      'Hard: the computer now runs up to 8 extractors and 3 refineries, puts down its second refinery after a minute, and moves on to fresh ore sooner.',
+    ],
+  },
+  {
     version: '5.3', date: '16 Nov 2026', title: 'Cheaper heavies',
     changes: [
       'Light Tank: price $450 to $400.',

@@ -529,9 +529,39 @@ function edgeDist(x, y, t) {
 function moveToward(e, tx, ty, dt) {
   const dx = tx - e.x, dy = ty - e.y, d = Math.hypot(dx, dy);
   const step = STATS[e.type].speed * dt * (terrainAt(e.x, e.y) === T.FOREST ? 0.55 : 1);
+  e.movedAt = game.time;
   if (d <= step || d < 0.5) { e.x = tx; e.y = ty; return true; }
-  e.x += dx / d * step; e.y += dy / d * step;
-  e.facing = Math.atan2(dy, dx);
+  let ux = dx / d, uy = dy / d;
+  // Look a little way ahead for another unit in the way. A friend standing still is asked to step aside;
+  // anyone else (a friend on the move, or an enemy) gets steered around instead of bumped into.
+  if (!e.docked) {
+    const look = e.r * 2 + 14;
+    let block = null, bp = Infinity, side = 0;
+    for (const o of game.ents) {
+      if (o === e || !isUnit(o) || o.docked || o.hp <= 0) continue;
+      const ox = o.x - e.x, oy = o.y - e.y;
+      if (Math.abs(ox) > look + 20 || Math.abs(oy) > look + 20) continue;
+      const along = ox * ux + oy * uy;
+      if (along <= 0 || along > look || along > d) continue;
+      const lat = ox * -uy + oy * ux, room = e.r + o.r + 2;
+      if (Math.abs(lat) >= room) continue;
+      if (along < bp) { bp = along; block = o; side = lat >= 0 ? -1 : 1; }
+    }
+    if (block) {
+      const parked = block.team === e.team && !block.order && game.time - (block.movedAt || -9) > 0.3 && !(e.rolling && isInfantry(block));
+      if (parked && !isBuilding(block)) {   // nudge the parked friend sideways out of the path
+        const px = -uy * -side, py = ux * -side, nx = block.x + px * step * 1.1, ny = block.y + py * step * 1.1;
+        if (walkable(terrainAt(nx, ny), isVehicle(block)) && !wallBlocks(nx, ny, block.team)) { block.x = nx; block.y = ny; }
+      } else {   // swerve around it
+        const k = 1.1 * (1 - bp / (e.r * 2 + 14)) + 0.35;
+        const sx = ux + -uy * side * k, sy = uy + ux * side * k, sl = Math.hypot(sx, sy);
+        const nx = e.x + sx / sl * step, ny = e.y + sy / sl * step;
+        if (walkable(terrainAt(nx, ny), isVehicle(e)) && !wallBlocks(nx, ny, e.team) && !game.ents.some(b => isBuilding(b) && edgeDist(nx, ny, b) < e.r)) { ux = sx / sl; uy = sy / sl; }
+      }
+    }
+  }
+  e.x += ux * step; e.y += uy * step;
+  e.facing = Math.atan2(uy, ux);
   return false;
 }
 
@@ -1165,7 +1195,11 @@ function separate() {
       const d = Math.hypot(dx, dy) || 0.01, min = a.r + b.r;
       if (d < min) {
         const push = (min - d) / 2;
-        const wa = a.docked ? 0 : b.docked ? 2 : 1, wb = b.docked ? 0 : a.docked ? 2 : 1;
+        let wa = a.docked ? 0 : b.docked ? 2 : 1, wb = b.docked ? 0 : a.docked ? 2 : 1;
+        if (!a.docked && !b.docked && a.team === b.team) {   // the one on the move has right of way; the parked one shuffles aside
+          const am = game.time - (a.movedAt || -9) < 0.2, bm = game.time - (b.movedAt || -9) < 0.2;
+          if (am && !bm) { wa = 0.25; wb = 1.75; } else if (bm && !am) { wa = 1.75; wb = 0.25; }
+        }
         a.x -= dx / d * push * wa; a.y -= dy / d * push * wa;
         b.x += dx / d * push * wb; b.y += dy / d * push * wb;
       }
@@ -1474,7 +1508,7 @@ function runAI(dt) {
   if (!intruders.length && gathered.length >= ai.waveSize && game.time >= D.attackAfter && (ai.known.size || lost)) {
     const target = nearest(rally, targets) || aiExploreSpot(hq.x, hq.y, true);
     if (target) {
-      for (const u of gathered) { u.role = 'wave'; u.passive = false; u.order = { type: 'attackmove', x: target.x, y: target.y }; }
+      gathered.forEach((u, k) => { const a = k * 2.4, rr = 14 * Math.sqrt(k); u.role = 'wave'; u.passive = false; u.order = { type: 'attackmove', x: target.x + Math.cos(a) * rr, y: target.y + Math.sin(a) * rr }; });   // spread out so they don't queue nose to tail
       ai.waveSize = Math.min(D.maxWave, ai.waveSize + 2);   // each wave a little bigger
       ai.wavesSent = (ai.wavesSent || 0) + 1;
       ai.buildUntil = game.time + 90;
