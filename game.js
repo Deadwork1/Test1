@@ -14,6 +14,7 @@ const COLS = W / CELL, ROWS = H / CELL;
 const START_CREDITS = 1000;
 const INCOME = 1;                     // small trickle per second so nobody gets stuck at $0
 const BUILD_RADIUS = 300;             // how far from your HQ you can place buildings
+const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
 
 const COST = { barracks: 300, refinery: 400, factory: 500, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250 };
 const WALL_REACH = 150;              // walls & gates can go this much further out than other buildings
@@ -537,9 +538,20 @@ function deploy(settler) {
   return true;
 }
 
+// Your build area: a circle round the HQ plus one round every other finished building (walls and gates don't count),
+// so it grows as your base spreads out.
+function buildAreaSources(team) {
+  return game.ents.filter(b => b.team === team && isBuilding(b) && b.built && !isWallType(b.type))
+    .map(b => ({ x: b.x, y: b.y, r: b.size / 2 + (b.type === 'hq' ? BUILD_RADIUS : BUILD_RADIUS_OTHER), b }));
+}
+function inBuildArea(team, x, y, extra = 0) {
+  if (!hqOf(team)) return false;   // the HQ does the building
+  return buildAreaSources(team).some(s => edgeDist(x, y, s.b) <= s.r - s.b.size / 2 + extra);
+}
+
 function canPlace(team, type, x, y) {
-  const hq = hqOf(team), size = STATS[type].size;
-  if (!hq || edgeDist(x, y, hq) > BUILD_RADIUS || !siteIsFree(x, y, size)) return false;
+  const size = STATS[type].size;
+  if (!inBuildArea(team, x, y) || !siteIsFree(x, y, size)) return false;
   for (const b of game.ents) {   // never sit on the doorstep of a building that makes units
     if (!isBuilding(b) || !PRODUCES[b.type]) continue;
     const od = frontDoor(b);
@@ -562,8 +574,8 @@ const snapWall = (x, y) => ({ x: Math.floor(x / TC) * TC + TC / 2, y: Math.floor
 const snapGate = (x, y) => ({ x: Math.round(x / TC) * TC, y: Math.round(y / TC) * TC });
 
 function canPlaceWallPiece(team, type, x, y) {
-  const hq = hqOf(team), h = STATS[type].size / 2;
-  if (!hq || edgeDist(x, y, hq) > BUILD_RADIUS + WALL_REACH) return false;
+  const h = STATS[type].size / 2;
+  if (!inBuildArea(team, x, y, WALL_REACH)) return false;
   if (x - h < 0 || y - h < 0 || x + h > W || y + h > H) return false;
   for (let yy = y - h + TC / 2; yy < y + h; yy += TC)
     for (let xx = x - h + TC / 2; xx < x + h; xx += TC) if (terrainAt(xx, yy) !== T.GRASS) return false;
@@ -951,10 +963,12 @@ function separate() {
 
 // ---------- Computer opponent ----------
 function aiPlace(hq, type) {
-  const toward = Math.atan2(H / 2 - hq.y, W / 2 - hq.x);
-  for (let tries = 0; tries < 30; tries++) {
-    const a = toward + (Math.random() - 0.5) * 2.6, d = hq.size / 2 + 70 + Math.random() * 170;
-    if (placeBuilding(1, type, hq.x + Math.cos(a) * d, hq.y + Math.sin(a) * d)) return true;
+  const bases = buildAreaSources(1);
+  for (let tries = 0; tries < 40; tries++) {
+    const src = tries < 20 ? hq : bases[Math.floor(Math.random() * bases.length)].b;
+    const toward = Math.atan2(H / 2 - src.y, W / 2 - src.x);
+    const a = toward + (Math.random() - 0.5) * 2.6, d = src.size / 2 + 70 + Math.random() * 170;
+    if (placeBuilding(1, type, src.x + Math.cos(a) * d, src.y + Math.sin(a) * d)) return true;
   }
   return false;
 }
@@ -1129,13 +1143,16 @@ function draw() {
 }
 
 function drawPlacement() {
-  const hq = hqOf(0), type = game.placing.type, size = STATS[type].size;
-  const reach = BUILD_RADIUS + (isWallType(type) ? WALL_REACH : 0);
-  if (hq) {
-    ctx.fillStyle = 'rgba(125,255,125,0.07)'; ctx.strokeStyle = 'rgba(125,255,125,0.55)';
-    ctx.setLineDash([10, 8]); ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(hq.x, hq.y, hq.size / 2 + reach, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.setLineDash([]);
+  const type = game.placing.type, size = STATS[type].size;
+  const extra = isWallType(type) ? WALL_REACH : 0;
+  const areas = buildAreaSources(0);
+  if (areas.length) {   // the build area: all the circles merged into one shape
+    ctx.fillStyle = 'rgba(125,255,125,0.08)';
+    ctx.beginPath();
+    for (const a of areas) { ctx.moveTo(a.x + a.r + extra, a.y); ctx.arc(a.x, a.y, a.r + extra, 0, Math.PI * 2); }
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(125,255,125,0.35)'; ctx.setLineDash([10, 8]); ctx.lineWidth = 2;
+    ctx.stroke(); ctx.setLineDash([]);
   }
   if (type === 'wall') {
     const p = game.placing;
@@ -1979,7 +1996,7 @@ function updateHUD() {
   if (flash && performance.now() - flash.t < 2500) text = flash.text;
   else if (game.paused) text = 'Paused';
   else if (placing && placing.type === 'wall') text = !placing.anchor ? 'Tap where the wall starts' : placing.end ? 'Tap the end again to build (or Build wall)' : 'Tap where the wall ends (or tap the start again for one piece)';
-  else if (placing) text = placing.ghost ? 'Tap the square again (or Place here) to build' : `Tap inside the circle to place your ${NAMES[placing.type].toLowerCase()}`;
+  else if (placing) text = placing.ghost ? 'Tap the square again (or Place here) to build' : `Tap inside the green area to place your ${NAMES[placing.type].toLowerCase()}`;
   else if (settler) text = 'Settler — move somewhere open, then Deploy';
   else if (hq) text = 'Headquarters';
   else if (sel.length === 1 && sel[0].type === 'gate') text = 'Gate — opens for your units, enemies must destroy it';

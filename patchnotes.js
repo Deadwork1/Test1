@@ -2,6 +2,15 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '3.9', date: '16 Nov 2026', title: 'Growing build area',
+    changes: [
+      'Your build area now grows as your base spreads out. Every finished building (not walls or gates) adds a circle 200 wide around it, on top of the HQ\'s 300.',
+      'Build outward step by step to claim ground toward the middle of the map.',
+      'Walls and gates can still reach a little further than other buildings.',
+      'The computer expands the same way.',
+    ],
+  },
+  {
     version: '3.8', date: '16 Nov 2026', title: 'Buggy moves to the Barracks',
     changes: [
       'The Scout Buggy is now trained at the Barracks ($250) next to Soldiers. Small and cheap, so no factory needed.',
