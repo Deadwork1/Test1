@@ -107,9 +107,9 @@ function newGame() {
     placing: null,           // { type, ghost:{x,y} } while choosing where to build
     effects: [],
     over: null, paused: false,
-    ai: { timer: 0, attacking: false },
+    ai: { timer: 0, attacking: false, known: new Map(), scout: null, exploreTarget: null },
   };
-  fog.vis.fill(0); fog.exp.fill(0);
+  for (const f of fog) { f.vis.fill(0); f.exp.fill(0); }
   let seed = 99;
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   for (const f of ORE_FIELDS) {
@@ -168,8 +168,8 @@ function moveToward(e, tx, ty, dt) {
   return false;
 }
 
-// ---------- Fog of war (only for you — the computer sees everything) ----------
-const fog = { vis: new Uint8Array(COLS * ROWS), exp: new Uint8Array(COLS * ROWS) };
+// ---------- Fog of war (each side has its own; only yours is drawn) ----------
+const fog = [0, 1].map(() => ({ vis: new Uint8Array(COLS * ROWS), exp: new Uint8Array(COLS * ROWS) }));
 const fogCanvas = document.createElement('canvas');
 fogCanvas.width = COLS; fogCanvas.height = ROWS;
 const fogCtx = fogCanvas.getContext('2d');
@@ -180,27 +180,28 @@ function cellIndex(x, y) {
   const r = Math.min(ROWS - 1, Math.max(0, Math.floor(y / CELL)));
   return r * COLS + c;
 }
-const visibleAt = (x, y) => fog.vis[cellIndex(x, y)] === 1;
-const exploredAt = (x, y) => fog.exp[cellIndex(x, y)] === 1;
+const visibleAt = (x, y, team = 0) => fog[team].vis[cellIndex(x, y)] === 1;
+const exploredAt = (x, y, team = 0) => fog[team].exp[cellIndex(x, y)] === 1;
 
 function updateFog() {
-  fog.vis.fill(0);
+  for (const f of fog) f.vis.fill(0);
   for (const e of game.ents) {
-    if (e.team !== 0) continue;
+    const f = fog[e.team];
     const r = STATS[e.type].sight * (isBuilding(e) && !e.built ? 0.6 : 1);
     const c0 = Math.max(0, Math.floor((e.x - r) / CELL)), c1 = Math.min(COLS - 1, Math.floor((e.x + r) / CELL));
     const r0 = Math.max(0, Math.floor((e.y - r) / CELL)), r1 = Math.min(ROWS - 1, Math.floor((e.y + r) / CELL));
     for (let row = r0; row <= r1; row++) {
       for (let col = c0; col <= c1; col++) {
         const cx = col * CELL + CELL / 2, cy = row * CELL + CELL / 2;
-        if ((cx - e.x) ** 2 + (cy - e.y) ** 2 <= r * r) { const i = row * COLS + col; fog.vis[i] = 1; fog.exp[i] = 1; }
+        if ((cx - e.x) ** 2 + (cy - e.y) ** 2 <= r * r) { const i = row * COLS + col; f.vis[i] = 1; f.exp[i] = 1; }
       }
     }
   }
   const d = fogImg.data;
-  for (let i = 0; i < fog.vis.length; i++) {
+  const mine = fog[0];
+  for (let i = 0; i < mine.vis.length; i++) {
     d[i * 4] = 4; d[i * 4 + 1] = 6; d[i * 4 + 2] = 4;
-    d[i * 4 + 3] = fog.vis[i] ? 0 : fog.exp[i] ? 130 : 255;
+    d[i * 4 + 3] = mine.vis[i] ? 0 : mine.exp[i] ? 130 : 255;
   }
   fogCtx.putImageData(fogImg, 0, 0);
 }
@@ -254,7 +255,7 @@ function findOre(x, y, maxDist, team, mustBeExplored) {
   let best = null, bestD = maxDist;
   for (const o of game.ore) {
     if (o.amount <= 0) continue;
-    if (mustBeExplored && team === 0 && !exploredAt(o.x, o.y)) continue;
+    if (mustBeExplored && !exploredAt(o.x, o.y, team)) continue;
     const d = Math.hypot(o.x - x, o.y - y);
     if (d < bestD) { bestD = d; best = o; }
   }
@@ -479,6 +480,20 @@ function aiPlace(hq, type) {
   return false;
 }
 
+// pick a spot the computer hasn't explored yet (far from its own HQ when scouting for you)
+function aiExploreSpot(fromX, fromY, preferFar) {
+  const hq = hqOf(1), f = fog[1];
+  let best = null, bestScore = -Infinity;
+  for (let tries = 0; tries < 40; tries++) {
+    const i = Math.floor(Math.random() * f.exp.length);
+    if (f.exp[i]) continue;
+    const x = (i % COLS) * CELL + CELL / 2, y = Math.floor(i / COLS) * CELL + CELL / 2;
+    const score = preferFar && hq ? Math.hypot(x - hq.x, y - hq.y) : -Math.hypot(x - fromX, y - fromY);
+    if (score > bestScore) { bestScore = score; best = { x, y }; }
+  }
+  return best;
+}
+
 function runAI(dt) {
   const ai = game.ai;
   ai.timer -= dt;
@@ -491,6 +506,10 @@ function runAI(dt) {
   const barracks = of('barracks'), refineries = of('refinery'), soldiers = of('soldier'), extractors = of('extractor');
   const cash = game.credits[1];
 
+  // remember any of your buildings it has seen; forget ones it sees are gone
+  for (const e of game.ents) if (e.team === 0 && isBuilding(e) && visibleAt(e.x, e.y, 1)) ai.known.set(e.id, { x: e.x, y: e.y });
+  for (const [id, k] of ai.known) if (!byId(id) && visibleAt(k.x, k.y, 1)) ai.known.delete(id);
+
   if (settler && !hq) deploy(settler);
 
   if (hq) {
@@ -500,20 +519,44 @@ function runAI(dt) {
   }
 
   for (const r of refineries) if (extractors.length + r.queue < 2 * refineries.length && r.queue === 0) produce(r);
-  for (const x of extractors) if (!x.order) autoHarvest(x);
+  // idle extractors go to ore it knows about, or drive off to look for some
+  for (const x of extractors) {
+    if (x.order || autoHarvest(x)) continue;
+    const spot = aiExploreSpot(x.x, x.y, false);
+    if (spot) x.order = { type: 'move', x: spot.x, y: spot.y };
+  }
 
   const reserve = extractors.length < 2 && refineries.length ? COST.extractor : 0;
   for (const b of barracks) if (b.queue < 2 && game.credits[1] >= COST.soldier + reserve) produce(b);
+
+  // targets = your things it can see right now + buildings it remembers
+  const targets = game.ents.filter(e => e.team === 0 && visibleAt(e.x, e.y, 1)).map(e => ({ x: e.x, y: e.y }));
+  for (const k of ai.known.values()) targets.push(k);
+
+  // send one soldier out to scout until it has found your base
+  const scout = ai.scout && byId(ai.scout);
+  if (!ai.known.size && soldiers.length && !ai.attacking) {
+    const sc = scout || soldiers[0];
+    ai.scout = sc.id;
+    if (!sc.order) { const spot = aiExploreSpot(sc.x, sc.y, true); if (spot) sc.order = { type: 'move', x: spot.x, y: spot.y }; }
+  } else if (scout && ai.known.size && !ai.attacking && hq) {
+    // found you: the scout runs home to report instead of fighting alone
+    scout.order = { type: 'move', x: hq.x - 120, y: hq.y + 120 };
+    ai.scout = null;
+  }
 
   if (soldiers.length >= 6) ai.attacking = true;
   if (soldiers.length < 2) ai.attacking = false;
 
   if (ai.attacking) {
-    const targets = game.ents.filter(e => e.team === 0);
+    if (!targets.length && (!ai.exploreTarget || exploredAt(ai.exploreTarget.x, ai.exploreTarget.y, 1))) {
+      ai.exploreTarget = hq ? aiExploreSpot(hq.x, hq.y, true) : null;
+    }
     for (const s of soldiers) {
       if (s.order) continue;
       let best = null, bestD = Infinity;
       for (const t of targets) { const d = Math.hypot(t.x - s.x, t.y - s.y); if (d < bestD) { bestD = d; best = t; } }
+      best = best || ai.exploreTarget;
       if (best) s.order = { type: 'attackmove', x: best.x, y: best.y };
     }
   }
