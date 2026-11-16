@@ -16,7 +16,7 @@ const INCOME = 1;                     // small trickle per second so nobody gets
 const BUILD_RADIUS = 300;             // how far from your HQ you can place buildings
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
 
-const COST = { barracks: 300, refinery: 400, factory: 500, power: 300, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250 };
+const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250 };
 const WALL_REACH = 150;              // walls & gates can go this much further out than other buildings
 
 const STATS = {
@@ -41,11 +41,15 @@ const isCombat = e => e.type === 'soldier' || e.type === 'buggy';
 // How the computer plays at each difficulty.
 //  think: seconds between decisions   slow: build/train time multiplier   income: share of ore value it earns
 //  attackAt: army size before it attacks   attackAfter: earliest attack (seconds)   barracks: max barracks
-//  maxArmy: it stops training soldiers at this many
+//  maxArmy: it stops training soldiers at this many   guard: units it keeps at home   maxWave: biggest attack wave
+//  extractors / refineries: how big its economy gets   walls: whether it builds a wall line with a gate
 const DIFFICULTY = {
-  easy:   { label: 'Easy',   think: 2.5, slow: 1.5,  income: 0.7,  attackAt: 5, attackAfter: 300, barracks: 1, maxArmy: 6, towers: 0, buggies: false, plants: 0 },
-  normal: { label: 'Normal', think: 1.5, slow: 1.18, income: 0.85, attackAt: 7, attackAfter: 180, barracks: 1, maxArmy: 20, towers: 1, buggies: true, plants: 1 },
-  hard:   { label: 'Hard',   think: 1,   slow: 1,    income: 1,    attackAt: 6, attackAfter: 0,   barracks: 2, maxArmy: Infinity, towers: 2, buggies: true, plants: 2 },
+  easy:   { label: 'Easy',   think: 2.5, slow: 1.5,  income: 0.7,  attackAt: 5, attackAfter: 300, barracks: 1, maxArmy: 6, towers: 0, buggies: false, plants: 0,
+            guard: 1, maxWave: 6, extractors: 2, refineries: 1, walls: false },
+  normal: { label: 'Normal', think: 1.5, slow: 1.18, income: 0.85, attackAt: 7, attackAfter: 180, barracks: 1, maxArmy: 20, towers: 2, buggies: true, plants: 1,
+            guard: 3, maxWave: 14, extractors: 4, refineries: 2, walls: true },
+  hard:   { label: 'Hard',   think: 1,   slow: 1,    income: 1,    attackAt: 6, attackAfter: 0,   barracks: 2, maxArmy: Infinity, towers: 3, buggies: true, plants: 2,
+            guard: 4, maxWave: 22, extractors: 5, refineries: 2, walls: true },
 };
 let difficulty = 'normal';
 try { if (DIFFICULTY[localStorage.getItem('mini-rts-difficulty')]) difficulty = localStorage.getItem('mini-rts-difficulty'); } catch (err) {}
@@ -65,8 +69,8 @@ const START = [{ x: 230, y: H - 230 }, { x: W - 230, y: 230 }];
 
 // ore fields: a small one by each base, a big rich one in the middle, two on the flanks
 const ORE_FIELDS = [
-  { x: 600, y: H - 330, nodes: 7, amount: 300, spread: 90 },
-  { x: W - 600, y: 330, nodes: 7, amount: 300, spread: 90 },
+  { x: 600, y: H - 330, nodes: 7, amount: 500, spread: 90 },
+  { x: W - 600, y: 330, nodes: 7, amount: 500, spread: 90 },
   { x: W / 2, y: H / 2, nodes: 14, amount: 500, spread: 160 },
   { x: 640, y: 380, nodes: 8, amount: 400, spread: 110 },
   { x: W - 640, y: H - 380, nodes: 8, amount: 400, spread: 110 },
@@ -854,6 +858,7 @@ function updateSoldier(e, dt) {   // soldiers and buggies
   }
   if (!o) return;
 
+  if (o.type === 'attackmove' && e.holdUntil > game.time) return;   // waiting for the rest of its wave
   if (o.type === 'move' || o.type === 'attackmove') {
     if (navigate(e, o.x, o.y, dt)) e.order = null;   // arrived (true) or can't get there ('fail')
   } else if (o.type === 'attack') {
@@ -983,15 +988,19 @@ function separate() {
 
 // ---------- Computer opponent ----------
 function aiPlace(hq, type) {
+  if (game.credits[1] < COST[type]) return false;
   const bases = buildAreaSources(1);
-  for (let tries = 0; tries < 40; tries++) {
-    const src = tries < 20 ? hq : bases[Math.floor(Math.random() * bases.length)].b;
+  for (let tries = 0; tries < 90; tries++) {
+    const src = tries < 30 ? hq : bases[Math.floor(Math.random() * bases.length)].b;
     const toward = Math.atan2(H / 2 - src.y, W / 2 - src.x);
-    const a = toward + (Math.random() - 0.5) * 2.6, d = src.size / 2 + 70 + Math.random() * 170;
+    const a = toward + (Math.random() - 0.5) * (tries < 60 ? 2.6 : 6.2), d = src.size / 2 + 60 + Math.random() * 200;
     if (placeBuilding(1, type, src.x + Math.cos(a) * d, src.y + Math.sin(a) * d)) return true;
   }
+  game.ai.cantPlace = game.ai.cantPlace || {};
+  game.ai.cantPlace[type] = game.time;   // no room right now: don't keep saving for it
   return false;
 }
+const aiBlocked = type => game.ai.cantPlace && game.time - (game.ai.cantPlace[type] || -1e9) < 40;
 
 // pick a spot the computer hasn't explored yet (far from its own HQ when scouting for you)
 function aiExploreSpot(fromX, fromY, preferFar) {
@@ -1007,17 +1016,43 @@ function aiExploreSpot(fromX, fromY, preferFar) {
   return best;
 }
 
+// where its army gathers: a little way out from the HQ toward the middle of the map
+function aiRally(hq) {
+  const a = Math.atan2(H / 2 - hq.y, W / 2 - hq.x);
+  const x = hq.x + Math.cos(a) * 190, y = hq.y + Math.sin(a) * 190;
+  if (bldDirty) rebuildBuildingGrid();
+  P.team = 1; P.breakable = false;
+  const t = nearestPassable(Math.floor(x / TC), Math.floor(y / TC), false);
+  return t ? { x: t[0] * TC + TC / 2, y: t[1] * TC + TC / 2 } : { x, y };
+}
+
+// a straight wall across the approach to its base, with a gate in the middle (Normal and Hard)
+function aiWallPlan(hq) {
+  const a = Math.atan2(H / 2 - hq.y, W / 2 - hq.x), R = 330;
+  const cx = hq.x + Math.cos(a) * R, cy = hq.y + Math.sin(a) * R;
+  const vertical = Math.abs(Math.cos(a)) > Math.abs(Math.sin(a));   // facing mostly sideways → wall runs up/down
+  const tiles = [], gateAt = vertical ? { x: Math.floor(cx / TC) * TC + TC / 2, y: Math.round(cy / TC) * TC }
+                                      : { x: Math.round(cx / TC) * TC, y: Math.floor(cy / TC) * TC + TC / 2 };
+  for (let k = -7; k <= 6; k++) {
+    if (k === -1 || k === 0) continue;   // the gate's two tiles
+    const x = vertical ? gateAt.x : gateAt.x + k * TC + TC / 2, y = vertical ? gateAt.y + k * TC + TC / 2 : gateAt.y;
+    tiles.push({ x, y });
+  }
+  return { tiles, gate: { ...gateAt, vertical } };
+}
+
 function runAI(dt) {
   const ai = game.ai;
   ai.timer -= dt;
   if (ai.timer > 0) return;
   ai.timer = diff().think;
+  const D = diff();
 
   const mine = game.ents.filter(e => e.team === 1);
   const of = t => mine.filter(e => e.type === t);
   const settler = of('settler')[0], hq = of('hq')[0];
-  const barracks = of('barracks'), refineries = of('refinery'), extractors = of('extractor'), factories = of('factory');
-  const soldiers = mine.filter(isCombat);   // the whole army: soldiers and buggies
+  const barracks = of('barracks'), refineries = of('refinery'), extractors = of('extractor');
+  const army = mine.filter(isCombat);   // soldiers and buggies
   const cash = game.credits[1];
 
   // remember any of your buildings it has seen; forget ones it sees are gone
@@ -1025,66 +1060,211 @@ function runAI(dt) {
   for (const [id, k] of ai.known) if (!byId(id) && visibleAt(k.x, k.y, 1)) ai.known.delete(id);
 
   if (settler && !hq) deploy(settler);
+  if (!hq) return;
 
-  if (hq) {
-    if (refineries.length === 0) aiPlace(hq, 'refinery');
-    else if (barracks.length === 0) aiPlace(hq, 'barracks');
-    else if (of('power').length < diff().plants && cash >= COST.power) aiPlace(hq, 'power');
-    else if (of('tower').length < diff().towers && cash >= COST.tower) aiPlace(hq, 'tower');
-    else if (barracks.length < diff().barracks && cash >= 900) aiPlace(hq, 'barracks');
+  // ---- base building (army comes first: extras only once it has a decent force) ----
+  ai.waveSize = ai.waveSize || D.attackAt;
+  // After each wave goes out it spends ~45s investing (refinery, towers, walls) before saving for the next wave.
+  const sent = ai.wavesSent || 0;
+  const wantTowers = sent === 0 ? 0 : sent === 1 ? Math.min(1, D.towers) : D.towers;
+  const reqRefineries = extractors.length >= 3 && sent >= 1 ? D.refineries : 1;
+  // the build phase lasts until this stage's extras are built (or 90s, so it never stalls)
+  const extrasDone = (refineries.length >= reqRefineries || aiBlocked('refinery')) && (of('tower').length >= wantTowers || aiBlocked('tower'));
+  const building = game.time < (ai.buildUntil || 0) && !extrasDone;
+  if (refineries.length === 0) aiPlaceRefinery(hq);
+  else if (barracks.length === 0) aiPlace(hq, 'barracks');
+  else if (of('power').length < D.plants && cash >= COST.power) aiPlace(hq, 'power');
+  else if (refineries.length < reqRefineries && cash >= COST.refinery && !aiBlocked('refinery')) aiPlaceRefinery(hq);
+  else if (of('tower').length < wantTowers && cash >= COST.tower && !aiBlocked('tower')) aiPlaceTower(hq);
+  else if (barracks.length < D.barracks && cash >= 900) aiPlace(hq, 'barracks');
+
+  // expand toward fresh ore once the ore by its refineries is running out
+  const expanding = aiExpand(hq, refineries, sent);
+
+  // wall line + gate across the approach, a few pieces at a time
+  if (D.walls && sent >= 1 && game.credits[1] >= 200) {
+    const plan = ai.wallPlan || (ai.wallPlan = aiWallPlan(hq));
+    if (!of('gate').length && !ai.gateTried) {
+      ai.gateTried = true;
+      placeBuilding(1, 'gate', plan.gate.x, plan.gate.y, plan.gate.vertical);
+    }
+    let n = 0;
+    for (const t of plan.tiles) {
+      if (n >= 3 || game.credits[1] < COST.wall + 150) break;
+      if (game.ents.some(w => w.type === 'wall' && w.team === 1 && Math.abs(w.x - t.x) < 1 && Math.abs(w.y - t.y) < 1)) continue;
+      if (canPlaceWallPiece(1, 'wall', t.x, t.y)) { game.credits[1] -= COST.wall; spawn('wall', 1, t.x, t.y); n++; }
+    }
   }
 
-  for (const r of refineries) if (extractors.length + r.queue < 2 * refineries.length && r.queue === 0) produce(r);
-  // idle extractors go to ore it knows about, or drive off to look for some
-  for (const x of extractors) {
+  // ---- economy ----
+  const wantExtractors = Math.min(D.extractors, refineries.filter(r => r.built).length * 3);
+  const qx = refineries.reduce((n, r) => n + r.queue, 0);
+  for (const r of refineries) if (extractors.length + qx < wantExtractors && r.queue === 0) produce(r);
+  for (const x of extractors) {   // idle extractors go to ore it knows about, or drive off to look for some
     if (x.order || autoHarvest(x)) continue;
     const spot = aiExploreSpot(x.x, x.y, false);
     if (spot) x.order = { type: 'move', x: spot.x, y: spot.y };
   }
 
-  let reserve = extractors.length < 2 && refineries.length ? COST.extractor : 0;
-  if (of('tower').length < diff().towers && soldiers.length >= 3 && barracks.length) reserve += COST.tower;   // save up for a tower
+  // ---- training ----
+  let reserve = extractors.length + qx < wantExtractors ? COST.extractor : 0;
+  if (expanding) reserve += expanding;   // saving for a stepping stone or a new refinery
+  if (building) {   // in a build phase: save for the next thing it wants, not for units
+    if (refineries.length < reqRefineries && !aiBlocked('refinery')) reserve += COST.refinery;
+    else if (of('tower').length < wantTowers && !aiBlocked('tower')) reserve += COST.tower;
+  }
   const queued = barracks.reduce((n, b) => n + b.queue, 0);
   const qBuggies = barracks.reduce((n, b) => n + b.qTypes.filter(t => t === 'buggy').length, 0);
-  // about one buggy for every two soldiers (not on Easy)
-  const wantBuggy = diff().buggies && of('buggy').length + qBuggies < (of('soldier').length + 2) / 2;
+  const wantBuggy = D.buggies && of('buggy').length + qBuggies < (of('soldier').length + 2) / 2;   // ~1 buggy per 2 soldiers
   for (const b of barracks) {
-    if (b.queue >= 2 || soldiers.length + queued >= diff().maxArmy) continue;
-    if (wantBuggy) { if (game.credits[1] >= COST.buggy + reserve) produce(b, 'buggy'); }   // save up for it
+    if (b.queue >= 2 || army.length + queued >= D.maxArmy) continue;
+    if (wantBuggy) { if (game.credits[1] >= COST.buggy + reserve) produce(b, 'buggy'); }
     else if (game.credits[1] >= COST.soldier + reserve) produce(b, 'soldier');
   }
 
-  // targets = your things it can see right now + buildings it remembers
+  // ---- army ----
+  const rally = aiRally(hq);
   const targets = game.ents.filter(e => e.team === 0 && !isWallType(e.type) && visibleAt(e.x, e.y, 1) && !hiddenFrom(e, 1)).map(e => ({ x: e.x, y: e.y }));
   for (const k of ai.known.values()) targets.push(k);
+  const nearest = (u, list) => { let b = null, bd = Infinity; for (const t of list) { const d = Math.hypot(t.x - u.x, t.y - u.y); if (d < bd) { bd = d; b = t; } } return b; };
 
-  // send one soldier out to scout until it has found your base
+  // scout: one unit (a buggy if it has one) looks for your base, then runs home to report
   const scout = ai.scout && byId(ai.scout);
-  if (!ai.known.size && soldiers.length && !ai.attacking) {
-    const sc = scout || soldiers.find(u => u.type === 'buggy') || soldiers[0];   // buggies make great scouts
-    ai.scout = sc.id; sc.passive = true;   // scouts look, they don't pick fights
-    if (!sc.order) { const spot = aiExploreSpot(sc.x, sc.y, true); if (spot) sc.order = { type: 'move', x: spot.x, y: spot.y }; }
-  } else if (scout && ai.known.size && !ai.attacking && hq) {
-    // found you: the scout runs home to report instead of fighting alone
-    scout.order = { type: 'move', x: hq.x - 120, y: hq.y + 120 };
-    scout.passive = false; ai.scout = null;
+  if (!ai.known.size && army.length) {
+    const sc = scout || army.find(u => u.type === 'buggy' && !u.role) || army.find(u => !u.role);
+    if (sc) {
+      ai.scout = sc.id; sc.role = 'scout'; sc.passive = true;
+      if (!sc.order) { const spot = aiExploreSpot(sc.x, sc.y, true); if (spot) sc.order = { type: 'move', x: spot.x, y: spot.y }; }
+    }
+  } else if (scout) {
+    scout.order = { type: 'move', x: rally.x, y: rally.y }; scout.passive = false; scout.role = null; ai.scout = null;
   }
 
-  if (soldiers.length >= diff().attackAt && game.time >= diff().attackAfter) { ai.attacking = true; for (const s of soldiers) s.passive = false; }
-  if (soldiers.length < 2) ai.attacking = false;
+  // home guard: keep a few units at home (the first wave gets priority, so guards are picked from what's left over)
+  const guards = army.filter(u => u.role === 'guard');
+  const free = army.filter(u => !u.role);
+  for (const u of free) {
+    if (guards.length >= D.guard || (!ai.wavesSent && free.length - (D.guard - guards.length) < ai.waveSize)) break;
+    u.role = 'guard'; guards.push(u);
+  }
 
-  if (ai.attacking) {
-    if (!targets.length && (!ai.exploreTarget || exploredAt(ai.exploreTarget.x, ai.exploreTarget.y, 1))) {
-      ai.exploreTarget = hq ? aiExploreSpot(hq.x, hq.y, true) : null;
+  // defend: if your units come near its base, the guards and everyone gathering (and any wave close to home) fight back
+  const base = mine.filter(e => isBuilding(e) && !isWallType(e.type));
+  const intruders = game.ents.filter(e => e.team === 0 && isUnit(e) && visibleAt(e.x, e.y, 1) && !hiddenFrom(e, 1) &&
+    base.some(b => Math.hypot(b.x - e.x, b.y - e.y) < 450));
+  if (intruders.length) {
+    for (const u of army) {
+      if (u.role === 'scout') continue;
+      if (u.role === 'wave' && Math.hypot(u.x - hq.x, u.y - hq.y) > 700) continue;
+      if (u.order && u.order.type === 'attack' && byId(u.order.target)) continue;
+      const t = nearest(u, intruders);
+      u.order = { type: 'attack', target: t.id }; u.passive = false;
     }
-    for (const s of soldiers) {
-      if (s.order) continue;
-      let best = null, bestD = Infinity;
-      for (const t of targets) { const d = Math.hypot(t.x - s.x, t.y - s.y); if (d < bestD) { bestD = d; best = t; } }
-      best = best || ai.exploreTarget;
-      if (best) s.order = { type: 'attackmove', x: best.x, y: best.y };
+  } else {
+    // guards and new units wait at the rally point
+    for (const u of army) {
+      if (u.role === 'wave' || u.role === 'scout' || u.order) continue;
+      if (Math.hypot(u.x - rally.x, u.y - rally.y) > 90) u.order = { type: 'move', x: rally.x + (Math.random() - .5) * 60, y: rally.y + (Math.random() - .5) * 60 };
     }
   }
+
+  // waves: once enough units have gathered (and it's late enough), they march out together
+  const gathered = army.filter(u => !u.role && Math.hypot(u.x - rally.x, u.y - rally.y) < 160);
+  const lost = !ai.known.size && game.time > D.attackAfter + 90;   // still hasn't found you: go looking in force
+  if (!intruders.length && gathered.length >= ai.waveSize && game.time >= D.attackAfter && (ai.known.size || lost)) {
+    const target = nearest(rally, targets) || aiExploreSpot(hq.x, hq.y, true);
+    if (target) {
+      for (const u of gathered) { u.role = 'wave'; u.passive = false; u.order = { type: 'attackmove', x: target.x, y: target.y }; }
+      ai.waveSize = Math.min(D.maxWave, ai.waveSize + 2);   // each wave a little bigger
+      ai.wavesSent = (ai.wavesSent || 0) + 1;
+      ai.buildUntil = game.time + 90;
+      ai.waveTarget = target;
+    }
+  }
+
+  // keep each wave together: units that run ahead wait for the rest; idle wave units pick the next target
+  const wave = army.filter(u => u.role === 'wave');
+  if (wave.length) {
+    if (!targets.length && (!ai.exploreTarget || exploredAt(ai.exploreTarget.x, ai.exploreTarget.y, 1))) ai.exploreTarget = aiExploreSpot(hq.x, hq.y, true);
+    const goal = ai.waveTarget || ai.exploreTarget;
+    if (goal) {
+      const dists = wave.map(u => Math.hypot(u.x - goal.x, u.y - goal.y)).sort((a, b) => a - b);
+      const middle = dists[Math.floor(dists.length / 2)];
+      for (const u of wave) {
+        const d = Math.hypot(u.x - goal.x, u.y - goal.y);
+        u.holdUntil = d < middle - 140 && d > 260 ? game.time + D.think + 0.1 : 0;
+      }
+    }
+    for (const u of wave) {
+      if (u.order) continue;
+      const t = nearest(u, targets) || ai.exploreTarget;
+      if (t) { u.order = { type: 'attackmove', x: t.x, y: t.y }; ai.waveTarget = t; }
+    }
+  }
+}
+
+// When the ore near its refineries is nearly gone, it heads for the nearest field it knows about:
+// cheap Power Plants as stepping stones to stretch its build area, then a refinery right by the ore.
+// Returns how much money it wants to keep for that (0 if it isn't expanding).
+function aiExpand(hq, refineries, sent) {
+  if (refineries.length >= 4 || (!sent && game.time < 200)) return 0;
+  const oreNear = (x, y, r) => game.ore.reduce((s, o) => s + (o.amount > 0 && Math.hypot(o.x - x, o.y - y) < r ? o.amount : 0), 0);
+  if (refineries.some(r => !r.built || oreNear(r.x, r.y, 450) > 600)) return 0;   // still plenty to mine
+  // the nearest known ore that isn't already by one of its refineries
+  let target = null, td = Infinity;
+  for (const o of game.ore) {
+    if (o.amount < 100 || !exploredAt(o.x, o.y, 1) || refineries.some(r => Math.hypot(r.x - o.x, r.y - o.y) < 450)) continue;
+    const d = Math.hypot(o.x - hq.x, o.y - hq.y);
+    if (d < td) { td = d; target = o; }
+  }
+  if (!target) return 0;
+  // the spot in its build area that gets closest to that ore
+  let best = null, bd = Infinity;
+  for (const src of buildAreaSources(1)) {
+    for (let k = 0; k < 40; k++) {
+      const a = Math.atan2(target.y - src.y, target.x - src.x) + (Math.random() - 0.5) * 1.6, d = src.r * (0.5 + Math.random() * 0.5);
+      const x = src.x + Math.cos(a) * d, y = src.y + Math.sin(a) * d, dd = Math.hypot(target.x - x, target.y - y);
+      if (dd < bd && canPlace(1, 'power', x, y)) { bd = dd; best = { x, y }; }
+    }
+  }
+  if (!best) return 0;
+  if (bd < 280) {   // close enough: put the refinery down by the ore
+    if (game.credits[1] >= COST.refinery) aiPlaceRefinery(hq);
+    return COST.refinery;
+  }
+  if (game.credits[1] >= COST.power) placeBuilding(1, 'power', best.x, best.y);   // stepping stone
+  return COST.power;
+}
+
+// a new refinery goes as close as it can get to ore it knows about that still has plenty left
+function aiPlaceRefinery(hq) {
+  const ore = game.ore.filter(o => o.amount > 100 && (exploredAt(o.x, o.y, 1) || Math.hypot(o.x - hq.x, o.y - hq.y) < 600));
+  if (!ore.length) return aiPlace(hq, 'refinery');
+  let best = null, bestD = Infinity;
+  for (const src of buildAreaSources(1)) {
+    for (let k = 0; k < 40; k++) {
+      const a = Math.random() * Math.PI * 2, d = Math.random() * (src.r + 40);
+      const x = src.x + Math.cos(a) * d, y = src.y + Math.sin(a) * d;
+      let od = Infinity; for (const o of ore) od = Math.min(od, Math.hypot(o.x - x, o.y - y));
+      if (od < bestD && canPlace(1, 'refinery', x, y)) { bestD = od; best = { x, y }; }
+    }
+  }
+  if (best && placeBuilding(1, 'refinery', best.x, best.y)) return true;
+  return aiPlace(hq, 'refinery');
+}
+
+// towers go near its gate (if it has one) or toward the middle from the HQ
+function aiPlaceTower(hq) {
+  const gate = game.ents.find(e => e.type === 'gate' && e.team === 1);
+  if (gate) {
+    for (let tries = 0; tries < 30; tries++) {
+      const a = Math.random() * Math.PI * 2, d = 50 + Math.random() * 90;
+      const x = gate.x + Math.cos(a) * d, y = gate.y + Math.sin(a) * d;
+      if (Math.hypot(x - hq.x, y - hq.y) > Math.hypot(gate.x - hq.x, gate.y - hq.y)) continue;   // stay on the inside of the wall
+      if (placeBuilding(1, 'tower', x, y)) return true;
+    }
+  }
+  return aiPlace(hq, 'tower');
 }
 
 // ---------- Drawing ----------

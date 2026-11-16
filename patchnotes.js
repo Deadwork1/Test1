@@ -2,6 +2,17 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '4.0', date: '16 Nov 2026', title: 'A smarter enemy',
+    changes: [
+      'The computer now attacks in proper waves: its army gathers outside its base, then marches together. Units that run ahead wait for the rest. Each wave is a bit bigger than the last.',
+      'It keeps a home guard (1 on Easy, 3 on Normal, 4 on Hard), and when you attack its base, its guards and everything nearby fight back.',
+      'Bigger economy: up to 4 extractors on Normal (5 on Hard). It builds its refinery right by its ore, and when that runs low it expands toward fresh ore with Power Plant stepping stones and new refineries.',
+      'After each wave it takes a short break to invest: a second refinery, more towers (2 on Normal, 3 on Hard), and a wall with a gate across the approach to its base (Normal and Hard).',
+      'Power Plants now cost $200 (was $300).',
+      'Home ore fields are bigger: 500 ore per patch (was 300) for both sides, so they don\'t run dry so early.',
+    ],
+  },
+  {
     version: '3.11.1', date: '16 Nov 2026', title: 'Power Plant makeover',
     changes: [
       'Fixed: the game could freeze once a Power Plant was built (introduced in 3.11).',
