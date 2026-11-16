@@ -107,7 +107,7 @@ const DIFFICULTY = {
   normal: { label: 'Normal', think: 1.5, slow: 1.18, income: 0.85, attackAt: 7, attackAfter: 180, barracks: 1, maxArmy: 20, towers: 2, buggies: true, plants: 1,
             guard: 3, maxWave: 14, extractors: 4, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 1, factory: true, tanks: 0.25, heavyTanks: false, raidEvery: 240 },
   hard:   { label: 'Hard',   think: 1,   slow: 1,    income: 1,    attackAt: 6, attackAfter: 0,   barracks: 2, maxArmy: Infinity, towers: 3, buggies: true, plants: 2,
-            guard: 4, maxWave: 22, extractors: 5, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true, raidEvery: 180 },
+            guard: 4, maxWave: 22, extractors: 8, refineries: 3, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true, raidEvery: 180, earlyRefinery: true, expandAt: 1500 },
 };
 let difficulty = 'normal';
 try { if (DIFFICULTY[localStorage.getItem('mini-rts-difficulty')]) difficulty = localStorage.getItem('mini-rts-difficulty'); } catch (err) {}
@@ -1312,7 +1312,8 @@ function runAI(dt) {
   // After each wave goes out it spends ~45s investing (refinery, towers, walls) before saving for the next wave.
   const sent = ai.wavesSent || 0;
   const wantTowers = sent === 0 ? 0 : sent === 1 ? Math.min(1, D.towers) : D.towers;
-  const reqRefineries = extractors.length >= 3 && sent >= 1 ? D.refineries : 1;
+  // Hard puts down a second refinery straight away (after a minute); everyone builds the rest once its economy and first wave are going
+  const reqRefineries = extractors.length >= 3 && sent >= 1 ? D.refineries : D.earlyRefinery && game.time > 60 ? 2 : 1;
   // the build phase lasts until this stage's extras are built (or 90s, so it never stalls)
   const wantFactory = D.factory && sent >= 1 && !of('factory').length && unlocked(1, 'factory') && !aiBlocked('factory');
   const wantTech = D.heavyTanks && sent >= 2 && of('factory').some(f => f.built) && !of('tech').length && unlocked(1, 'tech') && !aiBlocked('tech');
@@ -1508,7 +1509,7 @@ function runAI(dt) {
 function aiExpand(hq, refineries, sent) {
   if (refineries.length >= 4 || (!sent && game.time < 200) || aiBlocked('expand')) return 0;
   const oreNear = (x, y, r) => game.ore.reduce((s, o) => s + (o.amount > 0 && Math.hypot(o.x - x, o.y - y) < r ? o.amount : 0), 0);
-  if (refineries.some(r => !r.built || oreNear(r.x, r.y, 450) > 600)) return 0;   // still plenty to mine
+  if (refineries.some(r => !r.built || oreNear(r.x, r.y, 450) > (diff().expandAt || 600))) return 0;   // still plenty to mine (Hard moves on sooner)
   // never more than a few stepping stones
   if (game.ents.filter(e => e.team === 1 && e.type === 'power').length >= diff().plants + 4) return 0;
   // the nearest known ore on its own side of the river (it can't build across water) that isn't already by a refinery
