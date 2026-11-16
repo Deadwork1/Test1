@@ -2,6 +2,14 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.3', date: '16 Nov 2026', title: 'Cheaper heavies',
+    changes: [
+      'Heavy Tank: price $800 to $700.',
+      'Tech Centre: price $800 to $600.',
+      'Easy: the enemy army limit is now 11 (was 14).',
+    ],
+  },
+  {
     version: '5.2', date: '16 Nov 2026', title: 'Sniper & tank tweaks',
     changes: [
       'Sniper: damage 60 to 75, and fires a little faster (every 2.7s instead of 3s).',

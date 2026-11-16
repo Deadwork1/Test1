@@ -60,7 +60,7 @@ const INCOME = 1;                     // small trickle per second so nobody gets
 const BUILD_RADIUS = 300;             // how far from your HQ you can place buildings
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
 
-const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250, grenadier: 160, engineer: 75, rocket: 200, sniper: 200, light: 450, heavy: 800, tech: 800 };
+const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250, grenadier: 160, engineer: 75, rocket: 200, sniper: 200, light: 450, heavy: 700, tech: 600 };
 const WALL_REACH = 150;              // walls & gates can go this much further out than other buildings
 
 const STATS = {
@@ -102,7 +102,7 @@ const SHORT = { buggy: 'Buggy', rocket: 'Rocket', sniper: 'Sniper', light: 'Ligh
 //  maxArmy: it stops training soldiers at this many   guard: units it keeps at home   maxWave: biggest attack wave
 //  extractors / refineries: how big its economy gets   walls: whether it builds a wall line with a gate
 const DIFFICULTY = {
-  easy:   { label: 'Easy',   think: 2.5, slow: 1.5,  income: 0.7,  attackAt: 5, attackAfter: 300, barracks: 1, maxArmy: 14, towers: 0, buggies: false, plants: 0,
+  easy:   { label: 'Easy',   think: 2.5, slow: 1.5,  income: 0.7,  attackAt: 5, attackAfter: 300, barracks: 1, maxArmy: 11, towers: 0, buggies: false, plants: 0,
             guard: 1, maxWave: 6, extractors: 2, refineries: 1, walls: false, grenadiers: false, engineers: 0, rockets: false, snipers: 0, factory: false, tanks: 0, heavyTanks: false, raidEvery: 0 },
   normal: { label: 'Normal', think: 1.5, slow: 1.18, income: 0.85, attackAt: 7, attackAfter: 180, barracks: 1, maxArmy: 20, towers: 2, buggies: true, plants: 1,
             guard: 3, maxWave: 14, extractors: 4, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 1, factory: true, tanks: 0.25, heavyTanks: false, raidEvery: 240 },
