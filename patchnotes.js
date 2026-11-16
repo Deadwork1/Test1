@@ -2,6 +2,14 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.2', date: '16 Nov 2026', title: 'Sniper & tank tweaks',
+    changes: [
+      'Sniper: damage 60 to 75, and fires a little faster (every 2.7s instead of 3s).',
+      'Light Tank: price $500 to $450. Heavy Tank: price $900 to $800.',
+      'New Heavy Tank look: wide boxy hull with side skirts and road wheels, a big angular turret set further back, twin long barrels with muzzle brakes, and fuel drums on the back.',
+    ],
+  },
+  {
     version: '5.1', date: '16 Nov 2026', title: 'Smarter enemy, balance',
     changes: [
       'The computer now trains counters to what it has seen of your army: more grenadiers and tanks against big infantry armies, more buggies against snipers and grenadiers, rocket soldiers against vehicles.',

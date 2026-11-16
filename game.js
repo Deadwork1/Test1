@@ -60,7 +60,7 @@ const INCOME = 1;                     // small trickle per second so nobody gets
 const BUILD_RADIUS = 300;             // how far from your HQ you can place buildings
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
 
-const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250, grenadier: 160, engineer: 75, rocket: 200, sniper: 200, light: 500, heavy: 900, tech: 800 };
+const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250, grenadier: 160, engineer: 75, rocket: 200, sniper: 200, light: 450, heavy: 800, tech: 800 };
 const WALL_REACH = 150;              // walls & gates can go this much further out than other buildings
 
 const STATS = {
@@ -70,7 +70,7 @@ const STATS = {
   buggy:     { hp: 140, speed: 95, r: 13, sight: 220, range: 110, dmg: 5,  cooldown: 0.25 },   // fast, machine gun
   light:     { hp: 350, speed: 60, r: 15, sight: 200, range: 130, dmg: 30, cooldown: 1.5, tank: true },   // light tank: all-rounder
   heavy:     { hp: 800, speed: 35, r: 19, sight: 210, range: 140, dmg: 60, cooldown: 2.0, tank: true },   // heavy tank: slow, very tough
-  sniper:    { hp: 45,  speed: 46, r: 9,  sight: 200, range: 160, dmg: 60, cooldown: 3.0, vsVehicle: 0.15, vsBuilding: 0.1, reveal: 0.5 },   // one-shots infantry from far away; useless vs vehicles
+  sniper:    { hp: 45,  speed: 46, r: 9,  sight: 200, range: 160, dmg: 75, cooldown: 2.7, vsVehicle: 0.15, vsBuilding: 0.1, reveal: 0.5 },   // one-shots infantry from far away; useless vs vehicles
   rocket:    { hp: 55,  speed: 45, r: 9,  sight: 170, range: 130, dmg: 40, cooldown: 2.5, rocket: true, vsVehicle: 2, vsBuilding: 2, vsInfantry: 0.4 },   // anti-vehicle: double vs vehicles & buildings, weak vs infantry
   grenadier: { hp: 55,  speed: 48, r: 9,  sight: 170, range: 95,  dmg: 16, cooldown: 2.0, splash: 38, flight: 0.55, vsVehicle: 0.5 },   // lobbed grenades: area damage, half vs vehicles
   engineer:  { hp: 20,  speed: 48, r: 9,  sight: 150, repair: 30 },   // no weapon, very fragile: repairs (hp per second) and captures
@@ -1608,7 +1608,8 @@ function draw() {
     else if (e.type === 'grenadier' || e.type === 'engineer' || e.type === 'rocket' || e.type === 'sniper') drawSoldier(e);
     else if (e.type === 'factory') drawFactory(e);
     else if (e.type === 'tech') drawTech(e);
-    else if (e.type === 'light' || e.type === 'heavy') drawTank(e);
+    else if (e.type === 'light') drawTank(e);
+    else if (e.type === 'heavy') drawHeavyTank(e);
     else drawSoldier(e);
   }
   for (const e of ents) if (sel.has(e.id) || e.hp < e.maxHp) drawHealth(e);
@@ -1960,6 +1961,55 @@ function drawSoldier(e) {   // soldiers, grenadiers and engineers share a body; 
     ctx.beginPath(); ctx.arc(e.x + Math.cos(e.facing) * 17, e.y + Math.sin(e.facing) * 17, 3, 0, Math.PI * 2); ctx.fill();
   }
   ctx.globalAlpha = 1;
+}
+
+// Heavy tank: a different silhouette from the light tank — wide boxy hull with side skirts and road wheels,
+// a big angular turret set back on the hull, twin long barrels with muzzle brakes, fuel drums on the back
+function drawHeavyTank(e) {
+  const c = TEAMS[e.team];
+  const moving = e.lx !== undefined && Math.hypot(e.x - e.lx, e.y - e.ly) > 0.2;
+  e.lx = e.x; e.ly = e.y;
+  if (e.turret === undefined) e.turret = e.facing;
+  if (!e.order || e.order.type !== 'attack') { let d = e.facing - e.turret; d = Math.atan2(Math.sin(d), Math.cos(d)); e.turret += d * 0.06; }
+  if (moving && Math.random() < 0.45) game.effects.push({ kind: 'dust', x: e.x - Math.cos(e.facing) * 22, y: e.y - Math.sin(e.facing) * 22, t: 0 });
+  const L = 23, Wd = 17;
+  ctx.save(); ctx.translate(e.x, e.y);
+  ctx.save(); ctx.rotate(e.facing);
+  ctx.fillStyle = 'rgba(0,0,0,0.32)'; ctx.fillRect(-L + 4, -Wd + 5, L * 2, Wd * 2);
+  // wide tracks with road wheels showing under the skirts
+  ctx.fillStyle = '#1a1a17'; ctx.fillRect(-L, -Wd, L * 2, 8); ctx.fillRect(-L, Wd - 8, L * 2, 8);
+  const off = moving ? (performance.now() / 45) % 5 : 0;
+  ctx.strokeStyle = '#3a3a34'; ctx.lineWidth = 1;
+  for (let k = -L + off; k < L; k += 5) { ctx.beginPath(); ctx.moveTo(k, -Wd); ctx.lineTo(k, -Wd + 8); ctx.moveTo(k, Wd - 8); ctx.lineTo(k, Wd); ctx.stroke(); }
+  ctx.fillStyle = '#4a4a42';
+  for (let k = -L + 5; k < L - 2; k += 8) { ctx.beginPath(); ctx.arc(k, -Wd + 4, 2.4, 0, Math.PI * 2); ctx.arc(k, Wd - 4, 2.4, 0, Math.PI * 2); ctx.fill(); }
+  // armoured side skirts in the dark team colour
+  ctx.fillStyle = c.dark; ctx.fillRect(-L + 3, -Wd + 1, L * 2 - 8, 3); ctx.fillRect(-L + 3, Wd - 4, L * 2 - 8, 3);
+  // boxy hull: dark armour with a team-colour deck, angled glacis plate at the front
+  ctx.fillStyle = c.dark; ctx.strokeStyle = '#111'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(-L + 1, -Wd + 5); ctx.lineTo(L - 7, -Wd + 5); ctx.lineTo(L, -Wd + 10); ctx.lineTo(L, Wd - 10); ctx.lineTo(L - 7, Wd - 5); ctx.lineTo(-L + 1, Wd - 5); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = c.color; ctx.fillRect(-L + 4, -Wd + 8, L * 2 - 12, Wd * 2 - 16);
+  ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(L - 7, -Wd + 9, 5, Wd * 2 - 18);   // glacis highlight
+  // engine deck grilles and two fuel drums on the back
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; for (let k = 0; k < 4; k++) ctx.fillRect(-L + 6 + k * 2.5, -6, 1.2, 12);
+  ctx.fillStyle = '#5a5a4c'; ctx.strokeStyle = '#2a2a22'; ctx.lineWidth = 1;
+  for (const dy of [-6.5, 6.5]) { ctx.beginPath(); ctx.ellipse(-L - 1, dy, 2.6, 4.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+  ctx.restore();
+  // big angular turret set back on the hull, with twin long barrels
+  ctx.rotate(e.turret);
+  const recoil = e.cooldown > STATS.heavy.cooldown - 0.18 ? -4 : 0;
+  ctx.strokeStyle = '#1e1e19'; ctx.lineWidth = 3.4;
+  ctx.beginPath(); ctx.moveTo(4, -3); ctx.lineTo(L + 14 + recoil, -3); ctx.moveTo(4, 3); ctx.lineTo(L + 14 + recoil, 3); ctx.stroke();
+  ctx.fillStyle = '#1e1e19'; ctx.fillRect(L + 11 + recoil, -5, 4, 4); ctx.fillRect(L + 11 + recoil, 1, 4, 4);   // muzzle brakes
+  ctx.fillStyle = c.dark; ctx.strokeStyle = '#111'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(-12, -9); ctx.lineTo(4, -9); ctx.lineTo(9, -5); ctx.lineTo(9, 5); ctx.lineTo(4, 9); ctx.lineTo(-12, 9); ctx.lineTo(-14, 5); ctx.lineTo(-14, -5); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = c.color; ctx.beginPath(); ctx.moveTo(-10, -6.5); ctx.lineTo(3, -6.5); ctx.lineTo(6.5, -3.5); ctx.lineTo(6.5, 3.5); ctx.lineTo(3, 6.5); ctx.lineTo(-10, 6.5); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = c.dark; ctx.fillRect(-9, -4, 5, 8);                                  // commander's hatch
+  ctx.fillStyle = '#2a2a24'; ctx.fillRect(-1, 3.5, 4, 2);                              // periscope
+  ctx.strokeStyle = '#2a2a24'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-12, -7); ctx.lineTo(-17, -11); ctx.stroke();   // radio antenna
+  ctx.fillStyle = 'rgba(255,255,255,0.22)'; ctx.fillRect(-9, -6, 10, 1.6);
+  if (recoil) { ctx.fillStyle = '#ffe9a0'; ctx.beginPath(); ctx.arc(L + 17, -3, 4.5, 0, Math.PI * 2); ctx.arc(L + 17, 3, 4.5, 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
 }
 
 function drawTank(e) {
