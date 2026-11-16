@@ -991,16 +991,43 @@ function drawExtractor(e) {
 function drawSoldier(e) {
   const c = TEAMS[e.team];
   const hidden = e.team === 0 && hiddenFrom(e, 1);   // your soldier is hidden in a forest
+  const moving = e.lx !== undefined && Math.hypot(e.x - e.lx, e.y - e.ly) > 0.05;
+  e.lx = e.x; e.ly = e.y;
   if (hidden) ctx.globalAlpha = 0.55;
+
   ctx.fillStyle = 'rgba(0,0,0,0.3)';
-  ctx.beginPath(); ctx.ellipse(e.x + 2, e.y + 4, e.r, e.r * 0.6, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = '#222'; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.moveTo(e.x, e.y);
-  ctx.lineTo(e.x + Math.cos(e.facing) * (e.r + 7), e.y + Math.sin(e.facing) * (e.r + 7)); ctx.stroke();
-  ctx.fillStyle = c.color; ctx.strokeStyle = c.dark; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = c.light;
-  ctx.beginPath(); ctx.arc(e.x - 2, e.y - 2, e.r * 0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(e.x + 2, e.y + 4, 9, 7, 0, 0, Math.PI * 2); ctx.fill();
+
+  // drawn from above, facing along +x, then rotated to where the soldier is looking
+  ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.facing); ctx.scale(1.15, 1.15);
+  // legs (step back and forth while walking)
+  const step = moving ? Math.sin(performance.now() / 90 + e.id) * 4 : 0;
+  ctx.fillStyle = '#2a2a24';
+  ctx.beginPath(); ctx.ellipse(step, -3.5, 3.5, 2.2, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(-step, 3.5, 3.5, 2.2, 0, 0, Math.PI * 2); ctx.fill();
+  // backpack
+  ctx.fillStyle = '#4b4f30'; ctx.fillRect(-9, -4.5, 5, 9);
+  // shoulders / uniform in team colour
+  ctx.fillStyle = c.color; ctx.strokeStyle = c.dark; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.ellipse(-0.5, 0, 5.5, 8.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  // rifle held forward, with both hands on it
+  ctx.strokeStyle = '#1c1c1c'; ctx.lineWidth = 2.6; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-1, 4); ctx.lineTo(15, 2.5); ctx.stroke();
+  ctx.fillStyle = '#e0b48a';
+  ctx.beginPath(); ctx.arc(3, 4.6, 2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(8.5, 2.9, 2, 0, Math.PI * 2); ctx.fill();
+  // helmet
+  ctx.fillStyle = c.dark;
+  ctx.beginPath(); ctx.arc(0.5, 0, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ctx.beginPath(); ctx.arc(-0.5, -1.5, 2, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  // muzzle flash right after firing
+  if (e.cooldown > STATS.soldier.cooldown - 0.07) {
+    ctx.fillStyle = '#ffe9a0';
+    ctx.beginPath(); ctx.arc(e.x + Math.cos(e.facing) * 17, e.y + Math.sin(e.facing) * 17, 3, 0, Math.PI * 2); ctx.fill();
+  }
   ctx.globalAlpha = 1;
 }
 

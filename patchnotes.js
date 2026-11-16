@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '3.1', date: '16 Nov 2026', title: 'Soldier makeover',
+    changes: [
+      'Soldiers now look like soldiers: helmet, backpack and a rifle pointing where they aim.',
+      'Legs step while they walk, and a small muzzle flash shows when they fire.',
+    ],
+  },
+  {
     version: '3.0', date: '16 Nov 2026', title: 'Terrain',
     changes: [
       'New map layout with a river, bridges, cliffs and forests (mirrored so both sides are fair).',
