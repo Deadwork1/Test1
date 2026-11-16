@@ -2,6 +2,12 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.0.1', date: '16 Nov 2026', title: 'Stuck units fix',
+    changes: [
+      'Fixed: units (especially new extractors leaving a refinery) could get stuck forever just short of where they were sent if someone was parked on the spot. They now count that as arrived and carry on, so extractors start harvesting properly.',
+    ],
+  },
+  {
     version: '5.0', date: '16 Nov 2026', title: 'Tech tree & tanks',
     changes: [
       'Tech tree: some things now need other buildings first. Locked buttons say what is missing, and losing a building locks them again.',

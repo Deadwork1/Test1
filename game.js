@@ -378,6 +378,8 @@ function navigate(e, tx, ty, dt) {
   if (nav.i >= nav.path.length) return true;
   if (!e.prog || Math.hypot(e.x - e.prog.x, e.y - e.prog.y) > 6) e.prog = { x: e.x, y: e.y, t: game.time };
   else if (game.time - e.prog.t > 1.2) {
+    // blocked right next to where it was going (someone parked on the spot): call that arrived
+    if (Math.hypot(tx - e.x, ty - e.y) < e.r + 30) { e.nav = null; e.prog = null; return true; }
     e.prog = { x: e.x, y: e.y, t: game.time };
     const a = Math.random() * Math.PI * 2, nx = e.x + Math.cos(a) * 6, ny = e.y + Math.sin(a) * 6;
     if (walkable(terrainAt(nx, ny), isVehicle(e))) { e.x = nx; e.y = ny; }
