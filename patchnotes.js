@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '3.11.1', date: '16 Nov 2026', title: 'Power Plant makeover',
+    changes: [
+      'Fixed: the game could freeze once a Power Plant was built (introduced in 3.11).',
+      'Power Plants are more detailed: shaded cooling towers with rising steam, pipes into a generator hall with roof vents and glowing windows, and a transformer that sparks now and then.',
+    ],
+  },
+  {
     version: '3.11', date: '16 Nov 2026', title: 'New gate design',
     changes: [
       'Gates are now slim: two wall sections wide and one deep, so they sit in line with your walls.',

@@ -1679,6 +1679,62 @@ function drawGate(e) {
   ctx.restore();
 }
 
+function drawPower(e) {
+  if (!e.built) return drawConstruction(e);
+  const c = TEAMS[e.team], h = e.size / 2, x0 = e.x - h, y0 = e.y - h, t = performance.now() / 1000;
+  // concrete pad with panel lines
+  ctx.fillStyle = '#8f8a7e'; ctx.fillRect(x0 - 3, y0 - 3, e.size + 6, e.size + 6);
+  ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth = 1;
+  for (let k = 12; k < e.size; k += 12) {
+    ctx.beginPath(); ctx.moveTo(x0 - 3 + k, y0 - 3); ctx.lineTo(x0 - 3 + k, y0 + e.size + 3); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x0 - 3, y0 - 3 + k); ctx.lineTo(x0 + e.size + 3, y0 - 3 + k); ctx.stroke();
+  }
+  // generator hall: lit roof with vents, darker front wall with glowing windows and a door
+  block(x0 + 3, y0 + 28, e.size - 6, e.size - 31, '#7b766a', '#4c4840', 9);
+  ctx.fillStyle = c.color; ctx.fillRect(x0 + 3, y0 + 28, e.size - 6, 3);
+  ctx.fillStyle = '#5b574e';
+  for (let k = 0; k < 3; k++) ctx.fillRect(x0 + 8 + k * 8, y0 + 34, 5, 3);       // roof vents
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.beginPath(); ctx.moveTo(x0 + 4, y0 + 40); ctx.lineTo(x0 + e.size - 4, y0 + 40); ctx.stroke();
+  const glow = 0.75 + 0.25 * Math.sin(t * 3);
+  ctx.fillStyle = `rgba(255,214,110,${glow})`;
+  for (const wx of [x0 + 7, x0 + 15, x0 + e.size - 20]) ctx.fillRect(wx, y0 + e.size - 9, 5, 3);
+  ctx.fillStyle = '#2a2824'; ctx.fillRect(e.x - 4, y0 + e.size - 10, 8, 7);
+  // transformer yard (right): box, insulators and the odd spark
+  const tx = x0 + e.size - 17, ty = y0 + 33;
+  ctx.fillStyle = '#4f5a52'; ctx.fillRect(tx, ty, 12, 10);
+  ctx.fillStyle = '#e8e2d0'; for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.arc(tx + 2 + k * 4, ty - 1, 1.4, 0, Math.PI * 2); ctx.fill(); }
+  if ((t * 7 + e.id) % 6 < 0.5) {
+    ctx.strokeStyle = '#bfe9ff'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(tx + 2, ty - 2); ctx.lineTo(tx + 4, ty - 6); ctx.lineTo(tx + 6, ty - 3); ctx.lineTo(tx + 10, ty - 7); ctx.stroke();
+  }
+  // pipes from the towers down into the hall
+  ctx.strokeStyle = '#6a665d'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(x0 + 16, y0 + 22); ctx.lineTo(x0 + 16, y0 + 30); ctx.moveTo(x0 + e.size - 16, y0 + 22); ctx.lineTo(x0 + e.size - 16, y0 + 30); ctx.stroke();
+  ctx.fillStyle = '#4a4740'; ctx.fillRect(x0 + 13, y0 + 25, 6, 2); ctx.fillRect(x0 + e.size - 19, y0 + 25, 6, 2);   // pipe joints
+  // two cooling towers: shaded rim, dark throat, team band, rising steam
+  for (const cx of [x0 + 16, x0 + e.size - 16]) {
+    const cy = y0 + 13;
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.arc(cx + 3, cy + 3, 12.5, 0, Math.PI * 2); ctx.fill();
+    const g = ctx.createRadialGradient(cx - 4, cy - 4, 2, cx, cy, 13);
+    g.addColorStop(0, '#e6e1d6'); g.addColorStop(1, '#a9a498');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, 12.5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = c.color; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, 10.5, 0, Math.PI * 2); ctx.stroke();
+    const throat = ctx.createRadialGradient(cx, cy, 1, cx, cy, 7.5);
+    throat.addColorStop(0, '#2c2a26'); throat.addColorStop(1, '#5f5b52');
+    ctx.fillStyle = throat; ctx.beginPath(); ctx.arc(cx, cy, 7.5, 0, Math.PI * 2); ctx.fill();
+    for (let k = 0; k < 3; k++) {
+      const p = (t * 0.45 + k / 3 + cx * 0.013) % 1;
+      ctx.fillStyle = `rgba(240,240,240,${0.55 * (1 - p)})`;
+      ctx.beginPath(); ctx.arc(cx + Math.sin(p * 3 + k) * 3 + p * 5, cy - 2 - p * 24, 4 + p * 8, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  // emblem: pulsing lightning bolt on the hall roof
+  const ex = x0 + 33, ey = y0 + 44;
+  emblemPlate(ex, ey, 8, e.team);
+  ctx.fillStyle = `rgba(255,222,90,${0.7 + 0.3 * Math.sin(t * 6)})`;
+  ctx.beginPath(); ctx.moveTo(ex + 2, ey - 6); ctx.lineTo(ex - 3, ey + 1); ctx.lineTo(ex, ey + 1); ctx.lineTo(ex - 2, ey + 6); ctx.lineTo(ex + 3, ey - 1); ctx.lineTo(ex, ey - 1); ctx.closePath(); ctx.fill();
+}
+
 function drawRange(x, y, r) {
   ctx.strokeStyle = 'rgba(255,233,160,0.55)'; ctx.fillStyle = 'rgba(255,233,160,0.06)';
   ctx.setLineDash([8, 6]); ctx.lineWidth = 2;
