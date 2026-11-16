@@ -4,6 +4,7 @@ const PATCH_NOTES = [
   {
     version: '5.3', date: '16 Nov 2026', title: 'Cheaper heavies',
     changes: [
+      'Light Tank: price $450 to $400.',
       'Heavy Tank: price $800 to $700.',
       'Tech Centre: price $800 to $600.',
       'Easy: the enemy army limit is now 11 (was 14).',
