@@ -2,7 +2,7 @@
 
 A small real-time strategy game inspired by classic 90s RTS games, built step by step.
 
-**Current version (v3):** 1v1 against the computer on a large map with terrain and fog of war.
+**Current version:** 1v1 against the computer with terrain and fog of war, on the Classic or Large map.
 
 - Your **settler** deploys into a **Headquarters (HQ)**.
 - The HQ builds a **Refinery** ($400), a **Barracks** ($300, trains Soldiers and Scout Buggies), a **Guard Tower** ($500), **Walls** ($20 each) and **Gates** ($150).

@@ -1,5 +1,5 @@
-// Mini RTS — version 2
-// You (blue) vs the computer (red) on a large map with fog of war.
+// Mini RTS
+// You (blue) vs the computer (red) with fog of war. Pick the Classic or Large map on the start screen.
 // Settler -> deploys into a Headquarters.
 // HQ builds Barracks (trains Soldiers) and Refinery (builds Extractors).
 // Extractors collect Ore and bring it back to a Refinery for credits.
@@ -7,8 +7,52 @@
 
 'use strict';
 
+// ---------- Maps ----------
+// Each layout describes YOUR side (bottom-left). The enemy's side is the same, mirrored, so both are fair.
+const MAPS = {
+  classic: {
+    label: 'Classic', W: 2400, H: 1500, start: { x: 230, y: 1270 },
+    fields: [   // your home field, then your flank field
+      { x: 600, y: 1170, nodes: 7, amount: 500, spread: 90 },
+      { x: 640, y: 380, nodes: 8, amount: 400, spread: 110 },
+    ],
+    island: { r: 280, nodes: 14, amount: 500, spread: 160 },
+    ridges: [
+      [[[110, 900], [300, 860], [470, 885]], 30],      // wall north of your base
+      [[[880, 1050], [935, 1210], [905, 1385]], 30],   // wall east of your base (gap at the bottom)
+      [[[620, 610], [770, 700]], 28],                  // outcrop by the flank field
+    ],
+    forests: [[430, 620, 115], [1010, 1270, 85], [150, 600, 95], [800, 230, 90]],
+    river: { amp: 70, period: 230, half: 36 },
+    bridges: [{ y: 230, hw: 62 }],                     // river bridges on your half (mirrored for theirs)
+  },
+  large: {
+    label: 'Large', W: 3600, H: 2250, start: { x: 300, y: 1950 },
+    fields: [
+      { x: 720, y: 1800, nodes: 8, amount: 500, spread: 100 },    // home field
+      { x: 330, y: 1150, nodes: 8, amount: 500, spread: 105 },    // expansion: north of your base
+      { x: 1300, y: 2070, nodes: 8, amount: 500, spread: 100 },   // expansion: along the south edge
+      { x: 950, y: 480, nodes: 10, amount: 600, spread: 130 },    // contested flank field
+    ],
+    island: { r: 380, nodes: 18, amount: 600, spread: 230 },
+    ridges: [
+      [[[200, 1640], [450, 1590], [720, 1630]], 32],     // wall north of your base (gaps at both ends)
+      [[[980, 1580], [1050, 1800], [1010, 2020]], 32],   // wall east of your base (gap at the bottom)
+      [[[700, 780], [900, 900]], 30],                    // outcrop by the flank field
+      [[[1350, 600], [1420, 900]], 30],                  // ridge near the river
+      [[[620, 1150], [760, 1300]], 28],                  // rocks by the north expansion
+    ],
+    forests: [[600, 950, 140], [1500, 1900, 120], [200, 600, 130], [1150, 330, 130], [1150, 1350, 120], [1600, 1300, 90]],
+    river: { amp: 90, period: 320, half: 40 },
+    bridges: [{ y: 300, hw: 70 }, { y: 620, hw: 70 }],
+  },
+};
+let mapChoice = 'large';
+try { if (MAPS[localStorage.getItem('mini-rts-map')]) mapChoice = localStorage.getItem('mini-rts-map'); } catch (err) {}
+const MAP = MAPS[mapChoice];
+
 // ---------- Settings (tweak these to balance the game) ----------
-const W = 2400, H = 1500;             // map size in world units
+const W = MAP.W, H = MAP.H;           // map size in world units
 const CELL = 50;                      // fog-of-war grid size
 const COLS = W / CELL, ROWS = H / CELL;
 const START_CREDITS = 1000;
@@ -65,15 +109,12 @@ const TEAMS = [
   { name: 'You',   color: '#3b82f6', dark: '#1d3f8f', light: '#93c5fd' },
   { name: 'Enemy', color: '#ef4444', dark: '#8f1d1d', light: '#fca5a5' },
 ];
-const START = [{ x: 230, y: H - 230 }, { x: W - 230, y: 230 }];
+const START = [{ x: MAP.start.x, y: MAP.start.y }, { x: W - MAP.start.x, y: H - MAP.start.y }];
 
 // ore fields: a small one by each base, a big rich one in the middle, two on the flanks
 const ORE_FIELDS = [
-  { x: 600, y: H - 330, nodes: 7, amount: 500, spread: 90 },
-  { x: W - 600, y: 330, nodes: 7, amount: 500, spread: 90 },
-  { x: W / 2, y: H / 2, nodes: 14, amount: 500, spread: 160 },
-  { x: 640, y: 380, nodes: 8, amount: 400, spread: 110 },
-  { x: W - 640, y: H - 380, nodes: 8, amount: 400, spread: 110 },
+  ...MAP.fields.flatMap(f => [f, { ...f, x: W - f.x, y: H - f.y }]),
+  { x: W / 2, y: H / 2, nodes: MAP.island.nodes, amount: MAP.island.amount, spread: MAP.island.spread },
 ];
 
 // ---------- Canvas, camera ----------
@@ -101,7 +142,7 @@ function clampCam() {
   cam.x = hw * 2 > W + mx * 2 ? W / 2 : Math.min(W - hw + mx, Math.max(hw - mx, cam.x));
   cam.y = hh * 2 > H + top + bottom ? H / 2 : Math.min(H - hh + bottom, Math.max(hh - top, cam.y));
 }
-function setZoom(z) { cam.zoom = Math.min(2.2, Math.max(0.45, z)); }
+function setZoom(z) { cam.zoom = Math.min(2.2, Math.max(0.45 * 2400 / W, z)); }   // can zoom out further on bigger maps
 
 const toWorld = (sx, sy) => { const s = scale(); return { x: (sx - scr.w / 2) / s + cam.x, y: (sy - scr.h / 2) / s + cam.y }; };
 
@@ -112,19 +153,14 @@ const T = { GRASS: 0, ROCK: 1, WATER: 2, BRIDGE: 3, FOREST: 4 };
 const terrain = new Uint8Array(TCOLS * TROWS);
 
 const mirror = ([x, y]) => [W - x, H - y];
-// cliff ridges: lines of rock [points], thickness
-const RIDGES = [
-  [[[110, 900], [300, 860], [470, 885]], 30],      // wall north of your base
-  [[[880, 1050], [935, 1210], [905, 1385]], 30],   // wall east of your base (gap at the bottom)
-  [[[620, 610], [770, 700]], 28],                  // outcrop by the west ore field
-];
-// forests: [x, y, radius]
-const FORESTS = [[430, 620, 115], [1010, 1270, 85], [150, 600, 95], [800, 230, 90]];
-const riverX = y => W / 2 + 70 * Math.sin((y - H / 2) / 230);
-const ISLAND = { x: W / 2, y: H / 2, r: 280 };         // the middle ore field sits on an island
+// cliff ridges ([points], thickness) and forests ([x, y, radius]) for your side; mirrored below
+const RIDGES = MAP.ridges;
+const FORESTS = MAP.forests;
+const riverX = y => W / 2 + MAP.river.amp * Math.sin((y - H / 2) / MAP.river.period);
+const ISLAND = { x: W / 2, y: H / 2, r: MAP.island.r };   // the middle ore field sits on an island
 // bridges: centre x, centre y, half-width, half-height
 const BRIDGES = [
-  { x: riverX(230), y: 230, hw: 62, hh: 24 },
+  ...MAP.bridges.map(b => ({ x: riverX(b.y), y: b.y, hw: b.hw, hh: 24 })),
   { x: ISLAND.x - ISLAND.r, y: H / 2, hw: 58, hh: 24 },
 ];
 for (const b of [...BRIDGES]) { const [x, y] = mirror([b.x, b.y]); BRIDGES.push({ ...b, x, y }); }
@@ -154,7 +190,7 @@ function segDist(px, py, ax, ay, bx, by) {
           if (segDist(x, y, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]) < th) t = T.ROCK;
         }
       }
-      if (Math.abs(dI - ISLAND.r) < 34 || (Math.abs(x - riverX(y)) < 36 && dI > ISLAND.r)) t = T.WATER;
+      if (Math.abs(dI - ISLAND.r) < 34 || (Math.abs(x - riverX(y)) < MAP.river.half && dI > ISLAND.r)) t = T.WATER;
       for (const b of BRIDGES) if (Math.abs(x - b.x) < b.hw && Math.abs(y - b.y) < b.hh) t = T.BRIDGE;
       terrain[r * TCOLS + c] = t;
     }
@@ -354,12 +390,12 @@ const bg = document.createElement('canvas');
   b.fillStyle = '#4a6b35'; b.fillRect(0, 0, W, H);
   let seed = 7;
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  for (let i = 0; i < 2600; i++) {
+  for (let i = 0; i < 2600 * (W * H) / (2400 * 1500); i++) {
     b.fillStyle = rnd() < 0.5 ? 'rgba(30,50,20,0.18)' : 'rgba(120,150,80,0.15)';
     b.beginPath(); b.arc(rnd() * W, rnd() * H, 6 + rnd() * 30, 0, Math.PI * 2); b.fill();
   }
   // a few rocky / dry patches for variety
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0; i < 14 * (W * H) / (2400 * 1500); i++) {
     b.fillStyle = 'rgba(110,95,60,0.25)';
     b.beginPath(); b.ellipse(rnd() * W, rnd() * H, 60 + rnd() * 120, 30 + rnd() * 60, rnd() * 3, 0, Math.PI * 2); b.fill();
   }
@@ -399,6 +435,11 @@ const bg = document.createElement('canvas');
   });
   b.strokeStyle = 'rgba(0,0,0,0.5)'; b.lineWidth = 6; b.strokeRect(3, 3, W - 6, H - 6);
 })();
+
+// a small copy of the background for the minimap (much cheaper to draw every frame)
+const mmBg = document.createElement('canvas');
+mmBg.width = 400; mmBg.height = Math.round(400 * H / W);
+mmBg.getContext('2d').drawImage(bg, 0, 0, mmBg.width, mmBg.height);
 
 // ---------- Game state ----------
 let game;
@@ -1114,8 +1155,9 @@ function runAI(dt) {
 
   // ---- training ----
   let reserve = extractors.length + qx < wantExtractors ? COST.extractor : 0;
-  if (expanding) reserve += expanding;   // saving for a stepping stone or a new refinery
-  if (building) {   // in a build phase: save for the next thing it wants, not for units
+  const defended = army.length >= D.guard + 2;   // never stops training while its home is thin
+  if (expanding && defended) reserve += expanding;   // saving for a stepping stone or a new refinery
+  if (building && defended) {   // in a build phase: save for the next thing it wants, not for units
     if (refineries.length < reqRefineries && !aiBlocked('refinery')) reserve += COST.refinery;
     else if (of('tower').length < wantTowers && !aiBlocked('tower')) reserve += COST.tower;
   }
@@ -1213,13 +1255,17 @@ function runAI(dt) {
 // cheap Power Plants as stepping stones to stretch its build area, then a refinery right by the ore.
 // Returns how much money it wants to keep for that (0 if it isn't expanding).
 function aiExpand(hq, refineries, sent) {
-  if (refineries.length >= 4 || (!sent && game.time < 200)) return 0;
+  if (refineries.length >= 4 || (!sent && game.time < 200) || aiBlocked('expand')) return 0;
   const oreNear = (x, y, r) => game.ore.reduce((s, o) => s + (o.amount > 0 && Math.hypot(o.x - x, o.y - y) < r ? o.amount : 0), 0);
   if (refineries.some(r => !r.built || oreNear(r.x, r.y, 450) > 600)) return 0;   // still plenty to mine
-  // the nearest known ore that isn't already by one of its refineries
+  // never more than a few stepping stones
+  if (game.ents.filter(e => e.team === 1 && e.type === 'power').length >= diff().plants + 4) return 0;
+  // the nearest known ore on its own side of the river (it can't build across water) that isn't already by a refinery
+  const mySide = Math.sign(hq.x - riverX(hq.y));
   let target = null, td = Infinity;
   for (const o of game.ore) {
     if (o.amount < 100 || !exploredAt(o.x, o.y, 1) || refineries.some(r => Math.hypot(r.x - o.x, r.y - o.y) < 450)) continue;
+    if (Math.sign(o.x - riverX(o.y)) !== mySide || Math.hypot(o.x - ISLAND.x, o.y - ISLAND.y) < ISLAND.r + 40) continue;
     const d = Math.hypot(o.x - hq.x, o.y - hq.y);
     if (d < td) { td = d; target = o; }
   }
@@ -1233,12 +1279,17 @@ function aiExpand(hq, refineries, sent) {
       if (dd < bd && canPlace(1, 'power', x, y)) { bd = dd; best = { x, y }; }
     }
   }
-  if (!best) return 0;
+  const giveUp = () => { game.ai.cantPlace = game.ai.cantPlace || {}; game.ai.cantPlace.expand = game.time; return 0; };
+  if (!best) return giveUp();
   if (bd < 280) {   // close enough: put the refinery down by the ore
-    if (game.credits[1] >= COST.refinery) aiPlaceRefinery(hq);
+    if (game.credits[1] >= COST.refinery) {
+      const before = refineries.length;
+      aiPlaceRefinery(hq);
+      if (game.ents.filter(e => e.team === 1 && e.type === 'refinery').length === before) return giveUp();
+    }
     return COST.refinery;
   }
-  if (game.credits[1] >= COST.power) placeBuilding(1, 'power', best.x, best.y);   // stepping stone
+  if (game.credits[1] >= COST.power && !placeBuilding(1, 'power', best.x, best.y)) return giveUp();   // stepping stone
   return COST.power;
 }
 
@@ -1410,7 +1461,7 @@ function drawMinimap() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const k = MM.w / W;
   ctx.fillStyle = '#000'; ctx.fillRect(MM.x - 2, MM.y - 2, MM.w + 4, MM.h + 4);
-  ctx.drawImage(bg, 0, 0, W, H, MM.x, MM.y, MM.w, MM.h);
+  ctx.drawImage(mmBg, 0, 0, mmBg.width, mmBg.height, MM.x, MM.y, MM.w, MM.h);
   ctx.fillStyle = '#e6c34a';
   for (const o of game.ore) if (exploredAt(o.x, o.y)) ctx.fillRect(MM.x + o.x * k - 1.5, MM.y + o.y * k - 1.5, 3, 3);
   for (const e of game.ents) {
@@ -2242,6 +2293,19 @@ $('notesBody').innerHTML = PATCH_NOTES.map(n =>
 $('ovNotes').addEventListener('click', () => { $('notes').style.display = 'flex'; });
 $('notesClose').addEventListener('click', () => { $('notes').style.display = 'none'; });
 $('notes').addEventListener('click', ev => { if (ev.target.id === 'notes') $('notes').style.display = 'none'; });
+
+// ---------- Map picker (changing it reloads the page, since the whole world is built for one map size) ----------
+for (const b of document.querySelectorAll('#mapRow button')) {
+  b.classList.toggle('on', b.dataset.m === mapChoice);
+  b.addEventListener('click', () => {
+    if (b.dataset.m === mapChoice) return;
+    try { localStorage.setItem('mini-rts-map', b.dataset.m); } catch (err) {}
+    location.reload();
+  });
+}
+$('mapInfo').textContent = mapChoice === 'large'
+  ? 'Large: room to expand, extra ore fields on each side. Longer games.'
+  : 'Classic: the original smaller map. Quicker games.';
 
 // ---------- Difficulty picker ----------
 function showDifficulty() {

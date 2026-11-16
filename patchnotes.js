@@ -2,6 +2,16 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '4.2', date: '16 Nov 2026', title: 'Large map',
+    changes: [
+      'New Large map (1.5× bigger each way), now the default. Pick Classic or Large on the start screen.',
+      'Each side has its home field plus two expansion fields (north of your base and along the south edge) and a contested flank field. The island in the middle is bigger and richer.',
+      'Extra cliffs, forests and two more river bridges. Still mirrored, so both sides are fair.',
+      'You can zoom out further on the Large map to see the whole battlefield.',
+      'The computer expands only on its own side of the river, and keeps training while it expands so its base is never left empty.',
+    ],
+  },
+  {
     version: '4.1.1', date: '16 Nov 2026', title: 'No chasing through the fog',
     changes: [
       'Units no longer chase an enemy that escapes into the fog of war. They go to where they last saw it and stop there.',
