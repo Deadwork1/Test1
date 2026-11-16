@@ -2,6 +2,16 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '4.5', date: '16 Nov 2026', title: 'Snipers',
+    changes: [
+      'New unit: Sniper ($250, Barracks). Longest range of any unit (160, still short of a Guard Tower) and one shot kills any infantry, but it only fires every 3 seconds.',
+      'Snipers are almost useless against vehicles and buildings: buggies are their counter.',
+      'Snipers pick infantry first, and in a forest they are only given away for a moment when they fire.',
+      'Snipers wear a camouflage hood so you can spot them in a crowd.',
+      'The computer keeps a sniper on Normal (two on Hard) from 4 minutes in.',
+    ],
+  },
+  {
     version: '4.4', date: '16 Nov 2026', title: 'Rocket Soldiers',
     changes: [
       'New unit: Rocket Soldier ($200, Barracks). Fires a fast homing rocket every 2.5s with a long range (130), so it can hit buggies before they can shoot back.',
