@@ -2,6 +2,16 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '3.3', date: '16 Nov 2026', title: 'Pathfinding fixes',
+    changes: [
+      'Fixed extractors getting stuck on the corners of the Refinery and other buildings.',
+      'Units now keep a gap from building walls and drive all the way round to the front door.',
+      'Extractors line up with the bay door before driving straight in.',
+      'If a unit stops moving along its route it re-plans automatically.',
+      'A truck that can\'t reach the bay no longer blocks it for everyone else.',
+    ],
+  },
+  {
     version: '3.2', date: '16 Nov 2026', title: 'Building makeover',
     changes: [
       'Headquarters: command building with a star emblem, spinning radar dish and blinking antenna.',

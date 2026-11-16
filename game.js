@@ -138,18 +138,19 @@ const isVehicle = e => e.type === 'settler' || e.type === 'extractor';
 const walkable = (t, vehicle) => t === T.GRASS || t === T.BRIDGE || (t === T.FOREST && !vehicle);
 
 // ---------- Pathfinding (A* on the tile grid) ----------
-const bldGrid = new Uint8Array(TCOLS * TROWS);   // tiles covered by buildings
+const bldGrid = new Uint8Array(TCOLS * TROWS);   // tiles covered by buildings (plus a clearance gap)
+const CLEAR = 12;                                 // keep routes this far from building walls
 let bldDirty = true;
 function rebuildBuildingGrid() {
   bldGrid.fill(0);
   for (const b of game.ents) {
     if (!isBuilding(b)) continue;
     const h = b.size / 2;
-    for (let r = Math.floor((b.y - h) / TC); r <= Math.floor((b.y + h) / TC); r++) {
-      for (let c = Math.floor((b.x - h) / TC); c <= Math.floor((b.x + h) / TC); c++) {
+    for (let r = Math.floor((b.y - h - CLEAR) / TC); r <= Math.floor((b.y + h + CLEAR) / TC); r++) {
+      for (let c = Math.floor((b.x - h - CLEAR) / TC); c <= Math.floor((b.x + h + CLEAR) / TC); c++) {
         if (c < 0 || r < 0 || c >= TCOLS || r >= TROWS) continue;
         const cx = c * TC + TC / 2, cy = r * TC + TC / 2;
-        if (Math.abs(cx - b.x) < h && Math.abs(cy - b.y) < h) bldGrid[r * TCOLS + c] = 1;
+        if (Math.abs(cx - b.x) < h + CLEAR && Math.abs(cy - b.y) < h + CLEAR) bldGrid[r * TCOLS + c] = 1;
       }
     }
   }
@@ -254,6 +255,14 @@ function navigate(e, tx, ty, dt) {
   const nav = e.nav;
   if (nav.fail) return 'fail';
   if (nav.i >= nav.path.length) return true;
+  if (!e.prog || Math.hypot(e.x - e.prog.x, e.y - e.prog.y) > 6) e.prog = { x: e.x, y: e.y, t: game.time };
+  else if (game.time - e.prog.t > 1.2) {
+    e.prog = { x: e.x, y: e.y, t: game.time };
+    const a = Math.random() * Math.PI * 2, nx = e.x + Math.cos(a) * 6, ny = e.y + Math.sin(a) * 6;
+    if (walkable(terrainAt(nx, ny), isVehicle(e))) { e.x = nx; e.y = ny; }
+    e.nav = null;
+    return false;
+  }
   const p = nav.path[nav.i];
   if (moveToward(e, p.x, p.y, dt)) { nav.i++; if (nav.i >= nav.path.length) return true; }
   return false;
@@ -463,12 +472,12 @@ function canPlace(team, type, x, y) {
   const hq = hqOf(team), size = STATS[type].size;
   if (!hq || edgeDist(x, y, hq) > BUILD_RADIUS || !siteIsFree(x, y, size)) return false;
   // the new building's front door needs open ground in front of it
-  const door = { x, y: y + size / 2 + 18 };
+  const door = { x, y: y + size / 2 + 30 };
   for (const dx of [-16, 0, 16]) if (!walkable(terrainAt(door.x + dx, door.y), true) || terrainAt(door.x + dx, door.y) === T.BRIDGE) return false;
   if (door.y + 14 > H) return false;
   for (const b of game.ents) {
     if (!isBuilding(b)) continue;
-    if (edgeDist(door.x, door.y, b) < 16) return false;                 // our door would face a wall
+    if (edgeDist(door.x, door.y, b) < 30) return false;                 // our door would face a wall
     const od = frontDoor(b);                                            // we'd sit on someone's doorstep
     if (Math.abs(od.x - x) < size / 2 + 14 && Math.abs(od.y - y) < size / 2 + 14) return false;
   }
@@ -581,16 +590,21 @@ function updateExtractor(e, dt) {
       return;
     }
     o.waiting = false;
-    r.dockedBy = e.id;                       // reserve the bay
-    if (dist > 22) { navigate(e, d.out.x, d.out.y, dt); return; }
+    if (r.dockedBy !== e.id) { r.dockedBy = e.id; o.reservedAt = game.time; }   // reserve the bay
+    if (dist > 22) {
+      navigate(e, d.out.x, d.out.y, dt);
+      if (game.time - o.reservedAt > 12) { r.dockedBy = null; o.reservedAt = null; }   // give someone else a turn
+      return;
+    }
     e.docked = true; o.phase = 'docking';
     return;
   }
 
   const d = dockOf(ref);
   if (o.phase === 'docking') {
-    if (moveToward(e, d.pad.x, d.pad.y, dt)) { o.phase = 'unloading'; o.t = 0; }
-    e.facing = -Math.PI / 2;   // drive in nose-first
+    if (!o.aligned) { o.aligned = moveToward(e, d.out.x, d.out.y, dt); return; }   // line up with the door first
+    if (moveToward(e, d.pad.x, d.pad.y, dt)) { o.phase = 'unloading'; o.t = 0; o.aligned = false; }
+    e.facing = -Math.PI / 2;   // then drive straight in, nose-first
     return;
   }
 
@@ -722,11 +736,11 @@ function updateBuilding(e, dt) {
 
 // a new unit rolls out of the building's door
 // Every building's front door faces the bottom of the screen.
-const frontDoor = b => ({ x: b.x, y: b.y + b.size / 2 + 18 });
+const frontDoor = b => ({ x: b.x, y: b.y + b.size / 2 + 30 });
 
 function releaseUnit(b) {
   const d = frontDoor(b);
-  const u = spawn(PRODUCES[b.type], b.team, d.x, d.y - 6);
+  const u = spawn(PRODUCES[b.type], b.team, d.x, d.y - 10);
   u.facing = Math.PI / 2;
   u.order = { type: 'move', x: d.x + (Math.random() - .5) * 70, y: d.y + 28 };
   return u;
@@ -748,7 +762,7 @@ function waitSpot(ref, e) {
   const d = frontDoor(ref), side = e.id % 2 ? -1 : 1;
   for (const [dx, dy] of [[side * 50, 26], [-side * 50, 26], [side * 30, 55], [0, 60]]) {
     const x = d.x + dx, y = d.y + dy;
-    if (walkable(terrainAt(x, y), true) && !game.ents.some(b => isBuilding(b) && edgeDist(x, y, b) < 16)) return { x, y };
+    if (walkable(terrainAt(x, y), true) && !game.ents.some(b => isBuilding(b) && edgeDist(x, y, b) < 28)) return { x, y };
   }
   return { x: d.x, y: d.y + 40 };
 }
