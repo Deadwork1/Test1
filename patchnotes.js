@@ -2,6 +2,15 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '3.8', date: '16 Nov 2026', title: 'Buggy moves to the Barracks',
+    changes: [
+      'The Scout Buggy is now trained at the Barracks ($250) next to Soldiers. Small and cheap, so no factory needed.',
+      'Buggies can now drive through forests (slowly), though unlike soldiers they can\'t hide in them.',
+      'The War Factory is shelved for now. It will come back later for heavier vehicles.',
+      'The computer trains buggies from its Barracks on Normal and Hard.',
+    ],
+  },
+  {
     version: '3.7', date: '16 Nov 2026', title: 'Scout Buggy',
     changes: [
       'New building: War Factory ($500), built from the HQ. Vehicles roll out of its big garage door.',

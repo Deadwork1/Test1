@@ -31,7 +31,9 @@ const STATS = {
   wall:      { hp: 400, size: 25, sight: 50 },
   gate:      { hp: 600, size: 50, sight: 60 },
 };
-const PRODUCES = { barracks: 'soldier', refinery: 'extractor', factory: 'buggy' };
+const PRODUCES = { barracks: ['soldier', 'buggy'], refinery: ['extractor'], factory: ['buggy'] };
+const TRAIN_TIME = { soldier: 4, buggy: 6, extractor: 6 };   // seconds to make each unit
+const FACTORY_ENABLED = false;   // War Factory is shelved for now (set true to bring it back)
 const isCombat = e => e.type === 'soldier' || e.type === 'buggy';
 
 // How the computer plays at each difficulty.
@@ -39,9 +41,9 @@ const isCombat = e => e.type === 'soldier' || e.type === 'buggy';
 //  attackAt: army size before it attacks   attackAfter: earliest attack (seconds)   barracks: max barracks
 //  maxArmy: it stops training soldiers at this many
 const DIFFICULTY = {
-  easy:   { label: 'Easy',   think: 2.5, slow: 1.5,  income: 0.7,  attackAt: 5, attackAfter: 300, barracks: 1, maxArmy: 6, towers: 0, factory: false },
-  normal: { label: 'Normal', think: 1.5, slow: 1.18, income: 0.85, attackAt: 7, attackAfter: 180, barracks: 1, maxArmy: 20, towers: 1, factory: true },
-  hard:   { label: 'Hard',   think: 1,   slow: 1,    income: 1,    attackAt: 6, attackAfter: 0,   barracks: 2, maxArmy: Infinity, towers: 2, factory: true },
+  easy:   { label: 'Easy',   think: 2.5, slow: 1.5,  income: 0.7,  attackAt: 5, attackAfter: 300, barracks: 1, maxArmy: 6, towers: 0, buggies: false },
+  normal: { label: 'Normal', think: 1.5, slow: 1.18, income: 0.85, attackAt: 7, attackAfter: 180, barracks: 1, maxArmy: 20, towers: 1, buggies: true },
+  hard:   { label: 'Hard',   think: 1,   slow: 1,    income: 1,    attackAt: 6, attackAfter: 0,   barracks: 2, maxArmy: Infinity, towers: 2, buggies: true },
 };
 let difficulty = 'normal';
 try { if (DIFFICULTY[localStorage.getItem('mini-rts-difficulty')]) difficulty = localStorage.getItem('mini-rts-difficulty'); } catch (err) {}
@@ -154,7 +156,7 @@ const terrainAt = (x, y) => {
   if (c < 0 || r < 0 || c >= TCOLS || r >= TROWS) return T.ROCK;
   return terrain[r * TCOLS + c];
 };
-const isVehicle = e => e.type === 'settler' || e.type === 'extractor' || e.type === 'buggy';
+const isVehicle = e => e.type === 'settler' || e.type === 'extractor';   // big vehicles: can't get through forests
 // can this kind of unit stand on this terrain? (ignores buildings)
 const walkable = (t, vehicle) => t === T.GRASS || t === T.BRIDGE || (t === T.FOREST && !vehicle);
 
@@ -428,7 +430,7 @@ function spawn(type, team, x, y) {
     e.size = s.size;
     if (type === 'hq' || isWallType(type)) { e.built = true; e.progress = 1; }   // walls go up instantly
     else { e.built = false; e.progress = 0; e.hp = s.hp * 0.1; }
-    e.queue = 0; e.trainT = 0;
+    e.queue = 0; e.trainT = 0; e.qTypes = [];
   } else {
     e.r = s.r;
     if (type === 'extractor') e.cargo = 0;
@@ -616,11 +618,11 @@ function placeBuilding(team, type, x, y) {
   return true;
 }
 
-function produce(b) {
-  const unit = PRODUCES[b.type];
-  if (!unit || !b.built || b.queue >= STATS[b.type].maxQueue || game.credits[b.team] < COST[unit]) return false;
+function produce(b, unit) {
+  unit = unit || (PRODUCES[b.type] || [])[0];
+  if (!unit || !PRODUCES[b.type].includes(unit) || !b.built || b.queue >= STATS[b.type].maxQueue || game.credits[b.team] < COST[unit]) return false;
   game.credits[b.team] -= COST[unit];
-  b.queue++;
+  b.queue++; b.qTypes.push(unit);
   return true;
 }
 
@@ -854,9 +856,9 @@ function updateBuilding(e, dt) {
   }
   if (!PRODUCES[e.type] || e.queue <= 0) return;
   e.trainT += dt;
-  if (e.trainT >= s.trainTime * slowOf(e)) {
+  if (e.trainT >= TRAIN_TIME[e.qTypes[0]] * slowOf(e)) {
     e.trainT = 0; e.queue--;
-    releaseUnit(e);
+    releaseUnit(e, e.qTypes.shift());
   }
 }
 
@@ -882,9 +884,9 @@ function updateTower(e, dt) {
 // Every building's front door faces the bottom of the screen.
 const frontDoor = b => ({ x: b.x, y: b.y + b.size / 2 + 30 });
 
-function releaseUnit(b) {
+function releaseUnit(b, type) {
   const d = frontDoor(b);
-  const u = spawn(PRODUCES[b.type], b.team, d.x, d.y - 10);
+  const u = spawn(type || PRODUCES[b.type][0], b.team, d.x, d.y - 10);
   u.facing = Math.PI / 2;
   u.order = { type: 'move', x: d.x + (Math.random() - .5) * 70, y: d.y + 28 };
   return u;
@@ -994,7 +996,6 @@ function runAI(dt) {
     if (refineries.length === 0) aiPlace(hq, 'refinery');
     else if (barracks.length === 0) aiPlace(hq, 'barracks');
     else if (of('tower').length < diff().towers && cash >= COST.tower) aiPlace(hq, 'tower');
-    else if (diff().factory && !factories.length && soldiers.length >= 4 && cash >= COST.factory) aiPlace(hq, 'factory');
     else if (barracks.length < diff().barracks && cash >= 900) aiPlace(hq, 'barracks');
   }
 
@@ -1008,15 +1009,15 @@ function runAI(dt) {
 
   let reserve = extractors.length < 2 && refineries.length ? COST.extractor : 0;
   if (of('tower').length < diff().towers && soldiers.length >= 3 && barracks.length) reserve += COST.tower;   // save up for a tower
-  else if (diff().factory && !factories.length && soldiers.length >= 4) reserve += COST.factory;              // then a factory
-  const queuedAll = [...barracks, ...factories].reduce((n, b) => n + b.queue, 0);
-  const wantBuggy = factories.some(f => f.built && f.queue < 1) && of('buggy').length * 2 < of('soldier').length + 2;   // about one buggy per two soldiers
-  for (const f of factories) {
-    if (wantBuggy && f.built && f.queue < 1 && soldiers.length + queuedAll < diff().maxArmy && game.credits[1] >= COST.buggy + reserve) produce(f);
-  }
-  if (wantBuggy) reserve += COST.buggy;   // barracks wait while it saves for a buggy
   const queued = barracks.reduce((n, b) => n + b.queue, 0);
-  for (const b of barracks) if (b.queue < 2 && soldiers.length + queued < diff().maxArmy && game.credits[1] >= COST.soldier + reserve) produce(b);
+  const qBuggies = barracks.reduce((n, b) => n + b.qTypes.filter(t => t === 'buggy').length, 0);
+  // about one buggy for every two soldiers (not on Easy)
+  const wantBuggy = diff().buggies && of('buggy').length + qBuggies < (of('soldier').length + 2) / 2;
+  for (const b of barracks) {
+    if (b.queue >= 2 || soldiers.length + queued >= diff().maxArmy) continue;
+    if (wantBuggy) { if (game.credits[1] >= COST.buggy + reserve) produce(b, 'buggy'); }   // save up for it
+    else if (game.credits[1] >= COST.soldier + reserve) produce(b, 'soldier');
+  }
 
   // targets = your things it can see right now + buildings it remembers
   const targets = game.ents.filter(e => e.team === 0 && !isWallType(e.type) && visibleAt(e.x, e.y, 1) && !hiddenFrom(e, 1)).map(e => ({ x: e.x, y: e.y }));
@@ -1367,7 +1368,7 @@ function drawFactory(e) {
   // large garage door in the front wall (rolls up while a vehicle is being made)
   const dw = 44, dh = 20, dy = y0 + e.size - 6 - dh;
   ctx.fillStyle = '#222'; ctx.fillRect(e.x - dw / 2, dy, dw, dh);
-  const open = e.queue ? 0.35 + 0.65 * (e.trainT / (STATS.factory.trainTime * slowOf(e))) : 0;
+  const open = e.queue ? 0.35 + 0.65 * (e.trainT / (TRAIN_TIME[e.qTypes[0]] * slowOf(e))) : 0;
   ctx.fillStyle = '#9a958a';
   for (let k = 0; k < dh * (1 - open); k += 4) ctx.fillRect(e.x - dw / 2, dy + k, dw, 3);
   ctx.fillStyle = c.color; ctx.fillRect(e.x - dw / 2 - 3, dy - 3, dw + 6, 3);
@@ -1387,7 +1388,7 @@ function drawConstruction(e) {
 
 function drawQueue(e) {
   if (!e.queue) return;
-  const h = e.size / 2, k = e.trainT / (STATS[e.type].trainTime * slowOf(e));
+  const h = e.size / 2, k = e.trainT / (TRAIN_TIME[e.qTypes[0]] * slowOf(e));
   ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(e.x - h + 4, e.y - h + 4, e.size - 8, 7);
   ctx.fillStyle = '#ffd86b'; ctx.fillRect(e.x - h + 4, e.y - h + 4, (e.size - 8) * k, 7);
   ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(e.x - h + 4, e.y - h + 12, 26, 15);
@@ -1822,7 +1823,7 @@ const selectedOfType = type => [...game.selected].map(byId).filter(e => e && e.t
 const $ = id => document.getElementById(id);
 const ui = {
   credits: $('credits'), info: $('info'),
-  deploy: $('btnDeploy'), barracks: $('btnBarracks'), refinery: $('btnRefinery'), tower: $('btnTower'), factory: $('btnFactory'), wall: $('btnWall'), gate: $('btnGate'), produce: $('btnProduce'),
+  deploy: $('btnDeploy'), barracks: $('btnBarracks'), refinery: $('btnRefinery'), tower: $('btnTower'), factory: $('btnFactory'), wall: $('btnWall'), gate: $('btnGate'), produce: $('btnProduce'), produce2: $('btnProduce2'),
   harvest: $('btnHarvest'), place: $('btnPlace'), cancel: $('btnCancel'), deselect: $('btnDeselect'),
   box: $('btnBox'), all: $('btnAll'), pause: $('btnPause'),
   overlay: $('overlay'), ovTitle: $('ovTitle'), ovText: $('ovText'), ovBtn: $('ovBtn'),
@@ -1850,7 +1851,10 @@ ui.gate.addEventListener('click', () => startPlacing('gate'));
 ui.place.addEventListener('click', tryPlace);
 ui.cancel.addEventListener('click', () => { game.placing = null; });
 ui.produce.addEventListener('click', () => {
-  for (const b of [...game.selected].map(byId)) if (b && b.team === 0 && PRODUCES[b.type]) produce(b);
+  for (const b of [...game.selected].map(byId)) if (b && b.team === 0 && PRODUCES[b.type]) produce(b, PRODUCES[b.type][0]);
+});
+ui.produce2.addEventListener('click', () => {
+  for (const b of [...game.selected].map(byId)) if (b && b.team === 0 && PRODUCES[b.type] && PRODUCES[b.type][1]) produce(b, PRODUCES[b.type][1]);
 });
 ui.harvest.addEventListener('click', () => {
   let any = false;
@@ -1940,11 +1944,12 @@ function updateHUD() {
   show(ui.deploy, !!settler && !placing);
   show(ui.barracks, !!hq && !placing);
   show(ui.refinery, !!hq && !placing);
-  show(ui.factory, !!hq && !placing);
+  show(ui.factory, FACTORY_ENABLED && !!hq && !placing);
   show(ui.tower, !!hq && !placing);
   show(ui.wall, !!hq && !placing);
   show(ui.gate, !!hq && !placing);
   show(ui.produce, !!producer && !placing);
+  show(ui.produce2, !!producer && !!PRODUCES[producer.type][1] && !placing);
   show(ui.harvest, extractors.length > 0 && !placing);
   show(ui.place, !!(placing && (placing.ghost || (placing.type === 'wall' && placing.anchor))));
   show(ui.cancel, !!placing);
@@ -1963,9 +1968,11 @@ function updateHUD() {
   else if (placing && placing.ghost) ui.place.disabled = !canPlace(0, placing.type, placing.ghost.x, placing.ghost.y) || game.credits[0] < COST[placing.type];
   else if (placing) ui.place.disabled = false;
   if (producer) {
-    const unit = PRODUCES[producer.type];
-    ui.produce.textContent = `${NAMES[unit]} $${COST[unit]}`;
-    ui.produce.disabled = !producer.built || producer.queue >= STATS[producer.type].maxQueue || game.credits[0] < COST[unit];
+    PRODUCES[producer.type].forEach((unit, i) => {
+      const btn = i ? ui.produce2 : ui.produce;
+      btn.textContent = `${NAMES[unit]} $${COST[unit]}`;
+      btn.disabled = !producer.built || producer.queue >= STATS[producer.type].maxQueue || game.credits[0] < COST[unit];
+    });
   }
 
   let text;
