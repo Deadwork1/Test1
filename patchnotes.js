@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '3.4', date: '16 Nov 2026', title: 'Pause menu',
+    changes: [
+      'Pausing now opens a menu with Resume, Restart and Patch notes.',
+      'Restart asks you to tap twice so you can\'t wipe your game by accident.',
+    ],
+  },
+  {
     version: '3.3', date: '16 Nov 2026', title: 'Pathfinding fixes',
     changes: [
       'Fixed extractors getting stuck on the corners of the Refinery and other buildings.',

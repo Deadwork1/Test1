@@ -1517,11 +1517,25 @@ ui.all.addEventListener('click', () => {
   const soldiers = game.ents.filter(e => e.team === 0 && e.type === 'soldier');
   game.selected = new Set(soldiers.map(e => e.id));
 });
-ui.pause.addEventListener('click', () => {
-  if (game.over) return;
-  game.paused = !game.paused;
-  ui.pause.textContent = game.paused ? '▶' : '❚❚';
+// ---------- Pause menu ----------
+const pm = { menu: $('pauseMenu'), resume: $('pmResume'), restart: $('pmRestart'), notes: $('pmNotes') };
+let restartArmed = false;
+function setPaused(on) {
+  game.paused = on;
+  ui.pause.textContent = on ? '▶' : '❚❚';
+  pm.menu.style.display = on ? 'flex' : 'none';
+  restartArmed = false; pm.restart.textContent = 'Restart'; pm.restart.classList.remove('danger');
+}
+ui.pause.addEventListener('click', () => { if (!game.over) setPaused(!game.paused); });
+pm.resume.addEventListener('click', () => setPaused(false));
+pm.restart.addEventListener('click', () => {
+  if (!restartArmed) {   // ask once more so a stray tap doesn't wipe your game
+    restartArmed = true; pm.restart.textContent = 'Tap again to restart'; pm.restart.classList.add('danger');
+    return;
+  }
+  newGame(); setPaused(false);
 });
+pm.notes.addEventListener('click', () => { $('notes').style.display = 'flex'; });
 // ---------- Patch notes ----------
 const esc = t => t.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 $('version').textContent = 'Version ' + PATCH_NOTES[0].version;
