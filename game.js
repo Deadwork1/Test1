@@ -1081,7 +1081,7 @@ function updateSoldier(e, dt) {   // soldiers and buggies
 }
 
 // Engineers: walk to a building, then either repair it (yours) or capture it (theirs). They're very fragile, so escort them.
-const canCapture = b => isBuilding(b) && !isWallType(b.type) && b.built;   // any finished building except walls & gates
+const canCapture = b => isBuilding(b) && !isWallType(b.type) && b.type !== 'tower' && b.built;   // any finished building except walls, gates and guard towers
 function updateEngineer(e, dt) {
   const o = e.order;
   e.working = false;

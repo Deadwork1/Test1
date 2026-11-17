@@ -9,6 +9,7 @@ const PATCH_NOTES = [
       'On Normal and Hard the computer builds its first Guard Tower earlier (once it has a barracks and 3 extractors) instead of waiting until after its first attack.',
       'Gates now only open while one of your units is actually walking through, not when a guard is just standing next to them.',
       'Extractors now drive into the refinery\'s bay: the front half disappears under the roof while unloading.',
+      'Engineers can no longer capture Guard Towers (or walls and gates).',
       'Heavy Tank: rockets now do 1.25x damage to it instead of 2x (its thick armour), so a few rocket soldiers can no longer delete it in seconds.',
       'Movement: units queue behind friends heading the same way, or busy fighting or breaking a wall, instead of all swerving about in a gap.',
     ],
