@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.17.1', date: '17 Nov 2026', title: 'Map switching fixed on phones',
+    changes: [
+      'Fixed: on some phones (iPhones especially) the Large and Huge maps could fail to load, which also left the map buttons dead so you couldn\'t switch map again. Drawing the map now uses far less memory (Huge needs about 200 MB instead of going past the phone\'s limit).',
+      'If a map ever does fail to load, the start screen now says so and the map buttons still work, so you can always pick another map.',
+    ],
+  },
+  {
     version: '5.17', date: '17 Nov 2026', title: 'Smarter routes, darker forests',
     changes: [
       'Units no longer push into buildings and walls. Big vehicles were aiming for route points too close to a building for their size and got stuck there; now they pass those points and carry on. Units that brush a building or wall slide along it, and route shortcuts leave room for the unit\'s whole body.',

@@ -498,6 +498,8 @@ const bg = document.createElement('canvas');
 (function drawBackground() {
   bg.width = W; bg.height = H;
   const b = bg.getContext('2d');
+  try { paintAll(); } catch (err) { console.warn('background art failed, using a plain one', err); }   // the game still runs
+  function paintAll() {
   b.fillStyle = '#4a6b35'; b.fillRect(0, 0, W, H);
   let seed = 7;
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -519,12 +521,15 @@ const bg = document.createElement('canvas');
   // continuous shape with soft natural edges instead of a pile of circles. Level < 0.5 grows the shape, > 0.5 shrinks it.
   const HS = 2;   // masks are made at half size (edges are smooth anyway)
   const small = document.createElement('canvas'); small.width = TCOLS; small.height = TROWS;
+  const allMasks = [], keep = m => { m.keep = true; return m; };
+  const free = c => { c.width = c.height = 0; };   // hand the memory back straight away
+  const tmp = document.createElement('canvas'); tmp.width = W; tmp.height = H;   // one scratch canvas reused for every layer
   function mask(types, blur, level) {
     const sc = small.getContext('2d'), img = sc.createImageData(TCOLS, TROWS);
     const pick = typeof types === 'function' ? types : i => types.includes(terrain[i]);
     for (let i = 0; i < terrain.length; i++) if (pick(i)) { img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = img.data[i * 4 + 3] = 255; }
     sc.putImageData(img, 0, 0);
-    const m = document.createElement('canvas'); m.width = W / HS; m.height = H / HS;
+    const m = document.createElement('canvas'); m.width = W / HS; m.height = H / HS; allMasks.push(m);
     const mc = m.getContext('2d');
     mc.fillStyle = '#000'; mc.fillRect(0, 0, m.width, m.height);
     mc.filter = `blur(${blur / HS}px)`; mc.imageSmoothingEnabled = true;
@@ -539,12 +544,14 @@ const bg = document.createElement('canvas');
   }
   // paint a fill (colour, or a function that draws a texture) through a mask, optionally shifted
   function paint(m, fill, dx = 0, dy = 0) {
-    const t = document.createElement('canvas'); t.width = W; t.height = H;
-    const tc = t.getContext('2d');
+    const t = tmp, tc = t.getContext('2d');
+    tc.save(); tc.globalCompositeOperation = 'source-over'; tc.clearRect(0, 0, W, H);
     if (typeof fill === 'string') { tc.fillStyle = fill; tc.fillRect(0, 0, W, H); } else fill(tc);
     tc.globalCompositeOperation = 'destination-in'; tc.imageSmoothingEnabled = true;
     tc.drawImage(m, 0, 0, W, H);
+    tc.restore();
     b.drawImage(t, dx, dy);
+    if (!m.keep) free(m);
   }
   const speckle = (base, cols, n, rMin, rMax) => tc => {
     tc.fillStyle = base; tc.fillRect(0, 0, W, H);
@@ -558,7 +565,7 @@ const bg = document.createElement('canvas');
   const wet = [T.WATER, T.BRIDGE];
   paint(mask(wet, 22, 0.28), '#a08c5b');                       // bank
   paint(mask(wet, 22, 0.36), '#7e8a63');                       // damp edge
-  const water = mask(wet, 18, 0.5);
+  const water = keep(mask(wet, 18, 0.5));
   paint(water, '#2f6390');
   paint(mask(wet, 30, 0.72), '#24537d');                       // deep middle
   paint(water, tc => {                                         // ripples
@@ -591,7 +598,7 @@ const bg = document.createElement('canvas');
         if (cc >= 0 && rr >= 0 && cc < TCOLS && rr < TROWS && (cc - c) ** 2 + (rr - r) ** 2 <= 10) open[rr * TCOLS + cc] = 1;
   }
   const hasFace = i => elev[i] === 1 && !open[i];
-  const top = mask(isHigh, 14, 0.5), face = mask(hasFace, 14, 0.5);
+  const top = keep(mask(isHigh, 14, 0.5)), face = keep(mask(hasFace, 14, 0.5));
   paint(mask(hasFace, 18, 0.42), 'rgba(0,0,0,0.38)', 12, 20);                                  // shadow on the low ground
   const crag = tc => {   // craggy rock: blotches plus short vertical cracks, like a sheer face
     speckle('#5b4d3c', ['#6d5d48', '#4a3e30', '#7a6a53', '#3d332a'], 2200, 3, 9)(tc);
@@ -669,7 +676,7 @@ const bg = document.createElement('canvas');
   }
 
   // forests: one dark mass of ground, then a dense canopy of trees that spills a little over its edge
-  const woods = mask([T.FOREST], 20, 0.5);
+  const woods = keep(mask([T.FOREST], 20, 0.5));
   paint(mask([T.FOREST], 20, 0.42), 'rgba(0,0,0,0.25)', 6, 8);  // shadow
   paint(woods, '#22401c');
   paint(mask([T.FOREST], 20, 0.35), tc => {
@@ -684,7 +691,7 @@ const bg = document.createElement('canvas');
 
   // rocks and cliffs: a drop shadow, a sunlit rim, the rock body and a lighter weathered top with cracks
   const rockTypes = [T.ROCK];
-  const body = mask(rockTypes, 16, 0.5);
+  const body = keep(mask(rockTypes, 16, 0.5));
   paint(mask(rockTypes, 16, 0.44), 'rgba(0,0,0,0.42)', 8, 11);  // shadow on the ground
   paint(body, '#4c4741', 0, 4);                                // dark lower face
   paint(body, '#a49e91', -2, -3);                              // light upper rim
@@ -712,6 +719,9 @@ const bg = document.createElement('canvas');
     track(dx0, dy0, dx0 + 40 * k, dy0 + 230 * k, 12);
   }
   b.strokeStyle = 'rgba(0,0,0,0.5)'; b.lineWidth = 6; b.strokeRect(3, 3, W - 6, H - 6);
+  for (const m of allMasks) free(m);
+  free(tmp);
+  }
 })();
 
 // a small copy of the background for the minimap (much cheaper to draw every frame)
@@ -3894,3 +3904,5 @@ game.paused = true;
 ui.ovText.innerHTML = 'Deploy your settler, build a <b>Refinery</b> for ore and a <b>Barracks</b> for soldiers, and fight for the big ore field in the middle.<br>Drag to scroll · pinch to zoom · best in landscape.';
 ui.overlay.style.display = 'flex';
 requestAnimationFrame(frame);
+
+window.gameLoaded = true;   // (index.html shows a map picker instead if loading ever fails)

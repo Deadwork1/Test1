@@ -22,6 +22,7 @@ Example: `python3 rec/record.py .. 8801 large hard mixed 60`
 - `test_civ_sell.py` checks Civilians, the game clock and selling; `pic_civilians.py <game folder> <port> <out prefix>` pictures them.
 - `pic_village.py <game folder> <port> <out prefix>` renders a village close up, neutral and owned.
 - `pic_*.py` render close-up pictures of units, buildings and terrain. `pic_map.py <game folder> <port> <map> <out.jpg>` renders a whole map with the fog lifted.
+- `test_canvas_memory.py <game folder> <port> [limit MB]` simulates a phone's canvas memory cap (iPhones: about 384 MB) and checks every map loads and the map buttons work.
 - `dbg_*.py` are one-off debugging scripts. `dbg_inbuilding.py <game folder> <port> <map> <difficulty> <strategy> [minutes] [seed]` plays a seeded game and reports units stuck walking into buildings (total stuck-seconds), for comparing two versions of the game.
 - `pic_forest_sight.py <game folder> <port> <out.png>` shows a soldier's view inside a forest next to one on grass.
 

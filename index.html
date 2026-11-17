@@ -136,6 +136,17 @@
   </div>
 </div>
 
+<script>
+  // If the game ever fails to load (say a phone runs out of memory on a big map), still show the start screen with
+  // working map buttons, so you can always switch to another map.
+  window.addEventListener('error', () => {
+    if (window.gameLoaded) return;
+    document.getElementById('overlay').style.display = 'flex';
+    document.getElementById('ovText').textContent = "This map couldn't load on this device. Pick another map:";
+    for (const b of document.querySelectorAll('#mapRow button'))
+      b.onclick = () => { try { localStorage.setItem('mini-rts-map', b.dataset.m); } catch (e) {} location.reload(); };
+  });
+</script>
 <script src="patchnotes.js"></script>
 <script src="game.js"></script>
 <script>
