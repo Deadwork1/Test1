@@ -2,6 +2,14 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.14', date: '17 Nov 2026', title: 'Huge map',
+    changes: [
+      'New Huge map (4800 x 3000, a third bigger each way than Large). Pick it on the start screen.',
+      'Your base corner is laid out like on Large, but there is far more open ground between the bases: six ore fields per side (including a forward field and a far-corner field), a bigger middle island, three plateaus per side and more rocks and woods.',
+      'It is built to make room for what comes next: neutral buildings and neutral characters in the middle ground.',
+    ],
+  },
+  {
     version: '5.13', date: '17 Nov 2026', title: 'Defend every side',
     changes: [
       'The computer now finds every way into its base, including side gaps between rocks and the map edge, and walls each one with its own gate. Its Guard Towers and guards are spread across all of them.',

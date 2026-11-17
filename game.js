@@ -48,6 +48,35 @@ const MAPS = {
     river: { amp: 90, period: 320, half: 40 },
     bridges: [{ y: 300, hw: 70 }, { y: 620, hw: 70 }],
   },
+  huge: {   // the base corner is laid out like Large's; the extra room is all in the ground between the bases
+    label: 'Huge', W: 4800, H: 3000, start: { x: 400, y: 2600 },
+    fields: [
+      { x: 820, y: 2450, nodes: 8, amount: 500, spread: 100 },    // home field
+      { x: 430, y: 1560, nodes: 8, amount: 500, spread: 105 },    // expansion: north of your base
+      { x: 1700, y: 2780, nodes: 8, amount: 500, spread: 100 },   // expansion: along the south edge
+      { x: 1450, y: 1800, nodes: 8, amount: 500, spread: 110 },   // forward field, out in front of your base
+      { x: 1250, y: 640, nodes: 10, amount: 600, spread: 130 },   // contested flank field
+      { x: 330, y: 330, nodes: 7, amount: 600, spread: 95 },      // far corner field
+    ],
+    island: { r: 500, nodes: 22, amount: 600, spread: 300 },
+    ridges: [
+      [[[300, 2290], [550, 2240], [820, 2280]], 32],      // wall north of your base (gaps at both ends)
+      [[[1080, 2230], [1150, 2450], [1110, 2720]], 32],   // wall east of your base (gap at the bottom)
+      [[[930, 1040], [1200, 1200]], 30],                  // outcrop by the flank field
+      [[[1800, 800], [1890, 1200]], 30],                  // ridge near the river
+      [[[780, 1520], [940, 1700]], 28],                   // rocks by the north expansion
+      [[[600, 700], [640, 1000]], 28],                    // rocks shielding the far corner
+      [[[1950, 2500], [2080, 2700]], 30],                 // rocks by the south bridge
+    ],
+    forests: [[1470, 1250, 360, 250, 0.35], [270, 820, 160], [1530, 420, 160], [980, 1950, 130], [1700, 1500, 110]],   // the big jungle sits on the routes between the bases
+    plateaus: [
+      { x: 1880, y: 2180, rx: 270, ry: 175, tilt: -0.25, ramps: [3.4, 0.2] },
+      { x: 760, y: 470, rx: 210, ry: 150, tilt: 0.3, ramps: [1.7] },
+      { x: 420, y: 1190, rx: 150, ry: 100, tilt: 0.1, ramps: [1.6, 0] },
+    ],
+    river: { amp: 110, period: 420, half: 44 },
+    bridges: [{ y: 380, hw: 74 }, { y: 820, hw: 74 }],
+  },
 };
 let mapChoice = 'large';
 try { if (MAPS[localStorage.getItem('mini-rts-map')]) mapChoice = localStorage.getItem('mini-rts-map'); } catch (err) {}
@@ -3444,9 +3473,11 @@ for (const b of document.querySelectorAll('#mapRow button')) {
     location.reload();
   });
 }
-$('mapInfo').textContent = mapChoice === 'large'
-  ? 'Large: room to expand, extra ore fields on each side. Longer games.'
-  : 'Classic: the original smaller map. Quicker games.';
+$('mapInfo').textContent = {
+  classic: 'Classic: the original smaller map. Quicker games.',
+  large: 'Large: room to expand, extra ore fields on each side. Longer games.',
+  huge: 'Huge: lots of open ground between the bases, more ore fields and high ground. The longest games.',
+}[mapChoice];
 
 // ---------- Difficulty picker ----------
 function showDifficulty() {
