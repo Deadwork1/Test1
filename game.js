@@ -54,11 +54,11 @@ const MAPS = {
       { x: 820, y: 2450, nodes: 8, amount: 500, spread: 100 },    // home field
       { x: 430, y: 1560, nodes: 8, amount: 500, spread: 105 },    // expansion: north of your base
       { x: 1700, y: 2780, nodes: 8, amount: 500, spread: 100 },   // expansion: along the south edge
-      { x: 1450, y: 1800, nodes: 8, amount: 500, spread: 110 },   // forward field, out in front of your base
+      { x: 1560, y: 1930, nodes: 8, amount: 500, spread: 100 },   // forward field, out in front of your base
       { x: 1250, y: 640, nodes: 10, amount: 600, spread: 130 },   // contested flank field
       { x: 330, y: 330, nodes: 7, amount: 600, spread: 95 },      // far corner field
     ],
-    island: { r: 500, nodes: 22, amount: 600, spread: 300 },
+    island: { r: 500, nodes: 22, amount: 600, spread: 300, ring: [290, 440] },   // gold scattered round the island's edge, near the river (and the lookouts)
     ridges: [
       [[[300, 2290], [550, 2240], [820, 2280]], 32],      // wall north of your base (gaps at both ends)
       [[[1080, 2230], [1150, 2450], [1110, 2720]], 32],   // wall east of your base (gap at the bottom)
@@ -71,8 +71,8 @@ const MAPS = {
     forests: [[1470, 1250, 360, 250, 0.35], [270, 820, 160], [1530, 420, 160], [980, 1950, 130], [1700, 1500, 110]],   // the big jungle sits on the routes between the bases
     plateaus: [
       { x: 2050, y: 1880, rx: 250, ry: 165, tilt: 0.7, ramps: [Math.PI], overhang: true },   // lookout over the island: juts out over the river
-      { x: 760, y: 470, rx: 210, ry: 150, tilt: 0.3, ramps: [1.7] },
-      { x: 420, y: 1190, rx: 150, ry: 100, tilt: 0.1, ramps: [1.6, 0] },
+      { x: 1200, y: 1680, rx: 190, ry: 130, tilt: -0.6, ramps: [2.3] },   // beside the main road to the island's west bridge
+      { x: 1450, y: 820, rx: 160, ry: 110, tilt: 0.4, ramps: [2.4] },     // north of the jungle, over the way to the north village
     ],
     river: { amp: 110, period: 420, half: 44 },
     bridges: [{ y: 380, hw: 74 }, { y: 820, hw: 74 }],
@@ -176,7 +176,7 @@ const START = [{ x: MAP.start.x, y: MAP.start.y }, { x: W - MAP.start.x, y: H - 
 // ore fields: a small one by each base, a big rich one in the middle, two on the flanks
 const ORE_FIELDS = [
   ...MAP.fields.flatMap(f => [f, { ...f, x: W - f.x, y: H - f.y }]),
-  { x: W / 2, y: H / 2, nodes: MAP.island.nodes, amount: MAP.island.amount, spread: MAP.island.spread },
+  { x: W / 2, y: H / 2, nodes: MAP.island.nodes, amount: MAP.island.amount, spread: MAP.island.spread, ring: MAP.island.ring },
 ];
 
 // ---------- Canvas, camera ----------
@@ -771,6 +771,24 @@ function newGame() {
   let seed = 99;
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   for (const f of ORE_FIELDS) {
+    if (f.ring) {   // scattered round a ring near the edge, in mirrored pairs so both sides get the same
+      // about half of it hugs the shore opposite the river lookouts (where they can shoot), the rest round the ring
+      const look = (MAP.plateaus || []).find(pl => pl.overhang), toLook = look ? Math.atan2(look.y - f.y, look.x - f.x) : 0;
+      for (let i = 0; i < f.nodes / 2; i++) {
+        let x, y, tries = 0;
+        const nearLook = look && i % 2 === 0;
+        do {
+          const a = nearLook ? toLook + (rnd() - 0.5) * 1.1 : rnd() * Math.PI * 2;
+          const d = nearLook ? f.ring[1] - 60 + rnd() * 60 : f.ring[0] + rnd() * (f.ring[1] - f.ring[0]);
+          x = f.x + Math.cos(a) * d; y = f.y + Math.sin(a) * d;
+        }
+        while ((terrainAt(x, y) !== T.GRASS || terrainAt(W - x, H - y) !== T.GRASS || game.ore.some(o => Math.hypot(o.x - x, o.y - y) < 45)) && ++tries < 40);
+        const rot = rnd() * 6;
+        game.ore.push({ id: game.nextId++, x, y, amount: f.amount, max: f.amount, rot });
+        game.ore.push({ id: game.nextId++, x: W - x, y: H - y, amount: f.amount, max: f.amount, rot: rot + 3 });
+      }
+      continue;
+    }
     for (let i = 0; i < f.nodes; i++) {
       let x, y, tries = 0;
       do { const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * f.spread; x = f.x + Math.cos(a) * d; y = f.y + Math.sin(a) * d; }

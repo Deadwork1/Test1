@@ -2,6 +2,14 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.23', date: '17 Nov 2026', title: 'Contested high ground',
+    changes: [
+      'Huge map: the plateaus that sat in quiet corners have moved onto the busy routes. One stands beside the main road from each base to the island, the other north of the big jungle over the road to the village. Each has one ramp facing back towards its own base.',
+      'The forward ore field moved over a little to sit beside the new plateau.',
+      'The gold on the middle island is now scattered round its edge, near the river, with a band of it on the shore opposite each river lookout, so the lookouts can shoot at anyone mining there. It is laid out in mirrored pairs, so both sides get exactly the same.',
+    ],
+  },
+  {
     version: '5.22', date: '17 Nov 2026', title: 'Run them over',
     changes: [
       'Extractors now run over enemy infantry in their way, just like tanks.',
