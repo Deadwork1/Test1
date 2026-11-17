@@ -2,6 +2,14 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.17', date: '17 Nov 2026', title: 'Smarter routes, darker forests',
+    changes: [
+      'Units no longer push into buildings and walls. Big vehicles were aiming for route points too close to a building for their size and got stuck there; now they pass those points and carry on. Units that brush a building or wall slide along it, and route shortcuts leave room for the unit\'s whole body.',
+      'Units standing in a forest only see 70% as far as normal: the trees block the view. (Infantry are still hidden in there, so forests are for ambushes, not for spotting.)',
+      'The computer\'s attack waves no longer crowd onto the spot where a building used to be (for example a Derrick they just knocked back to neutral); they move on to the next target.',
+    ],
+  },
+  {
     version: '5.16.1', date: '17 Nov 2026', title: 'Pause button always reachable',
     changes: [
       'The Pause button now sits at the far left of the top bar, so it never gets pushed off a narrow screen.',

@@ -18,7 +18,7 @@ A small real-time strategy game inspired by classic 90s RTS games, built step by
 ## Terrain
 - **Rocks & cliffs** block everything. Each base has a cliff wall with a gap.
 - **River** blocks all ground units; cross at the **bridges**. The rich ore field sits on an island in the middle, reached by two bridges.
-- **Forests** stop tanks and extractors. Infantry walk through slowly and are hidden inside unless an enemy gets close or they open fire; the Scout Buggy can drive through slowly but can't hide.
+- **Forests** stop tanks and extractors. Infantry walk through slowly and are hidden inside unless an enemy gets close or they open fire; the Scout Buggy can drive through slowly but can't hide. Anything standing in a forest only sees 70% as far.
 - Units find their own way around obstacles and buildings.
 
 ## Controls (touch or mouse)

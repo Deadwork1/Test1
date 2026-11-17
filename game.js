@@ -279,6 +279,7 @@ function segDist(px, py, ax, ay, bx, by) {
 
 const elevAt = (x, y) => { const c = Math.floor(x / TC), r = Math.floor(y / TC); return c < 0 || r < 0 || c >= TCOLS || r >= TROWS ? 0 : elev[r * TCOLS + c]; };
 const HIGH_SIGHT = 1.25, HIGH_RANGE = 1.2;   // seeing and shooting from high ground
+const FOREST_SIGHT = 0.7;   // units standing in a forest can't see as far through the trees
 const rangeOf = e => STATS[e.type].range * (elevAt(e.x, e.y) ? HIGH_RANGE : 1);
 const terrainAt = (x, y) => {
   const c = Math.floor(x / TC), r = Math.floor(y / TC);
@@ -303,8 +304,10 @@ function wallTiles(b) {
     for (let c = Math.round((b.x - hx) / TC); c < Math.round((b.x + hx) / TC); c++) out.push([c, r]);
   return out;
 }
+let bldList = [];   // every building and wall piece, for checking a unit's body clears them (see lineClear)
 function rebuildBuildingGrid() {
   bldGrid.fill(0); wallKind.fill(0);
+  bldList = game.ents.filter(isBuilding);
   for (const b of game.ents) {
     if (isWallType(b.type)) {
       for (const [c, r] of wallTiles(b)) {
@@ -362,7 +365,22 @@ function nearestPassable(c, r, vehicle) {
 }
 
 // straight line between two points that never touches a blocked tile?
-function lineClear(x0, y0, x1, y1, vehicle) {
+function lineClear(x0, y0, x1, y1, vehicle, rad = 0) {
+  if (rad > 0) {
+    const pad = rad + 60, lx = Math.min(x0, x1) - pad, hx = Math.max(x0, x1) + pad, ly = Math.min(y0, y1) - pad, hy = Math.max(y0, y1) + pad;
+    const near = bldList.filter(b => b.hp > 0 && b.x > lx && b.x < hx && b.y > ly && b.y < hy && !(b.type === 'gate' && b.team === P.team));
+    if (near.length) {
+      const d = Math.hypot(x1 - x0, y1 - y0), n = Math.ceil(d / 6);
+      for (const b of near) {
+        if (segDist(b.x, b.y, x0, y0, x1, y1) > Math.hypot(halfX(b), halfY(b)) + rad) continue;   // the line never comes near this one
+        const d0 = edgeDist(x0, y0, b);
+        for (let i = 1; i <= n; i++) {
+          const de = edgeDist(x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n, b);
+          if (de < rad - 0.5 && de < d0 - 0.5) return false;   // the body would push into it
+        }
+      }
+    }
+  }
   const brk = P.breakable; P.breakable = false;
   const d = Math.hypot(x1 - x0, y1 - y0), steps = Math.ceil(d / (TC / 3));
   let pc = Math.floor(x0 / TC), pr = Math.floor(y0 / TC), ok = true;
@@ -382,7 +400,7 @@ const gScore = new Float32Array(N), cameFrom = new Int32Array(N), stamp = new Ui
 let searchId = 0;
 const NB = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
 
-function findPath(sx, sy, tx, ty, vehicle, team = -1, breakable = false) {
+function findPath(sx, sy, tx, ty, vehicle, team = -1, breakable = false, rad = 0) {
   if (bldDirty) rebuildBuildingGrid();
   P.team = team; P.breakable = breakable;
   let start = nearestPassable(Math.floor(sx / TC), Math.floor(sy / TC), vehicle);
@@ -390,7 +408,7 @@ function findPath(sx, sy, tx, ty, vehicle, team = -1, breakable = false) {
   if (!start || !goal) return null;
   const goalExact = passable(Math.floor(tx / TC), Math.floor(ty / TC), vehicle);
   const end = goalExact ? { x: tx, y: ty } : { x: goal[0] * TC + TC / 2, y: goal[1] * TC + TC / 2 };
-  if (lineClear(sx, sy, end.x, end.y, vehicle)) return [end];
+  if (lineClear(sx, sy, end.x, end.y, vehicle, rad)) return [end];
 
   searchId++;
   const s = start[1] * TCOLS + start[0], g = goal[1] * TCOLS + goal[0];
@@ -429,7 +447,7 @@ function findPath(sx, sy, tx, ty, vehicle, team = -1, breakable = false) {
   let ax = sx, ay = sy, k = 0;
   while (k < cells.length) {
     let far = k;
-    for (let j = cells.length - 1; j > k; j--) if (lineClear(ax, ay, cells[j].x, cells[j].y, vehicle)) { far = j; break; }
+    for (let j = cells.length - 1; j > k; j--) if (lineClear(ax, ay, cells[j].x, cells[j].y, vehicle, rad)) { far = j; break; }
     path.push(cells[far]); ax = cells[far].x; ay = cells[far].y; k = far + 1;
   }
   return path;
@@ -439,8 +457,8 @@ function findPath(sx, sy, tx, ty, vehicle, team = -1, breakable = false) {
 function navigate(e, tx, ty, dt) {
   const n = e.nav;
   if (!n || Math.hypot(n.tx - tx, n.ty - ty) > 30 && game.time - n.t > 0.4 || (n.fail && game.time - n.t > 2)) {
-    let path = findPath(e.x, e.y, tx, ty, isVehicle(e), e.team, false), breaking = false;
-    if (!path && isCombat(e)) { path = findPath(e.x, e.y, tx, ty, isVehicle(e), e.team, true); breaking = !!path; }
+    let path = findPath(e.x, e.y, tx, ty, isVehicle(e), e.team, false, e.r), breaking = false;
+    if (!path && isCombat(e)) { path = findPath(e.x, e.y, tx, ty, isVehicle(e), e.team, true, e.r); breaking = !!path; }
     e.nav = { tx, ty, t: game.time, path: path || [], i: 0, fail: !path, breaking };
   }
   const nav = e.nav;
@@ -458,7 +476,12 @@ function navigate(e, tx, ty, dt) {
     e.nav = null;
     return false;
   }
+  // a route point only has to be passed, not stood on: big vehicles can't always reach the exact spot (it may sit
+  // closer to a building than their body allows), so once it's within the unit's radius, head for the next one
+  while (nav.i < nav.path.length - 1 && Math.hypot(nav.path[nav.i].x - e.x, nav.path[nav.i].y - e.y) < e.r + 4) nav.i++;
   const p = nav.path[nav.i];
+  // the destination itself is too close to a building for this unit's body: as close as it can get counts as there
+  if (nav.i === nav.path.length - 1 && Math.hypot(p.x - e.x, p.y - e.y) < e.r + 4 && bldList.some(b => b.hp > 0 && edgeDist(p.x, p.y, b) < e.r)) { nav.i++; return true; }
   if (nav.breaking) {   // an enemy wall or gate is in the way: shoot it down, then carry on
     const a = Math.atan2(p.y - e.y, p.x - e.x), ax = e.x + Math.cos(a) * (e.r + 10), ay = e.y + Math.sin(a) * (e.r + 10);
     if (wallBlocks(ax, ay, e.team)) {
@@ -810,6 +833,30 @@ function moveToward(e, tx, ty, dt) {
       }
     }
   }
+  // don't walk into buildings or walls: if this step would push the body into one, slide along its side instead
+  // (an extractor docking at its own refinery is meant to drive in)
+  if (!e.docked) {
+    const nx = e.x + ux * step, ny = e.y + uy * step, dockRef = e.order && e.order.ref;
+    for (const b of bldList) {
+      if (b.hp <= 0 || b.id === dockRef || (b.type === 'gate' && b.team === e.team)) continue;
+      if (Math.abs(b.x - nx) > halfX(b) + e.r + 2 || Math.abs(b.y - ny) > halfY(b) + e.r + 2) continue;
+      const before = edgeDist(e.x, e.y, b);
+      if (edgeDist(nx, ny, b) >= e.r || edgeDist(nx, ny, b) >= before) continue;
+      // outward direction from the nearest point of the building to the unit
+      const cx = Math.max(b.x - halfX(b), Math.min(b.x + halfX(b), e.x)), cy = Math.max(b.y - halfY(b), Math.min(b.y + halfY(b), e.y));
+      let ox = e.x - cx, oy = e.y - cy, ol = Math.hypot(ox, oy);
+      if (ol < 0.01) { ox = e.x - b.x; oy = e.y - b.y; ol = Math.hypot(ox, oy) || 1; }
+      ox /= ol; oy /= ol;
+      const into = ux * ox + uy * oy;
+      if (into >= 0) continue;
+      let sx = ux - into * ox, sy = uy - into * oy;
+      const sl = Math.hypot(sx, sy);
+      if (sl < 0.15) { sx = -oy; sy = ox; if (sx * dx + sy * dy < 0) { sx = -sx; sy = -sy; } }   // dead on: pick the side nearer the goal
+      else { sx /= sl; sy /= sl; }
+      ux = sx; uy = sy;
+      break;
+    }
+  }
   // how freely it actually moved last time (1 = full speed), so others can tell a moving queue from a jam
   if (e.lastX !== undefined) e.pace = Math.min(1, Math.hypot(e.x - e.lastX, e.y - e.lastY) / (step || 1));
   e.x += ux * step; e.y += uy * step;
@@ -870,7 +917,7 @@ function updateFog() {
   for (const e of game.ents) {
     if (e.team === NEUTRAL) continue;
     const f = fog[e.team];
-    const r = STATS[e.type].sight * (isBuilding(e) && !e.built ? 0.6 : 1) * (elevAt(e.x, e.y) ? HIGH_SIGHT : 1);
+    const r = STATS[e.type].sight * (isBuilding(e) && !e.built ? 0.6 : 1) * (elevAt(e.x, e.y) ? HIGH_SIGHT : 1) * (isUnit(e) && terrainAt(e.x, e.y) === T.FOREST ? FOREST_SIGHT : 1);
     for (const i of visibleCells(e.x, e.y, r)) { f.vis[i] = 1; f.exp[i] = 1; }
   }
   const d = fogImg.data;
@@ -2119,10 +2166,14 @@ function runAI(dt) {
         u.holdUntil = d < middle - 140 && d > 260 ? game.time + D.think + 0.1 : 0;
       }
     }
+    // a target that's gone (destroyed, captured, or a Derrick knocked back to neutral): don't all pile onto the empty spot
+    const enemyBuildingAt = (x, y) => game.ents.some(b => b.team === 0 && isBuilding(b) && !isWallType(b.type) && Math.abs(b.x - x) < 60 && Math.abs(b.y - y) < 60);
+    if (ai.waveTarget && ai.waveTarget.type && !enemyBuildingAt(ai.waveTarget.x, ai.waveTarget.y) && wave.some(u => Math.hypot(u.x - ai.waveTarget.x, u.y - ai.waveTarget.y) < 220)) ai.waveTarget = null;
     for (const u of wave) {
+      if (u.order && u.order.type === 'attackmove' && u.order.bld && Math.hypot(u.x - u.order.x, u.y - u.order.y) < 220 && !enemyBuildingAt(u.order.x, u.order.y)) u.order = null;
       if (u.order) continue;
       const t = aiWaveTarget(u, targets, D.focus) || ai.exploreTarget;
-      if (t) { u.order = { type: 'attackmove', x: t.x, y: t.y }; ai.waveTarget = t; }
+      if (t) { u.order = { type: 'attackmove', x: t.x, y: t.y, bld: !!t.type }; ai.waveTarget = t; }
     }
   }
 }
