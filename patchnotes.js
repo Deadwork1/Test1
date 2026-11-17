@@ -2,6 +2,15 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.8', date: '17 Nov 2026', title: 'Relentless enemy',
+    changes: [
+      'The computer now keeps attacking until the game is over: a new wave every 4 minutes on Easy, 3 on Normal and 2 on Hard. When a wave is due it goes with what it has (as long as it has a handful), and puts training troops ahead of saving up.',
+      'What waves go for: Easy hits the nearest building, Normal goes after your economy (refineries and extractors), Hard goes for your Guard Towers first.',
+      'When you are down to your last few buildings and it clearly has the bigger army, it goes all in, home guard included, to finish the job.',
+      'Fixed: the computer could wall itself in if its gate didn\'t fit, trapping its own extractors. It now only builds wall pieces once its gate is up.',
+    ],
+  },
+  {
     version: '5.7', date: '17 Nov 2026', title: 'New win rule',
     changes: [
       'You win once every enemy building is destroyed (walls and gates don\'t count) and they have no Settler left to start again. Leftover units no longer keep a beaten side in the game.',

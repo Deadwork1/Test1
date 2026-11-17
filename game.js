@@ -103,11 +103,11 @@ const SHORT = { buggy: 'Buggy', rocket: 'Rocket', sniper: 'Sniper', light: 'Ligh
 //  extractors / refineries: how big its economy gets   walls: whether it builds a wall line with a gate
 const DIFFICULTY = {
   easy:   { label: 'Easy',   think: 2.5, slow: 1.5,  income: 0.7,  attackAt: 5, attackAfter: 300, barracks: 1, maxArmy: 11, towers: 0, buggies: false, plants: 0,
-            guard: 1, maxWave: 6, extractors: 2, refineries: 1, walls: false, grenadiers: false, engineers: 0, rockets: false, snipers: 0, factory: false, tanks: 0, heavyTanks: false, raidEvery: 0 },
+            guard: 1, maxWave: 6, extractors: 2, refineries: 1, walls: false, grenadiers: false, engineers: 0, rockets: false, snipers: 0, factory: false, tanks: 0, heavyTanks: false, raidEvery: 0, waveEvery: 240, minWave: 3, focus: 'nearest' },
   normal: { label: 'Normal', think: 1.5, slow: 1.18, income: 0.85, attackAt: 7, attackAfter: 180, barracks: 1, maxArmy: 20, towers: 2, buggies: true, plants: 1,
-            guard: 3, maxWave: 14, extractors: 4, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 1, factory: true, tanks: 0.25, heavyTanks: false, raidEvery: 240 },
+            guard: 3, maxWave: 14, extractors: 4, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 1, factory: true, tanks: 0.25, heavyTanks: false, raidEvery: 240, waveEvery: 180, minWave: 4, focus: 'economy' },
   hard:   { label: 'Hard',   think: 1,   slow: 1,    income: 1,    attackAt: 6, attackAfter: 0,   barracks: 2, maxArmy: Infinity, towers: 3, buggies: true, plants: 2,
-            guard: 4, maxWave: 22, extractors: 8, refineries: 3, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true, raidEvery: 180, earlyRefinery: true, expandAt: 1500 },
+            guard: 4, maxWave: 22, extractors: 8, refineries: 3, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true, raidEvery: 180, earlyRefinery: true, expandAt: 1500, waveEvery: 120, minWave: 5, focus: 'defences' },
 };
 let difficulty = 'normal';
 try { if (DIFFICULTY[localStorage.getItem('mini-rts-difficulty')]) difficulty = localStorage.getItem('mini-rts-difficulty'); } catch (err) {}
@@ -1415,6 +1415,19 @@ function aiWallPlan(hq) {
 }
 
 // Engineer raid: pick one of your buildings it knows about (not the HQ), then sneak round the edge of the map to it and capture it
+// what an attack wave heads for
+function aiWaveTarget(from, targets, focus) {
+  const pref = focus === 'defences' ? ['tower', 'gate', 'refinery', 'extractor'] : focus === 'economy' ? ['refinery', 'extractor', 'power'] : [];
+  for (const kind of pref) {
+    let best = null, bd = Infinity;
+    for (const t of targets) if (t.type === kind) { const d = Math.hypot(t.x - from.x, t.y - from.y); if (d < bd) { bd = d; best = t; } }
+    if (best) return best;
+  }
+  let best = null, bd = Infinity;
+  for (const t of targets) { const d = Math.hypot(t.x - from.x, t.y - from.y); if (d < bd) { bd = d; best = t; } }
+  return best;
+}
+
 function aiRaidPlan(en) {
   const prize = { refinery: 5, factory: 5, tech: 6, power: 3, barracks: 4, tower: 2 };
   let best = null, bestS = -1;
@@ -1494,7 +1507,7 @@ function runAI(dt) {
   const cash = game.credits[1];
 
   // remember any of your buildings it has seen; forget ones it sees are gone
-  for (const e of game.ents) if (e.team === 0 && isBuilding(e) && !isWallType(e.type) && visibleAt(e.x, e.y, 1)) ai.known.set(e.id, { x: e.x, y: e.y });
+  for (const e of game.ents) if (e.team === 0 && isBuilding(e) && !isWallType(e.type) && visibleAt(e.x, e.y, 1)) ai.known.set(e.id, { x: e.x, y: e.y, type: e.type });
   for (const [id, k] of ai.known) if (!byId(id) && visibleAt(k.x, k.y, 1)) ai.known.delete(id);
 
   if (settler && !hq) deploy(settler);
@@ -1533,6 +1546,7 @@ function runAI(dt) {
       placeBuilding(1, 'gate', plan.gate.x, plan.gate.y, plan.gate.vertical);
     }
     let n = 0;
+    if (!of('gate').length) n = 99;   // never wall itself in: the gate has to be up before any wall pieces
     for (const t of plan.tiles) {
       if (n >= 3 || game.credits[1] < COST.wall + 150) break;
       if (game.ents.some(w => w.type === 'wall' && w.team === 1 && Math.abs(w.x - t.x) < 1 && Math.abs(w.y - t.y) < 1)) continue;
@@ -1562,6 +1576,9 @@ function runAI(dt) {
   // the War Factory (and later the Tech Centre) are worth saving for whenever home is safe
   const otherExtrasDone = (refineries.length >= reqRefineries || aiBlocked('refinery')) && (of('tower').length >= wantTowers || aiBlocked('tower'));
   if (defended && (!building || otherExtrasDone)) reserve += wantFactory ? COST.factory : wantTech ? COST.tech : 0;
+  // an attack is due but there aren't enough troops yet: troops come first, savings wait (it never stops attacking)
+  const waveDue = game.time >= D.attackAfter && game.time >= (ai.nextWave || 0);
+  if (waveDue && army.filter(u => !u.role).length < D.minWave + 4) reserve = Math.min(reserve, extractors.length + qx < wantExtractors ? COST.extractor : 0);
   const queued = barracks.reduce((n, b) => n + b.queue, 0) + of('factory').reduce((n, f) => n + f.queue, 0);
   const qBuggies = of('factory').reduce((n, b) => n + b.qTypes.filter(t => t === 'buggy').length, 0);
   const wantBuggy = D.buggies && unlocked(1, 'buggy') && of('buggy').length + qBuggies < (of('soldier').length + 2) / ((game.ai.seen && game.ai.seen.snipers >= 3) ? 1.3 : 2);   // ~1 per 2 soldiers, more if you field snipers/grenadiers
@@ -1618,7 +1635,7 @@ function runAI(dt) {
 
   // ---- army ----
   const rally = aiRally(hq);
-  const targets = game.ents.filter(e => e.team === 0 && !isWallType(e.type) && visibleAt(e.x, e.y, 1) && !hiddenFrom(e, 1)).map(e => ({ x: e.x, y: e.y }));
+  const targets = game.ents.filter(e => e.team === 0 && !isWallType(e.type) && visibleAt(e.x, e.y, 1) && !hiddenFrom(e, 1)).map(e => ({ x: e.x, y: e.y, type: e.type }));
   for (const k of ai.known.values()) targets.push(k);
   const nearest = (u, list) => { let b = null, bd = Infinity; for (const t of list) { const d = Math.hypot(t.x - u.x, t.y - u.y); if (d < bd) { bd = d; b = t; } } return b; };
 
@@ -1668,16 +1685,24 @@ function runAI(dt) {
     }
   }
 
-  // waves: once enough units have gathered (and it's late enough), they march out together
-  const gathered = army.filter(u => !u.role && Math.hypot(u.x - rally.x, u.y - rally.y) < 160);
+  // waves: it keeps attacking until the game is over, one wave every few minutes (4 on Easy, 3 on Normal, 2 on Hard).
+  // When a wave is due it sends whatever has gathered (as long as there's a minimum), and each wave aims a little bigger.
+  // Easy goes for the nearest building, Normal for your economy, Hard for your towers and walls first.
+  // when you're nearly beaten (only a few buildings left that it knows of, and it clearly has the bigger army) it goes all in, guards too
+  const yourArmy = game.ents.filter(e => e.team === 0 && isCombat(e) && visibleAt(e.x, e.y, 1)).length;
+  const allIn = ai.known.size > 0 && ai.known.size <= 3 && army.length >= Math.max(6, yourArmy * 2);
+  const gathered = army.filter(u => (allIn ? u.role !== 'scout' && u.role !== 'wave' : !u.role) && (allIn || Math.hypot(u.x - rally.x, u.y - rally.y) < 160));
   const lost = !ai.known.size && game.time > D.attackAfter + 90;   // still hasn't found you: go looking in force
-  if (!intruders.length && gathered.length >= ai.waveSize && game.time >= D.attackAfter && (ai.known.size || lost)) {
-    const target = nearest(rally, targets) || aiExploreSpot(hq.x, hq.y, true);
+  const due = game.time >= D.attackAfter && game.time >= (ai.nextWave || 0);
+  const enough = gathered.length >= D.minWave;   // when it's due it goes with what it has, as long as there's a handful
+  if (!intruders.length && due && enough && (ai.known.size || lost)) {
+    const target = aiWaveTarget(rally, targets, D.focus) || aiExploreSpot(hq.x, hq.y, true);
     if (target) {
       gathered.forEach((u, k) => { const a = k * 2.4, rr = 14 * Math.sqrt(k); u.role = 'wave'; u.passive = false; u.order = { type: 'attackmove', x: target.x + Math.cos(a) * rr, y: target.y + Math.sin(a) * rr }; });   // spread out so they don't queue nose to tail
-      ai.waveSize = Math.min(D.maxWave, ai.waveSize + 2);   // each wave a little bigger
+      ai.waveSize = Math.min(D.maxWave, (D.maxArmy === Infinity ? 99 : D.maxArmy - D.guard), ai.waveSize + 2);   // each wave a little bigger
       ai.wavesSent = (ai.wavesSent || 0) + 1;
-      ai.buildUntil = game.time + 90;
+      ai.nextWave = game.time + D.waveEvery;
+      ai.buildUntil = game.time + Math.min(60, D.waveEvery / 3);   // a short spell of building after each wave
       ai.waveTarget = target;
     }
   }
@@ -1697,7 +1722,7 @@ function runAI(dt) {
     }
     for (const u of wave) {
       if (u.order) continue;
-      const t = nearest(u, targets) || ai.exploreTarget;
+      const t = aiWaveTarget(u, targets, D.focus) || ai.exploreTarget;
       if (t) { u.order = { type: 'attackmove', x: t.x, y: t.y }; ai.waveTarget = t; }
     }
   }
