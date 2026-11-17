@@ -2,6 +2,14 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.13', date: '17 Nov 2026', title: 'Defend every side',
+    changes: [
+      'The computer now finds every way into its base, including side gaps between rocks and the map edge, and walls each one with its own gate. Its Guard Towers and guards are spread across all of them.',
+      'Base alarm: when enemy fighters walk into a base, idle units from anywhere in that base come to help (up to 1,000 away), not just the ones close by. This works for your units too.',
+      'Taking buildings back: if an enemy Engineer steals a building, the computer sends an Engineer with an escort to win it back. For the first minute everyone holds fire on a stolen building so it can be retaken rather than destroyed. Your units hold fire too.',
+    ],
+  },
+  {
     version: '5.12', date: '17 Nov 2026', title: 'Artillery',
     changes: [
       'New War Factory unit: Artillery ($450, needs a Power Plant). Very slow and fragile, but its shells fly 250 (a Guard Tower reaches 170) and do triple damage to buildings, splashing anything nearby.',

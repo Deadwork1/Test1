@@ -290,10 +290,11 @@ function rebuildBuildingGrid() {
 }
 
 // who is the route for? (set by findPath) — own gates are open, enemy walls can be smashed through if `breakable`
-const P = { team: -1, breakable: false };
+const P = { team: -1, breakable: false, block: null };   // block: extra cells to treat as solid (used when looking for every way into a base)
 function passable(c, r, vehicle) {
   if (c < 0 || r < 0 || c >= TCOLS || r >= TROWS) return false;
   const i = r * TCOLS + c;
+  if (P.block && P.block.has(i)) return false;
   if (bldGrid[i] || !walkable(terrain[i], vehicle)) return false;
   const k = wallKind[i];
   if (!k) return true;
@@ -650,6 +651,7 @@ let game;
 function newGame() {
   game = {
     ents: [], ore: [], nextId: 1, time: 0, grenades: [], rockets: [],
+    lost: [[], []],          // ids of each side's buildings that enemy engineers have taken (to win back)
     credits: [START_CREDITS, START_CREDITS],
     selected: new Set(),
     placing: null,           // { type, ghost:{x,y} } while choosing where to build
@@ -871,7 +873,10 @@ function canPlace(team, type, x, y) {
   const size = STATS[type].size;
   if (!unlocked(team, type)) return false;
   if (!inBuildArea(team, x, y, type === 'tower' ? WALL_REACH : 0) || !siteIsFree(x, y, size)) return false;
-  if (team === 1 && game.ai.wallPlan && game.ai.wallPlan.tiles.some(t => Math.abs(t.x - x) < size / 2 + 20 && Math.abs(t.y - y) < size / 2 + 20)) return false;   // keep the wall line clear   // towers, like walls, can go out to the edge of your area
+  if (team === 1 && diff().walls && hqOf(1)) {   // the computer keeps its planned wall lines and gates clear
+    if (!game.ai.wallPlans) { const pl = findEntrances(1).map(planGapWall).filter(Boolean); game.ai.wallPlans = pl.length ? pl : [aiWallPlan(hqOf(1))]; game.ai.gateTried = []; }
+    if (game.ai.wallPlans.some(pl => [...pl.tiles, pl.gate].some(t => Math.abs(t.x - x) < size / 2 + 22 && Math.abs(t.y - y) < size / 2 + 22))) return false;
+  }
   for (const b of game.ents) {   // never sit on the doorstep of a building that makes units
     if (!isBuilding(b) || !PRODUCES[b.type]) continue;
     const od = frontDoor(b);
@@ -1179,10 +1184,13 @@ function update(dt) {
   else if (!alive[0]) endGame(false);
 }
 
+// a building one of your engineers is on its way to take back: don't shoot it
+// (for the first minute after it's taken, everyone holds fire while an engineer gets there)
+const beingRetaken = (o, team) => isBuilding(o) && ((o.takenAt !== undefined && o.team !== team && game.time - o.takenAt < 60 && game.lost[team].includes(o.id)) || game.ents.some(en => en.team === team && en.type === 'engineer' && en.order && en.order.type === 'capture' && en.order.target === o.id));
 function findEnemyNear(e, radius) {
   let best = null, bestD = radius;
   for (const o of game.ents) {
-    if (o.team === e.team || hiddenFrom(o, e.team) || isWallType(o.type)) continue;
+    if (o.team === e.team || hiddenFrom(o, e.team) || isWallType(o.type) || beingRetaken(o, e.team)) continue;
     if (!visibleAt(o.x, o.y, e.team)) continue;   // can't pick a target it can't see (behind rocks or in the fog)
     const d = edgeDist(e.x, e.y, o);
     if (d < bestD) { bestD = d; best = o; }
@@ -1214,7 +1222,7 @@ function findSiegeTarget(e, radius) {
   let best = null, bestScore = Infinity;
   const min = STATS[e.type].minRange || 0;
   for (const o of game.ents) {
-    if (o.team === e.team || hiddenFrom(o, e.team) || (isWallType(o.type) && o.type !== 'gate')) continue;
+    if (o.team === e.team || hiddenFrom(o, e.team) || (isWallType(o.type) && o.type !== 'gate') || beingRetaken(o, e.team)) continue;
     if (!visibleAt(o.x, o.y, e.team)) continue;
     const d = edgeDist(e.x, e.y, o);
     if (d > radius || (isUnit(o) && d < min)) continue;
@@ -1373,6 +1381,8 @@ function updateEngineer(e, dt) {
 function captureBuilding(b, team) {
   const was = b.team;
   b.team = team;
+  b.takenAt = game.time;
+  if (game.lost) { game.lost[team] = game.lost[team].filter(id => id !== b.id); if (!game.lost[was].includes(b.id)) game.lost[was].push(b.id); }
   b.queue = 0; b.qTypes = []; b.trainT = 0; b.dockedBy = null; b.target = null;
   if (game.selected.has(b.id) && team !== 0) game.selected.delete(b.id);
   game.ai.known.delete(b.id);
@@ -1574,12 +1584,22 @@ function findEntrances(team) {
     if (targets.some(t => t.bridge && Math.hypot(t.x - x, t.y - y) < 200)) continue;
     targets.push({ x, y, bridge: true });
   }
+  // For each route in: find its gap, pretend that gap is sealed, and look again. Attackers walk round a wall,
+  // so this keeps going until there's no way in left (or no more narrow gaps), finding the side ways in too.
   const out = [];
-  for (const t of targets) {
-    const ch = chokeOnRoute(hq, t.x, t.y);
-    if (ch && !out.some(o => Math.hypot(o.x - ch.x, o.y - ch.y) < 160)) out.push(ch);
-  }
-  return (chokeCache[key] = out);
+  P.block = new Set();
+  const seal = ch => { const L = Math.hypot(ch.bx - ch.ax, ch.by - ch.ay);
+    for (let d = 0; d <= L; d += 6) { const c = Math.floor((ch.ax + (ch.bx - ch.ax) * d / L) / TC), r = Math.floor((ch.ay + (ch.by - ch.ay) * d / L) / TC);
+      for (const [dc, dr] of [[0, 0], [1, 0], [0, 1], [-1, 0], [0, -1]]) P.block.add((r + dr) * TCOLS + c + dc); } };
+  try {
+    for (const t of targets) for (let k = 0; k < 4; k++) {
+      const ch = chokeOnRoute(hq, t.x, t.y);
+      if (!ch) break;
+      seal(ch);
+      if (!out.some(o => Math.hypot(o.x - ch.x, o.y - ch.y) < 160)) out.push(ch);
+    }
+  } finally { P.block = null; }
+  return (chokeCache[key] = out.slice(0, 4));
 }
 const findChoke = team => findEntrances(team)[0] || null;
 
@@ -1716,12 +1736,23 @@ function defendBuildings() {
   game.defendT = (game.defendT || 0) - 1;
   if (game.defendT > 0) return;
   game.defendT = 5;   // every quarter of a second
+  const alarms = [];
   for (const b of game.ents) {
     if (!isBuilding(b) || !b.hitAt || game.time - b.hitAt > 2) continue;
     const foe = byId(b.hitBy);
-    if (!foe || foe.hp <= 0 || foe.team === b.team) continue;
+    if (foe && foe.hp > 0 && foe.team !== b.team) alarms.push({ b, foe });
+  }
+  // enemy fighters walking into your base (close to one of your buildings) raise the alarm too, before they start shooting
+  for (const foe of game.ents) {
+    if (!isCombat(foe) || alarms.some(a => a.foe === foe)) continue;
+    const b = game.ents.find(b => isBuilding(b) && b.team !== foe.team && !isWallType(b.type) && b.built && Math.hypot(b.x - foe.x, b.y - foe.y) < 250);
+    if (b && visibleAt(foe.x, foe.y, b.team) && !hiddenFrom(foe, b.team)) alarms.push({ b, foe });
+  }
+  for (const { b, foe } of alarms) {
     for (const u of game.ents) {
-      if (u.team !== b.team || !isCombat(u) || Math.hypot(u.x - b.x, u.y - b.y) > 450) continue;
+      // anyone within 450 comes; units standing idle (guards at another entrance, say) come from right across the base
+      const d = Math.hypot(u.x - b.x, u.y - b.y);
+      if (u.team !== b.team || !isCombat(u) || d > (u.order || u.role === 'wave' ? 450 : 1000)) continue;
       const o = u.order;
       if (o && o.type === 'attack' && byId(o.target) && byId(o.target).hp > 0 && !isBuilding(byId(o.target))) continue;   // already fighting a unit
       if (o && o.type === 'move' && u.team === 0 && game.time - (o.given || 0) < 3) continue;   // you only just told it where to go
@@ -1779,18 +1810,25 @@ function runAI(dt) {
 
   // wall line + gate across the approach, a few pieces at a time
   if (D.walls && sent >= 1 && game.credits[1] >= 200) {
-    const ch = findChoke(1);
-    const plan = ai.wallPlan || (ai.wallPlan = (ch && planGapWall(ch)) || aiWallPlan(hq));
-    if (!of('gate').length && game.time - (ai.gateTried || -99) > 20) {   // (try again now and then if it didn't fit)
-      ai.gateTried = game.time;
-      placeBuilding(1, 'gate', plan.gate.x, plan.gate.y, plan.gate.vertical);
-    }
+    // every way into the base gets its own wall and gate (the main entrance first)
+    if (!ai.wallPlans) { const pl = findEntrances(1).map(planGapWall).filter(Boolean); ai.wallPlans = pl.length ? pl : [aiWallPlan(hq)]; ai.gateTried = []; }
     let n = 0;
-    if (!of('gate').length) n = 99;   // never wall itself in: the gate has to be up before any wall pieces
-    for (const t of plan.tiles) {
-      if (n >= 3 || game.credits[1] < COST.wall + 150) break;
-      if (game.ents.some(w => w.type === 'wall' && w.team === 1 && Math.abs(w.x - t.x) < 1 && Math.abs(w.y - t.y) < 1)) continue;
-      if (canPlaceWallPiece(1, 'wall', t.x, t.y)) { game.credits[1] -= COST.wall; spawn('wall', 1, t.x, t.y); n++; }
+    for (let i = 0; i < ai.wallPlans.length; i++) {
+      const plan = ai.wallPlans[i];
+      const hasGate = of('gate').some(g => Math.hypot(g.x - plan.gate.x, g.y - plan.gate.y) < 30);
+      if (!hasGate) {
+        if (game.time - (ai.gateTried[i] || -99) > 20 && game.credits[1] >= COST.gate + 100) {   // (try again now and then if it didn't fit)
+          ai.gateTried[i] = game.time;
+          placeBuilding(1, 'gate', plan.gate.x, plan.gate.y, plan.gate.vertical);
+        }
+        break;   // never wall itself in: each gate goes up before that wall's pieces, and one entrance at a time
+      }
+      for (const t of plan.tiles) {
+        if (n >= 3 || game.credits[1] < COST.wall + 150) break;
+        if (game.ents.some(w => w.type === 'wall' && w.team === 1 && Math.abs(w.x - t.x) < 1 && Math.abs(w.y - t.y) < 1)) continue;
+        if (canPlaceWallPiece(1, 'wall', t.x, t.y)) { game.credits[1] -= COST.wall; spawn('wall', 1, t.x, t.y); n++; }
+      }
+      if (n >= 3) break;
     }
   }
 
@@ -1840,7 +1878,11 @@ function runAI(dt) {
   const repairers = of('engineer').filter(en => !en.raid).length + qOf('engineer') - (ai.raidPending ? 1 : 0);
   const needsFix = mine.some(b => isBuilding(b) && !isWallType(b.type) && b.built && b.hp < b.maxHp * 0.6);
   const raidDue = D.raidEvery && game.time > 360 && game.time - (ai.lastRaid || 0) > D.raidEvery && !ai.raidPending && [...ai.known.keys()].some(id => { const b = byId(id); return b && b.team === 0 && b.type !== 'hq' && canCapture(b); });
-  const wantEngineer = (D.engineers > 0 && needsFix && repairers < D.engineers) || raidDue;
+  // win back buildings your engineers took: send an engineer with an escort (try again if it's killed)
+  const retake = game.lost[1].map(byId).filter(b => b && b.team === 0 && canCapture(b));
+  const retaking = of('engineer').some(en => en.retake) || ai.retakePending;
+  const retakeDue = D.engineers > 0 && retake.length && !retaking && game.time - (ai.lastRetake || -99) > 25;
+  const wantEngineer = (D.engineers > 0 && needsFix && repairers < D.engineers) || raidDue || retakeDue;
   // War Factory first: buggies (about one per two soldiers) and tanks (a share of its army; heavies once it has a Tech Centre).
   // While it wants a vehicle, the barracks hold back so the money can build up.
   const qF = t => of('factory').reduce((n, f) => n + f.qTypes.filter(q => q === t).length, 0);
@@ -1860,7 +1902,10 @@ function runAI(dt) {
   if (vehicle && defended && !of('factory').some(f => f.queue > 0)) reserve += COST[vehicle];
   for (const b of barracks) {
     if (b.queue >= 2) continue;
-    if (wantEngineer && game.credits[1] >= COST.engineer && produce(b, 'engineer')) { if (raidDue) { ai.raidPending = true; ai.lastRaid = game.time; } continue; }
+    if (wantEngineer && game.credits[1] >= COST.engineer && produce(b, 'engineer')) {
+      if (retakeDue) { ai.retakePending = true; ai.lastRetake = game.time; } else if (raidDue) { ai.raidPending = true; ai.lastRaid = game.time; }
+      continue;
+    }
     if (army.length + queued >= D.maxArmy) continue;
     if (wantRocket) { if (game.credits[1] >= COST.rocket) produce(b, 'rocket'); }   // answering your vehicles comes before saving up
     else if (wantSniper) { if (game.credits[1] >= COST.sniper) produce(b, 'sniper'); }   // only 1-2 of them, so they don't wait for savings
@@ -1868,7 +1913,23 @@ function runAI(dt) {
     else if (game.credits[1] >= COST.soldier + reserve) produce(b, 'soldier');
   }
   // engineers fix its most damaged building, and otherwise wait safely by the HQ
+  // an engineer already standing about at home takes the job straight away
+  if (D.engineers > 0 && retake.length && !of('engineer').some(en => en.retake)) {
+    const spare = of('engineer').find(en => !en.raid && (!en.order || en.order.type === 'move'));
+    if (spare) { spare.retake = true; spare.order = null; ai.retakePending = false; }
+  }
   for (const en of of('engineer')) {
+    if (ai.retakePending && !en.raid && !en.retake && !en.order && retake.length) { en.retake = true; ai.retakePending = false; }
+    if (en.retake) {
+      const t = retake.sort((a, b) => Math.hypot(a.x - en.x, a.y - en.y) - Math.hypot(b.x - en.x, b.y - en.y))[0];
+      if (!t) { en.retake = false; continue; }
+      if (!en.order || en.order.target !== t.id) en.order = { type: 'capture', target: t.id };
+      for (const u of army) if (u.order && u.order.type === 'attack' && u.order.target === t.id) u.order = null;   // stop shooting what it's taking back
+      // escort: up to four home units clear the way just ahead of it
+      const escort = army.filter(u => u.role === 'guard' || !u.role).sort((a, b) => Math.hypot(a.x - en.x, a.y - en.y) - Math.hypot(b.x - en.x, b.y - en.y)).slice(0, 4);
+      for (const u of escort) if (!u.order || u.order.type === 'move') { u.order = { type: 'attackmove', x: en.x + (t.x - en.x) * 0.5, y: en.y + (t.y - en.y) * 0.5 }; u.passive = false; }
+      continue;
+    }
     if (ai.raidPending && !en.raid && !en.order) { en.raid = aiRaidPlan(en); ai.raidPending = false; }
     if (en.raid) { aiRunRaid(en); continue; }
     if (en.order) continue;
@@ -1880,7 +1941,7 @@ function runAI(dt) {
   // ---- army ----
   const rally = aiRally(hq);
   const targets = game.ents.filter(e => e.team === 0 && !isWallType(e.type) && visibleAt(e.x, e.y, 1) && !hiddenFrom(e, 1)).map(e => ({ x: e.x, y: e.y, type: e.type }));
-  for (const k of ai.known.values()) targets.push(k);
+  for (const [id, k] of ai.known) if (!beingRetaken(byId(id) || {}, 1)) targets.push(k);
   const nearest = (u, list) => { let b = null, bd = Infinity; for (const t of list) { const d = Math.hypot(t.x - u.x, t.y - u.y); if (d < bd) { bd = d; b = t; } } return b; };
 
   // scout: one unit (a buggy if it has one) looks for your base, then runs home to report
@@ -2034,9 +2095,9 @@ function aiPlaceRefinery(hq) {
 // towers go near its gate (if it has one) or toward the middle from the HQ
 function aiPlaceTower(hq) {
   // first choice: just inside the choke point, so it covers where attackers come in
-  const ch = findChoke(1), have = game.ents.filter(e => e.team === 1 && e.type === 'tower').length;
-  if (ch && have < 2) {   // the first two cover the gap from each rocky end, just behind where the wall goes
-    const spot = gapTowerSpots(ch)[have];
+  const ents = findEntrances(1), have = game.ents.filter(e => e.team === 1 && e.type === 'tower').length;
+  if (ents.length && have < ents.length * 2) {   // one per entrance in turn (main one first), then a second at each from the other rocky end
+    const ch = ents[have % ents.length], spot = gapTowerSpots(ch)[Math.floor(have / ents.length) % 2];
     for (let tries = 0; tries < 25; tries++) {
       const x = spot.x + (Math.random() - 0.5) * tries * 3, y = spot.y + (Math.random() - 0.5) * tries * 3;
       if (placeBuilding(1, 'tower', x, y)) return true;
