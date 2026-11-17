@@ -2,6 +2,15 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.12', date: '17 Nov 2026', title: 'Artillery',
+    changes: [
+      'New War Factory unit: Artillery ($450, needs a Power Plant). Very slow and fragile, but its shells fly 250 (a Guard Tower reaches 170) and do triple damage to buildings, splashing anything nearby.',
+      'It can only fire at what your side can see, so bring a spotter, or shell buildings you have already scouted. Shells take a moment to land, so moving units can dodge them, and it can\'t hit anything right next to it.',
+      'Artillery picks Guard Towers first, then other buildings, then units. It sits at the back of group formations, and its range shows when you select it.',
+      'The computer brings Artillery on Normal (1) and Hard (2) once it has made a couple of attacks.',
+    ],
+  },
+  {
     version: '5.11.1', date: '17 Nov 2026', title: 'Softer slopes',
     changes: [
       'The way up onto each plateau now looks like the ground gently rising and falling, shaded and blended into the grass, instead of a flat dirt patch. No more dark cliff-face lines cutting across the slopes.',

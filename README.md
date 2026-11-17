@@ -5,8 +5,8 @@ A small real-time strategy game inspired by classic 90s RTS games, built step by
 **Current version:** 1v1 against the computer with terrain and fog of war, on the Classic or Large map.
 
 - Your **settler** deploys into a **Headquarters (HQ)**.
-- The HQ builds a **Refinery** ($400), a **Barracks** ($300, trains Soldiers, Grenadiers, Rocket Soldiers, Snipers and Engineers), a **War Factory** ($500, Scout Buggy, Light Tank, Heavy Tank), a **Tech Centre** ($600, unlocks the Heavy Tank), a **Power Plant** ($200, +25% build and training speed each, up to double), a **Guard Tower** ($500), **Walls** ($20 each) and **Gates** ($150).
-- Some things need other buildings first (tech tree): Grenadier and Rocket Soldier need a Power Plant, Sniper needs a Guard Tower, the War Factory needs a Barracks and a Refinery, the Tech Centre needs a War Factory.
+- The HQ builds a **Refinery** ($400), a **Barracks** ($300, trains Soldiers, Grenadiers, Rocket Soldiers, Snipers and Engineers), a **War Factory** ($500, Scout Buggy, Light Tank, Artillery, Heavy Tank), a **Tech Centre** ($600, unlocks the Heavy Tank), a **Power Plant** ($200, +25% build and training speed each, up to double), a **Guard Tower** ($500), **Walls** ($20 each) and **Gates** ($150).
+- Some things need other buildings first (tech tree): Grenadier, Rocket Soldier and Artillery need a Power Plant, Sniper needs a Guard Tower, the War Factory needs a Barracks and a Refinery, the Tech Centre needs a War Factory.
 - Each Refinery comes with one free **Extractor** and can build more ($150). They wait until you tap some **ore**, then run back and forth automatically. When a patch runs out they go idle; **Auto-harvest** sends them to the nearest ore you've discovered.
 - The big ore field in the middle is the prize. Destroy every enemy building (walls and gates don't count) to win, as long as they have no Settler left.
 - The computer plays under the same fog of war: it has to scout to find ore and your base.
