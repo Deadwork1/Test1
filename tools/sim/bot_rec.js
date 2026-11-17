@@ -103,6 +103,7 @@ window.runSim = function (strategy, maxMinutes) {
         if (S.fac) for (const f of of('factory')) if ((!saving || facWait) && f.built && f.queue < 1 && f.want) { if (!unlocked(0, f.want)) f.want = pick(S.fac); else if (game.credits[0] >= COST[f.want] && window.produce(f, f.want)) f.want = null; }
         // win back buildings an enemy engineer took: an engineer with a few escorts
         const retake = game.lost[0].map(byId).filter(b => b && b.team === 1 && canCapture(b));
+        if (game.time > 120) for (const d of game.ents) if (d.type === 'derrick' && d.team !== 0 && !retake.includes(d)) retake.push(d);   // Oil Derricks too (a player knows where the villages are)
         if (retake.length) {
           let en = of('engineer').find(e => e.retake) || of('engineer').find(e => !e.order || e.order.type !== 'capture');
           if (!en) { const b = of('barracks').find(b => b.built && !b.qTypes.includes('engineer')); if (b && game.credits[0] >= COST.engineer) window.produce(b, 'engineer'); }

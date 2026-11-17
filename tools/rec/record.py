@@ -26,13 +26,13 @@ with sync_playwright() as p:
         const side = (t, x, align) => { ctx.textAlign = align; ctx.fillStyle = TEAMS[t].color; ctx.font = 'bold 22px sans-serif';
           ctx.fillText(t === 0 ? 'BLUE — scripted player (' + simStrat + ')' : 'RED — computer (' + difficulty[0].toUpperCase() + difficulty.slice(1) + ')', x, 26);
           ctx.font = '17px sans-serif'; ctx.fillStyle = '#e8e8e0';
-          ctx.fillText('$' + Math.round(game.credits[t]) + '   army ' + cnt(t, isCombat) + '   buildings ' + cnt(t, e => isBuilding(e) && !isWallType(e.type)) + '   extractors ' + cnt(t, e => e.type === 'extractor'), x, 52); };
+          ctx.fillText('$' + Math.round(game.credits[t]) + '   army ' + cnt(t, isCombat) + '   buildings ' + cnt(t, e => isBuilding(e) && !isWallType(e.type) && e.type !== 'derrick') + '   derricks ' + cnt(t, e => e.type === 'derrick') + '   extractors ' + cnt(t, e => e.type === 'extractor'), x, 52); };
         side(0, 16, 'left'); side(1, scr.w - 16, 'right');
         ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.font = 'bold 30px sans-serif'; ctx.fillText(m + ':' + String(s).padStart(2, '0'), scr.w / 2, 42);
-        const lost = [0, 1].find(t => !game.ents.some(e => e.team === t && isBuilding(e) && !isWallType(e.type)));
+        const lost = [0, 1].find(t => !game.ents.some(e => e.team === t && isBuilding(e) && !isWallType(e.type) && e.type !== 'derrick'));
         if (game.over || lost !== undefined) { ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0, scr.h / 2 - 50, scr.w, 100); ctx.fillStyle = '#fff'; ctx.font = 'bold 44px sans-serif';
           ctx.fillText((game.over === 'win' || lost === 1) ? 'BLUE WINS' : (game.over === 'lose' || lost === 0) ? 'RED WINS' : 'GAME OVER', scr.w / 2, scr.h / 2 + 15); }
-        const noBld = t => !game.ents.some(e => e.team === t && isBuilding(e) && !isWallType(e.type)); return { t: game.time, over: !!game.over || game.time >= simEnd || noBld(0) || noBld(1) }; }; 0""")
+        const noBld = t => !game.ents.some(e => e.team === t && isBuilding(e) && !isWallType(e.type) && e.type !== 'derrick'); return { t: game.time, over: !!game.over || game.time >= simEnd || noBld(0) || noBld(1) }; }; 0""")
     n = 0
     while True:
         r = pg.evaluate("recFrame(1)")
