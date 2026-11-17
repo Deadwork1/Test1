@@ -38,6 +38,7 @@
   #overlay h1, #pauseMenu h1 { margin: 0; font-size: 32px; }
   #pauseMenu .col { display: flex; flex-direction: column; gap: 10px; min-width: 220px; }
   button.danger { background: #6b2020; border-color: #e06060; }
+  #clock { font-variant-numeric: tabular-nums; color: #d8e4cf; }
   #overlay p { margin: 0; max-width: 520px; line-height: 1.45; opacity: .9; font-size: 15px; }
   #version { font-size: 13px; opacity: .6; margin-top: -8px; }
   #diffInfo, .sub { font-size: 13px; opacity: .75; margin-top: -6px; max-width: 460px; }
@@ -63,6 +64,7 @@
 
 <div id="top" class="bar">
   <span id="credits" class="chip">$0</span>
+  <span id="clock" class="chip" title="Time played">0:00</span>
   <span id="powerChip" class="chip" style="display:none;color:#ffde5a"></span>
   <span class="spacer"></span>
   <button id="btnMap" class="ghost">Map</button>
@@ -73,6 +75,7 @@
 
 <div id="panel" class="bar">
   <span id="info" class="chip">Tap your settler to begin</span>
+  <button id="btnSell" class="ghost">Sell</button>
   <button id="btnDeploy">Deploy HQ</button>
   <button id="btnBarracks">Barracks $300</button>
   <button id="btnRefinery">Refinery $400</button>

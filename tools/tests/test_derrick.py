@@ -14,7 +14,7 @@ with sync_playwright() as p:
     pg.goto(f'http://127.0.0.1:{sys.argv[2]}/index.html'); pg.wait_for_timeout(2500); pg.click('#ovBtn')
     r = pg.evaluate("""(()=>{ const out={}; const step=(s)=>{ for(let i=0;i<s*20;i++) update(0.05); };
       const realAI = runAI; runAI=()=>{}; game.paused=false;
-      deploy(game.ents.find(e=>e.team===0&&e.type==='settler')); deploy(game.ents.find(e=>e.team===1&&e.type==='settler'));
+      for (const s of game.ents.filter(e=>e.type==='settler')) deploy(s);
       const ds = game.ents.filter(e=>e.type==='derrick'); out.derricks = ds.length; out.houses = game.ents.filter(e=>e.type==='house').length;
       const d = ds.sort((a,b)=>a.x-b.x)[0];
       // 1. neutral can't be hurt: a light tank of each side parked next to it never picks it, and splash is shrugged off

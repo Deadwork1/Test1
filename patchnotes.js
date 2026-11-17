@@ -2,6 +2,14 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.16', date: '17 Nov 2026', title: 'Civilians, game clock, selling',
+    changes: [
+      'Civilians: the first time a village\'s Oil Derrick is captured, two Civilians come out of each house and join whoever took it (six per village). They carry handguns and are weaker than Soldiers (40 HP, 4 damage, range 75). You can\'t train them.',
+      'A game clock now sits next to your money at the top, showing how long the game has run (it stops while paused).',
+      'Sell buildings: select one of your buildings and tap Sell, then tap again to confirm. You get half its price back, plus the full price of anything still queued in it. The HQ can\'t be sold.',
+    ],
+  },
+  {
     version: '5.15', date: '17 Nov 2026', title: 'Villages and Oil Derricks',
     changes: [
       'The Huge map now has two small neutral villages, one north of the middle and one south, each about as far from both bases. Each has three houses and an Oil Derrick, joined by dirt paths.',

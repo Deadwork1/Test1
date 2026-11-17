@@ -110,7 +110,8 @@ const STATS = {
   sniper:    { hp: 45,  speed: 46, r: 9,  sight: 200, range: 160, dmg: 75, cooldown: 2.7, vsVehicle: 0.15, vsBuilding: 0.1, reveal: 0.5 },   // one-shots infantry from far away; useless vs vehicles
   rocket:    { hp: 55,  speed: 45, r: 9,  sight: 170, range: 130, dmg: 40, cooldown: 2.5, rocket: true, vsVehicle: 2, vsHeavy: 1.5, vsBuilding: 2, vsInfantry: 0.4 },   // anti-vehicle: double vs vehicles & buildings, weak vs infantry
   grenadier: { hp: 55,  speed: 48, r: 9,  sight: 170, range: 95,  dmg: 16, cooldown: 2.0, splash: 38, flight: 0.55, vsVehicle: 0.5 },   // lobbed grenades: area damage, half vs vehicles
-  engineer:  { hp: 20,  speed: 48, r: 9,  sight: 150, repair: 30 },   // no weapon, very fragile: repairs (hp per second) and captures
+  engineer:  { hp: 20,  speed: 48, r: 9,  sight: 150, repair: 30 },
+  civilian:  { hp: 40,  speed: 50, r: 8,  sight: 150, range: 75, dmg: 4, cooldown: 0.9 },   // villagers with handguns: weaker than a soldier, can't be bought   // no weapon, very fragile: repairs (hp per second) and captures
   hq:        { hp: 900, size: 92, sight: 280 },
   barracks:  { hp: 500, size: 74, sight: 200, buildTime: 10, trainTime: 4, maxQueue: 5 },
   refinery:  { hp: 600, size: 84, sight: 200, buildTime: 12, trainTime: 6, maxQueue: 3 },
@@ -131,9 +132,9 @@ const hasBuilt = (team, type) => game.ents.some(b => b.team === team && b.type =
 const missingFor = (team, type) => (REQUIRES[type] || []).filter(t => !hasBuilt(team, t));
 const unlocked = (team, type) => missingFor(team, type).length === 0;
 const TRAIN_TIME = { soldier: 4, buggy: 6, extractor: 6, grenadier: 4.5, engineer: 5, rocket: 5, sniper: 6, light: 10, heavy: 16, artillery: 12 };   // seconds to make each unit
-const isCombat = e => e.type === 'soldier' || e.type === 'buggy' || e.type === 'grenadier' || e.type === 'rocket' || e.type === 'sniper' || e.type === 'light' || e.type === 'heavy' || e.type === 'artillery';
+const isCombat = e => e.type === 'civilian' || e.type === 'soldier' || e.type === 'buggy' || e.type === 'grenadier' || e.type === 'rocket' || e.type === 'sniper' || e.type === 'light' || e.type === 'heavy' || e.type === 'artillery';
 const isTank = e => e.type === 'light' || e.type === 'heavy';
-const isInfantry = e => e.type === 'soldier' || e.type === 'grenadier' || e.type === 'engineer' || e.type === 'rocket' || e.type === 'sniper';
+const isInfantry = e => e.type === 'civilian' || e.type === 'soldier' || e.type === 'grenadier' || e.type === 'engineer' || e.type === 'rocket' || e.type === 'sniper';
 const SHORT = { buggy: 'Buggy', rocket: 'Rocket', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre' };   // shorter names for buttons
 
 // How the computer plays at each difficulty.
@@ -157,7 +158,7 @@ const POWER_BONUS = 0.25, POWER_MAX = 2;
 const powerBoost = team => Math.min(POWER_MAX, 1 + POWER_BONUS * game.ents.filter(b => b.team === team && b.type === 'power' && b.built).length);
 // how many times longer than normal this side takes to build things (difficulty slow-down ÷ power boost)
 const slowOf = e => (e.team === 1 ? diff().slow : 1) / powerBoost(e.team);
-const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', rocket: 'Rocket Soldier', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', tower: 'Guard Tower', power: 'Power Plant', wall: 'Wall', gate: 'Gate', derrick: 'Oil Derrick', house: 'House' };
+const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', rocket: 'Rocket Soldier', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', tower: 'Guard Tower', power: 'Power Plant', wall: 'Wall', gate: 'Gate', derrick: 'Oil Derrick', house: 'House', civilian: 'Civilian' };
 
 const TEAMS = [
   { name: 'You',   color: '#3b82f6', dark: '#1d3f8f', light: '#93c5fd' },
@@ -1265,7 +1266,7 @@ function findEnemyNear(e, radius) {
 
 // Armour: rifles (soldiers, buggy machine gun, guard towers) only do half damage to tanks;
 // tank shells do half damage to infantry (but splash a little onto anyone standing next to the target). Rockets, grenades and snipers have their own rules.
-const RIFLES = { soldier: 1, buggy: 1, tower: 1 };
+const RIFLES = { soldier: 1, buggy: 1, tower: 1, civilian: 1 };   // (handguns count as rifles: half damage to tanks)
 const armour = (attacker, t) => (isTank(t) && RIFLES[attacker] ? 0.5 : 1) * ((attacker === 'light' || attacker === 'heavy') && isInfantry(t) ? 0.5 : 1);
 // tanks run over enemy infantry they drive into
 function crush(e) {
@@ -1448,7 +1449,7 @@ function captureBuilding(b, team) {
   b.team = team;
   b.takenAt = game.time;
   if (game.lost && was !== NEUTRAL) { game.lost[team] = game.lost[team].filter(id => id !== b.id); if (!game.lost[was].includes(b.id)) game.lost[was].push(b.id); }
-  if (b.type === 'derrick') b.payT = 0;
+  if (b.type === 'derrick') { b.payT = 0; if (!b.villageOut) { b.villageOut = true; villagersJoin(b, team); } }
   b.queue = 0; b.qTypes = []; b.trainT = 0; b.dockedBy = null; b.target = null;
   if (game.selected.has(b.id) && team !== 0) game.selected.delete(b.id);
   game.ai.known.delete(b.id);
@@ -1466,6 +1467,17 @@ function updateDerrick(e, dt) {
   e.payT -= s.payEvery;
   game.credits[e.team] += e.team === 1 ? Math.round(s.pay * diff().income) : s.pay;
   if (e.team === 0) game.effects.push({ kind: 'text', x: e.x, y: e.y - 30, text: '+$' + s.pay, t: 0 });
+}
+
+function villagersJoin(derrick, team) {
+  for (const h of game.ents.filter(h => h.type === 'house' && Math.hypot(h.x - derrick.x, h.y - derrick.y) < 250)) {
+    for (let i = 0; i < 2; i++) {
+      const c = spawn('civilian', team, h.x + (i ? 9 : -9), h.y + h.size / 2 + 12);
+      c.facing = Math.PI / 2;
+      c.order = { type: 'move', x: h.x + (i ? 22 : -22) + (derrick.x - h.x) * 0.3, y: h.y + h.size / 2 + 34 + (derrick.y - h.y) * 0.3 };
+    }
+  }
+  if (team === 0 || visibleAt(derrick.x, derrick.y)) game.effects.push({ kind: 'text', x: derrick.x, y: derrick.y - 50, text: team === 0 ? 'The villagers join you!' : 'The villagers join the enemy', t: 0, color: team === 0 ? '#7dff7d' : '#ff6b6b' });
 }
 
 function updateBuilding(e, dt) {
@@ -2227,7 +2239,7 @@ function draw() {
     else if (e.type === 'settler') drawSettler(e);
     else if (e.type === 'extractor') drawExtractor(e);
     else if (e.type === 'buggy') drawBuggy(e);
-    else if (e.type === 'grenadier' || e.type === 'engineer' || e.type === 'rocket' || e.type === 'sniper') drawSoldier(e);
+    else if (e.type === 'grenadier' || e.type === 'engineer' || e.type === 'rocket' || e.type === 'sniper' || e.type === 'civilian') drawSoldier(e);
     else if (e.type === 'factory') drawFactory(e);
     else if (e.type === 'tech') drawTech(e);
     else if (e.type === 'light') drawTank(e);
@@ -2507,7 +2519,7 @@ function drawSoldier(e) {   // soldiers, grenadiers and engineers share a body; 
   ctx.beginPath(); ctx.ellipse(-step, 3.5, 3.5, 2.2, 0, 0, Math.PI * 2); ctx.fill();
   // pack: backpack, grenade satchel or tool bag
   ctx.fillStyle = kind === 'engineer' ? '#7a5a32' : kind === 'grenadier' ? '#3f4a2c' : kind === 'rocket' ? '#5a5240' : kind === 'sniper' ? '#4a5a34' : '#4b4f30';
-  ctx.fillRect(-9, -4.5, 5, 9);
+  if (kind !== 'civilian') ctx.fillRect(-9, -4.5, 5, 9);
   if (kind === 'engineer') { ctx.fillStyle = '#c9a227'; ctx.fillRect(-8.5, -1, 4, 2); }   // tape measure / buckle
   // shoulders / uniform in team colour
   ctx.fillStyle = c.color; ctx.strokeStyle = c.dark; ctx.lineWidth = 1.5;
@@ -2559,6 +2571,14 @@ function drawSoldier(e) {   // soldiers, grenadiers and engineers share a body; 
     ctx.fillStyle = '#e0b48a';
     if (work) { ctx.beginPath(); ctx.arc(9 + wob, -3, 2, 0, Math.PI * 2); ctx.fill(); }   // reaching in to fix something
     else { ctx.beginPath(); ctx.arc(-1.5, 5.2, 2, 0, Math.PI * 2); ctx.fill(); }          // hand on the toolbox handle
+  } else if (kind === 'civilian') {
+    // handgun held out in one hand, the other arm down by the side
+    ctx.strokeStyle = c.dark; ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.moveTo(0, 4.5); ctx.lineTo(7, 3.5); ctx.stroke();
+    ctx.fillStyle = '#1c1c1c'; ctx.fillRect(7.5, 2.4, 5, 2);
+    ctx.fillStyle = '#e0b48a';
+    ctx.beginPath(); ctx.arc(7.5, 3.6, 1.8, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-1.5, -6.5, 1.7, 0, Math.PI * 2); ctx.fill();
   } else {
     // rifle held forward, with both hands on it
     ctx.strokeStyle = '#1c1c1c'; ctx.lineWidth = 2.6;
@@ -2581,6 +2601,12 @@ function drawSoldier(e) {   // soldiers, grenadiers and engineers share a body; 
     ctx.fillStyle = '#3a4d26'; ctx.beginPath(); ctx.arc(0, 0, 5.2, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#56733a'; ctx.beginPath(); ctx.arc(-1.5, -1.5, 1.6, 0, Math.PI * 2); ctx.arc(1.2, 1.8, 1.3, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = c.color; ctx.fillRect(-0.6, -4.8, 2.2, 9.6);   // team stripe like the others
+  } else if (kind === 'civilian') {
+    // bare head: skin with a mop of hair (dark, brown or fair) on top
+    ctx.fillStyle = '#e0b48a'; ctx.beginPath(); ctx.arc(0.5, 0, 4.2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = ['#3b2a1e', '#6e4a2a', '#c9a35e'][e.id % 3];
+    ctx.beginPath(); ctx.arc(-0.6, 0, 4, Math.PI * 0.45, Math.PI * 1.55); ctx.fill();
+    ctx.beginPath(); ctx.arc(-0.2, 0, 3.4, 0, Math.PI * 2); ctx.fill();
   } else {
     ctx.fillStyle = c.dark;
     ctx.beginPath(); ctx.arc(0.5, 0, 5, 0, Math.PI * 2); ctx.fill();
@@ -2600,7 +2626,7 @@ function drawSoldier(e) {   // soldiers, grenadiers and engineers share a body; 
     ctx.beginPath(); ctx.arc(e.x + Math.cos(e.facing) * 25, e.y + Math.sin(e.facing) * 25, 3.5, 0, Math.PI * 2); ctx.fill();
   }
   // muzzle flash right after a rifle shot
-  if (kind === 'soldier' && e.cooldown > STATS.soldier.cooldown - 0.07) {
+  if ((kind === 'soldier' || kind === 'civilian') && e.cooldown > STATS[kind].cooldown - 0.07) {
     ctx.fillStyle = '#ffe9a0';
     ctx.beginPath(); ctx.arc(e.x + Math.cos(e.facing) * 17, e.y + Math.sin(e.facing) * 17, 3, 0, Math.PI * 2); ctx.fill();
   }
@@ -3521,7 +3547,7 @@ const selectedOfType = type => [...game.selected].map(byId).filter(e => e && e.t
 // ---------- HUD ----------
 const $ = id => document.getElementById(id);
 const ui = {
-  credits: $('credits'), info: $('info'), powerChip: $('powerChip'),
+  credits: $('credits'), clock: $('clock'), info: $('info'), powerChip: $('powerChip'), sell: $('btnSell'),
   deploy: $('btnDeploy'), barracks: $('btnBarracks'), refinery: $('btnRefinery'), tower: $('btnTower'), power: $('btnPower'), factory: $('btnFactory'), tech: $('btnTech'), wall: $('btnWall'), gate: $('btnGate'), rotate: $('btnRotate'), 
   harvest: $('btnHarvest'), place: $('btnPlace'), cancel: $('btnCancel'), deselect: $('btnDeselect'),
   box: $('btnBox'), all: $('btnAll'), pause: $('btnPause'), map: $('btnMap'),
@@ -3576,6 +3602,26 @@ ui.harvest.addEventListener('click', () => {
   if (!any) flash = { text: 'No known ore — explore to find more', t: performance.now() };
 });
 ui.deselect.addEventListener('click', () => { game.selected.clear(); game.placing = null; });
+// Selling: tap Sell, then tap again to confirm. You get half the building's price back (plus anything still queued in it).
+const sellable = b => b && b.team === 0 && isBuilding(b) && COST[b.type] > 0;
+const sellValue = b => Math.floor(COST[b.type] / 2) + (b.qTypes || []).reduce((s, t) => s + COST[t], 0);
+let sellArmed = null;
+function sellBuilding(b) {
+  if (!sellable(b)) return false;
+  const value = sellValue(b);
+  game.credits[b.team] += value;
+  game.effects.push({ kind: 'text', x: b.x, y: b.y - 20, text: 'Sold +$' + value, t: 0, color: '#ffd86b' });
+  game.effects.push({ kind: 'dust', x: b.x, y: b.y, t: 0 });
+  b.hp = 0; b.deployed = true; b.sold = true;   // removed this frame, without an explosion
+  game.selected.delete(b.id);
+  return true;
+}
+ui.sell.addEventListener('click', () => {
+  const sel = [...game.selected].map(byId).filter(Boolean), b = sel.length === 1 && sel[0];
+  if (!sellable(b)) return;
+  if (sellArmed !== b.id) { sellArmed = b.id; return; }
+  sellBuilding(b); sellArmed = null;
+});
 // build buttons show the real price from COST, so labels can never drift from what you're charged
 for (const [btn, type, label] of [[ui.barracks, 'barracks', 'Barracks'], [ui.refinery, 'refinery', 'Refinery'], [ui.factory, 'factory', 'War Factory'],
   [ui.power, 'power', 'Power Plant'], [ui.tower, 'tower', 'Tower'], [ui.wall, 'wall', 'Wall'], [ui.gate, 'gate', 'Gate']]) btn.textContent = `${label} $${COST[type]}`;
@@ -3671,6 +3717,9 @@ function extractorStatus(e) {
 
 function updateHUD() {
   ui.credits.textContent = '$' + Math.floor(game.credits[0]);
+  const secs = Math.floor(game.time), hh = Math.floor(secs / 3600), mm = Math.floor(secs / 60) % 60, ss = secs % 60;
+  const clock = (hh ? hh + ':' + String(mm).padStart(2, '0') : mm) + ':' + String(ss).padStart(2, '0');
+  if (ui.clock.textContent !== clock) ui.clock.textContent = clock;
   ui.box.classList.toggle('on', input.boxMode);
   ui.map.classList.toggle('on', !MM.hidden);
 
@@ -3695,6 +3744,14 @@ function updateHUD() {
   show(ui.cancel, !!placing);
   show(ui.rotate, !!(placing && placing.type === 'gate'));
   show(ui.deselect, sel.length > 0 && !placing);
+  const toSell = sel.length === 1 && sellable(sel[0]) && !placing ? sel[0] : null;
+  show(ui.sell, !!toSell);
+  if (!toSell || sellArmed !== toSell.id) sellArmed = null;
+  if (toSell) {
+    const label = sellArmed ? 'Tap again to sell for $' + sellValue(toSell) : 'Sell $' + sellValue(toSell);
+    if (ui.sell.textContent !== label) ui.sell.textContent = label;
+    ui.sell.classList.toggle('danger', !!sellArmed);
+  }
 
   ui.barracks.disabled = game.credits[0] < COST.barracks;
   ui.refinery.disabled = game.credits[0] < COST.refinery;
@@ -3752,7 +3809,7 @@ function updateHUD() {
   } else if (sel.length) {
     const counts = {};
     for (const e of sel) counts[e.type] = (counts[e.type] || 0) + 1;
-    const plural = { soldier: 'soldiers', buggy: 'buggies', extractor: 'extractors', grenadier: 'grenadiers', rocket: 'rocket soldiers', sniper: 'snipers', light: 'light tanks', heavy: 'heavy tanks', artillery: 'artillery', engineer: 'engineers', settler: 'settlers' };
+    const plural = { soldier: 'soldiers', buggy: 'buggies', extractor: 'extractors', grenadier: 'grenadiers', rocket: 'rocket soldiers', sniper: 'snipers', light: 'light tanks', heavy: 'heavy tanks', artillery: 'artillery', engineer: 'engineers', settler: 'settlers', civilian: 'civilians' };
     const parts = Object.entries(counts).map(([t, n]) => `${n} ${n > 1 ? plural[t] || t + 's' : (SHORT[t] || NAMES[t]).toLowerCase()}`);
     text = parts.join(', ') + ' — tap to move';
   } else text = hqOf(0) ? 'Drag to scroll, pinch to zoom' : 'Tap your settler to begin';
