@@ -71,7 +71,7 @@ const STATS = {
   light:     { hp: 350, speed: 60, r: 15, sight: 200, range: 130, dmg: 30, cooldown: 1.5, tank: true },   // light tank: all-rounder
   heavy:     { hp: 800, speed: 35, r: 19, sight: 210, range: 140, dmg: 60, cooldown: 2.0, tank: true },   // heavy tank: slow, very tough
   sniper:    { hp: 45,  speed: 46, r: 9,  sight: 200, range: 160, dmg: 75, cooldown: 2.7, vsVehicle: 0.15, vsBuilding: 0.1, reveal: 0.5 },   // one-shots infantry from far away; useless vs vehicles
-  rocket:    { hp: 55,  speed: 45, r: 9,  sight: 170, range: 130, dmg: 40, cooldown: 2.5, rocket: true, vsVehicle: 2, vsBuilding: 2, vsInfantry: 0.4 },   // anti-vehicle: double vs vehicles & buildings, weak vs infantry
+  rocket:    { hp: 55,  speed: 45, r: 9,  sight: 170, range: 130, dmg: 40, cooldown: 2.5, rocket: true, vsVehicle: 2, vsHeavy: 1.25, vsBuilding: 2, vsInfantry: 0.4 },   // anti-vehicle: double vs vehicles & buildings, weak vs infantry
   grenadier: { hp: 55,  speed: 48, r: 9,  sight: 170, range: 95,  dmg: 16, cooldown: 2.0, splash: 38, flight: 0.55, vsVehicle: 0.5 },   // lobbed grenades: area damage, half vs vehicles
   engineer:  { hp: 20,  speed: 48, r: 9,  sight: 150, repair: 30 },   // no weapon, very fragile: repairs (hp per second) and captures
   hq:        { hp: 900, size: 92, sight: 280 },
@@ -552,6 +552,9 @@ function moveToward(e, tx, ty, dt) {
       if (parked && !isBuilding(block)) {   // nudge the parked friend sideways out of the path
         const px = -uy * -side, py = ux * -side, nx = block.x + px * step * 1.1, ny = block.y + py * step * 1.1;
         if (walkable(terrainAt(nx, ny), isVehicle(block)) && !wallBlocks(nx, ny, block.team)) { block.x = nx; block.y = ny; }
+      } else if (block.team === e.team && ((game.time - (block.movedAt || -9) < 0.3 && (block.pace || 0) > 0.6 && Math.cos(block.facing) * ux + Math.sin(block.facing) * uy > 0.5) ||
+                 (block.order && block.order.type === 'attack') || (e.nav && e.nav.breaking))) {
+        // a friend heading the same way, or busy fighting / smashing a wall: wait behind it instead of everyone swerving about
       } else {   // swerve around it
         const k = 1.1 * (1 - bp / (e.r * 2 + 14)) + 0.35;
         const sx = ux + -uy * side * k, sy = uy + ux * side * k, sl = Math.hypot(sx, sy);
@@ -560,7 +563,10 @@ function moveToward(e, tx, ty, dt) {
       }
     }
   }
+  // how freely it actually moved last time (1 = full speed), so others can tell a moving queue from a jam
+  if (e.lastX !== undefined) e.pace = Math.min(1, Math.hypot(e.x - e.lastX, e.y - e.lastY) / (step || 1));
   e.x += ux * step; e.y += uy * step;
+  e.lastX = e.x; e.lastY = e.y;
   e.facing = Math.atan2(uy, ux);
   return false;
 }
@@ -938,7 +944,7 @@ function update(dt) {
       r.done = true;
       if (t && t.hp > 0 && d <= step + 30) {
         const S = STATS.rocket;
-        t.hp -= r.dmg * (isInfantry(t) ? S.vsInfantry : isBuilding(t) ? S.vsBuilding : S.vsVehicle);
+        t.hp -= r.dmg * (isInfantry(t) ? S.vsInfantry : isBuilding(t) ? S.vsBuilding : t.type === 'heavy' ? S.vsHeavy : S.vsVehicle);   // the heavy tank's thick armour shrugs off some of it
       }
       game.effects.push({ kind: 'blast', x: r.tx, y: r.ty, r: 16, t: 0 });
     } else { r.x += dx / d * step; r.y += dy / d * step; }
@@ -947,6 +953,7 @@ function update(dt) {
   for (const fx of game.effects) fx.t += dt;
   game.effects = game.effects.filter(fx => fx.t < (fx.kind === 'shot' ? 0.08 : fx.kind === 'text' ? 1.2 : fx.kind === 'spark' ? 0.3 : fx.kind === 'blast' ? 0.45 : 0.6));
 
+  defendBuildings();
   runAI(dt);
   updateFog();
 
@@ -1050,6 +1057,7 @@ function updateSoldier(e, dt) {   // soldiers and buggies
       if (e.cooldown <= 0) {
         e.cooldown = s.cooldown;
         e.revealT = s.reveal || 1.5;   // firing gives away your position (snipers only briefly)
+        if (isBuilding(t)) { t.hitBy = e.id; t.hitAt = game.time; }   // so the owner's units nearby can come and deal with it
         if (s.rocket) {   // rocket: flies fast and homes in, so it's hard to dodge
           game.rockets.push({ x: e.x + Math.cos(e.facing) * 12, y: e.y + Math.sin(e.facing) * 12, target: t.id, tx: t.x, ty: t.y, team: e.team, dmg: s.dmg, life: 1.5 });
           e.throwT = 0.2;
@@ -1161,7 +1169,7 @@ function releaseUnit(b, type) {
 }
 
 // Refinery unloading bay: extractors line up at the front door, drive onto the pad, unload, back out.
-const dockOf = r => ({ out: frontDoor(r), pad: { x: r.x, y: r.y + r.size / 2 - 15 } });
+const dockOf = r => ({ out: frontDoor(r), pad: { x: r.x, y: r.y + r.size / 2 - 6 } });   // parked with its front half in the bay, back end sticking out
 // is the bay reserved by another extractor that's still using it?
 function dockBusy(ref, e) {
   const id = ref.dockedBy;
@@ -1253,7 +1261,63 @@ function aiExploreSpot(fromX, fromY, preferFar) {
 }
 
 // where its army gathers: a little way out from the HQ toward the middle of the map
+// The choke point on the way into a base: walk the route from the HQ towards the enemy and find the narrowest
+// gap (between rocks, river and map edge) a few hundred pixels out. Worked out once per base.
+const chokeCache = {};
+// narrowest gap on a route from the HQ towards (tx, ty), a few hundred pixels out from the HQ
+function chokeOnRoute(hq, tx, ty) {
+  const path = findPath(hq.x, hq.y, tx, ty, false, -1, true);
+  if (!path) return null;
+  const blocked = (x, y) => x < 10 || y < 10 || x > W - 10 || y > H - 10 || (() => { const t = terrainAt(x, y); return t === T.ROCK || t === T.WATER; })();
+  let best = null, ax = hq.x, ay = hq.y;
+  for (const pt of path) {
+    const sl = Math.hypot(pt.x - ax, pt.y - ay), ux = (pt.x - ax) / (sl || 1), uy = (pt.y - ay) / (sl || 1);
+    for (let d = 0; d < sl; d += 12) {
+      const x = ax + ux * d, y = ay + uy * d, fromHq = Math.hypot(x - hq.x, y - hq.y);
+      if (fromHq < 200 || fromHq > 520) continue;
+      let l = 0, r = 0;
+      while (l < 260 && !blocked(x - uy * (l + 8), y + ux * (l + 8))) l += 8;
+      while (r < 260 && !blocked(x + uy * (r + 8), y - ux * (r + 8))) r += 8;
+      const width = l + r + fromHq * 0.15;   // slight preference for gaps closer to home
+      if (!best || width < best.width) best = { width, x: x - uy * (l - r) / 2, y: y + ux * (l - r) / 2, ux, uy, gap: l + r };   // centre of the gap
+    }
+    ax = pt.x; ay = pt.y;
+  }
+  return best;
+}
+// The ways into a base: the gaps in the rocks (or between rocks, river and map edge) that attackers come through.
+// One route is straight from the enemy HQ (the main entrance); others come from each bridge on this side of the river.
+function findEntrances(team) {
+  const hq = hqOf(team);
+  if (!hq) return [];
+  const key = team + ':' + hq.id;
+  if (chokeCache[key]) return chokeCache[key];
+  const foe = hqOf(1 - team) || { x: W - START[team].x, y: H - START[team].y };
+  const targets = [foe];
+  for (let r = 0; r < TROWS; r += 2) for (let c = 0; c < TCOLS; c += 2) {
+    const x = c * TC + TC / 2, y = r * TC + TC / 2;
+    if (terrainAt(x, y) !== T.BRIDGE) continue;
+    if (targets.some(t => t.bridge && Math.hypot(t.x - x, t.y - y) < 200)) continue;
+    targets.push({ x, y, bridge: true });
+  }
+  const out = [];
+  for (const t of targets) {
+    const ch = chokeOnRoute(hq, t.x, t.y);
+    if (ch && !out.some(o => Math.hypot(o.x - ch.x, o.y - ch.y) < 160)) out.push(ch);
+  }
+  return (chokeCache[key] = out);
+}
+const findChoke = team => findEntrances(team)[0] || null;
+
 function aiRally(hq) {
+  const ch = findChoke(1);
+  if (ch) {   // wait just inside the choke point, on the home side
+    const x = ch.x - ch.ux * 40, y = ch.y - ch.uy * 40;
+    if (bldDirty) rebuildBuildingGrid();
+    P.team = 1; P.breakable = false;
+    const t = nearestPassable(Math.floor(x / TC), Math.floor(y / TC), false);
+    if (t) return { x: t[0] * TC + TC / 2, y: t[1] * TC + TC / 2 };
+  }
   const a = Math.atan2(H / 2 - hq.y, W / 2 - hq.x);
   const x = hq.x + Math.cos(a) * 190, y = hq.y + Math.sin(a) * 190;
   if (bldDirty) rebuildBuildingGrid();
@@ -1320,6 +1384,28 @@ function aiRunRaid(en) {
   en.order = { type: 'capture', target: t.id };
 }
 
+// When a building is under attack, every combat unit of the same side within reach drops what it's doing
+// (unless it's already fighting, or you've just given it a move order) and goes after the attacker.
+function defendBuildings() {
+  game.defendT = (game.defendT || 0) - 1;
+  if (game.defendT > 0) return;
+  game.defendT = 5;   // every quarter of a second
+  for (const b of game.ents) {
+    if (!isBuilding(b) || !b.hitAt || game.time - b.hitAt > 2) continue;
+    const foe = byId(b.hitBy);
+    if (!foe || foe.hp <= 0 || foe.team === b.team) continue;
+    for (const u of game.ents) {
+      if (u.team !== b.team || !isCombat(u) || Math.hypot(u.x - b.x, u.y - b.y) > 450) continue;
+      const o = u.order;
+      if (o && o.type === 'attack' && byId(o.target) && byId(o.target).hp > 0 && !isBuilding(byId(o.target))) continue;   // already fighting a unit
+      if (o && o.type === 'move' && u.team === 0 && game.time - (o.given || 0) < 3) continue;   // you only just told it where to go
+      if (u.role === 'wave' && Math.hypot(u.x - b.x, u.y - b.y) > 300) continue;
+      u.order = visibleAt(foe.x, foe.y, u.team) ? { type: 'attack', target: foe.id } : { type: 'attackmove', x: foe.x, y: foe.y };
+      u.passive = false;
+    }
+  }
+}
+
 function runAI(dt) {
   const ai = game.ai;
   ai.timer -= dt;
@@ -1345,7 +1431,7 @@ function runAI(dt) {
   ai.waveSize = ai.waveSize || D.attackAt;
   // After each wave goes out it spends ~45s investing (refinery, towers, walls) before saving for the next wave.
   const sent = ai.wavesSent || 0;
-  const wantTowers = sent === 0 ? 0 : sent === 1 ? Math.min(1, D.towers) : D.towers;
+  const wantTowers = sent === 0 ? (D.towers && barracks.some(b => b.built) && extractors.length >= 3 && game.time > 150 ? 1 : 0) : sent === 1 ? Math.min(1, D.towers) : D.towers;   // first tower early, at the choke point
   // Hard puts down a second refinery straight away (after a minute); everyone builds the rest once its economy and first wave are going
   const reqRefineries = extractors.length >= 3 && sent >= 1 ? D.refineries : D.earlyRefinery && game.time > 60 ? 2 : 1;
   // the build phase lasts until this stage's extras are built (or 90s, so it never stalls)
@@ -1495,9 +1581,15 @@ function runAI(dt) {
       u.order = { type: 'attack', target: t.id }; u.passive = false;
     }
   } else {
-    // guards and new units wait at the rally point
+    // guards stand watch at the ways into the base (spread over all of them); new units wait at the rally point
+    const ents = findEntrances(1);
+    guards.forEach((u, k) => {
+      if (u.order || !ents.length) return;
+      const ch = ents[k % ents.length], x = ch.x - ch.ux * 35 + (Math.random() - 0.5) * 40, y = ch.y - ch.uy * 35 + (Math.random() - 0.5) * 40;
+      if (Math.hypot(u.x - x, u.y - y) > 60) u.order = { type: 'move', x, y };
+    });
     for (const u of army) {
-      if (u.role === 'wave' || u.role === 'scout' || u.order) continue;
+      if (u.role === 'wave' || u.role === 'scout' || u.role === 'guard' && ents.length || u.order) continue;
       if (Math.hypot(u.x - rally.x, u.y - rally.y) > 90) u.order = { type: 'move', x: rally.x + (Math.random() - .5) * 60, y: rally.y + (Math.random() - .5) * 60 };
     }
   }
@@ -1598,6 +1690,15 @@ function aiPlaceRefinery(hq) {
 
 // towers go near its gate (if it has one) or toward the middle from the HQ
 function aiPlaceTower(hq) {
+  // first choice: just inside the choke point, so it covers where attackers come in
+  const ch = findChoke(1);
+  if (ch && game.ents.filter(e => e.team === 1 && e.type === 'tower').length === 0) {
+    for (let tries = 0; tries < 40; tries++) {
+      const back = 40 + Math.random() * 110, side = (Math.random() - 0.5) * Math.min(ch.gap, 160);
+      const x = ch.x - ch.ux * back - ch.uy * side, y = ch.y - ch.uy * back + ch.ux * side;
+      if (placeBuilding(1, 'tower', x, y)) return true;
+    }
+  }
   const gate = game.ents.find(e => e.type === 'gate' && e.team === 1);
   if (gate) {
     for (let tries = 0; tries < 30; tries++) {
@@ -1854,6 +1955,24 @@ function drawSettler(e) {
 }
 
 function drawExtractor(e) {
+  // while it's in a refinery's bay, only the part still outside shows normally; the part under the roof is hidden,
+  // and the part in the open bay is in shadow — so it looks like it has driven in
+  const o = e.order, ref = e.docked && o && o.ref && byId(o.ref);
+  if (ref && ref.type === 'refinery') {
+    const h = ref.size / 2, x0 = ref.x - h, y0 = ref.y - h;
+    ctx.save(); ctx.beginPath(); ctx.rect(e.x - 60, e.y - 60, 120, 120); ctx.rect(x0, y0, ref.size, ref.size); ctx.clip('evenodd');
+    drawExtractorBody(e); ctx.restore();
+    ctx.save(); ctx.beginPath(); ctx.rect(ref.x - 20, y0 + ref.size - 24, 40, 24); ctx.clip();
+    drawExtractorBody(e);
+    ctx.fillStyle = 'rgba(20,18,14,0.45)'; ctx.fillRect(ref.x - 20, y0 + ref.size - 24, 40, 24);   // shade inside the bay
+    ctx.restore();
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(ref.x - 20, y0 + ref.size - 26, 40, 3);        // edge of the roof over the bay
+    return;
+  }
+  drawExtractorBody(e);
+}
+
+function drawExtractorBody(e) {
   const c = TEAMS[e.team];
   ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.facing);
   ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(-14, -9, 32, 22);
@@ -2424,8 +2543,9 @@ function drawWall(e) {
 
 function drawGate(e) {
   const c = TEAMS[e.team];
-  // opens when one of its own units is close
-  const near = game.ents.some(u => u.team === e.team && isUnit(u) && Math.abs(u.x - e.x) < 55 && Math.abs(u.y - e.y) < 55);
+  // opens only while one of its own units is on the move right by it (going through), not for guards standing next to it
+  const near = game.ents.some(u => u.team === e.team && isUnit(u) && game.time - (u.movedAt || -9) < 0.3 &&
+    Math.abs(u.x - e.x) < (e.vertical ? 40 : 45) && Math.abs(u.y - e.y) < (e.vertical ? 45 : 40));
   e.openK = Math.max(0, Math.min(1, (e.openK || 0) + (near ? 0.08 : -0.05)));
   const k = e.openK, L = TC, T = TC / 2;   // half-length along the wall, half-thickness
   ctx.save(); ctx.translate(e.x, e.y); if (e.vertical) ctx.rotate(Math.PI / 2);
@@ -2729,7 +2849,7 @@ function groupMove(units, x, y) {
   const cols = Math.ceil(Math.sqrt(units.length)), rows = Math.ceil(units.length / cols);
   units.forEach((u, i) => {
     const gx = (i % cols) - (cols - 1) / 2, gy = Math.floor(i / cols) - (rows - 1) / 2;
-    u.order = { type: 'move', x: x + gx * 26, y: y + gy * 26 };
+    u.order = { type: 'move', x: x + gx * 26, y: y + gy * 26, given: game.time };
     if (u.type === 'extractor') u.outOfOre = false;
   });
   game.effects.push({ kind: 'marker', x, y, t: 0 });

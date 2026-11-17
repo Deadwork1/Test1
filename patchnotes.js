@@ -2,6 +2,18 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.5', date: '17 Nov 2026', title: 'Defending the base',
+    changes: [
+      'When one of your buildings is attacked, every combat unit nearby drops what it\'s doing and rushes the attackers (units you\'ve just ordered somewhere keep going). The computer\'s units do the same.',
+      'The computer now finds the gaps in the rocks where attackers come into its base: its home guard stands watch at each one, its army gathers just inside the main one, and its first Guard Tower goes there too.',
+      'On Normal and Hard the computer builds its first Guard Tower earlier (once it has a barracks and 3 extractors) instead of waiting until after its first attack.',
+      'Gates now only open while one of your units is actually walking through, not when a guard is just standing next to them.',
+      'Extractors now drive into the refinery\'s bay: the front half disappears under the roof while unloading.',
+      'Heavy Tank: rockets now do 1.25x damage to it instead of 2x (its thick armour), so a few rocket soldiers can no longer delete it in seconds.',
+      'Movement: units queue behind friends heading the same way, or busy fighting or breaking a wall, instead of all swerving about in a gap.',
+    ],
+  },
+  {
     version: '5.4', date: '16 Nov 2026', title: 'Smoother movement, stronger Hard',
     changes: [
       'Units no longer bump into each other as much: a moving unit steers around anyone in its way, and friendly units standing still step aside to let it through.',
