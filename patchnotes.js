@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.16.1', date: '17 Nov 2026', title: 'Pause button always reachable',
+    changes: [
+      'The Pause button now sits at the far left of the top bar, so it never gets pushed off a narrow screen.',
+      'Both the top and bottom bars scroll sideways when their buttons don\'t fit: swipe them left or right.',
+    ],
+  },
+  {
     version: '5.16', date: '17 Nov 2026', title: 'Civilians, game clock, selling',
     changes: [
       'Civilians: the first time a village\'s Oil Derrick is captured, two Civilians come out of each house and join whoever took it (six per village). They carry handguns and are weaker than Soldiers (40 HP, 4 damage, range 75). You can\'t train them.',

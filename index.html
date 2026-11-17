@@ -20,6 +20,10 @@
     padding: 6px max(8px, env(safe-area-inset-right)) 6px max(8px, env(safe-area-inset-left));
     pointer-events: none; white-space: nowrap; }
   .bar > * { pointer-events: auto; flex-shrink: 0; }
+  /* both bars scroll sideways when the buttons don't fit (narrow phones); no visible scrollbar */
+  .bar { overflow-x: auto; overflow-y: hidden; scrollbar-width: none; touch-action: pan-x; -webkit-overflow-scrolling: touch; }
+  .bar::-webkit-scrollbar { display: none; }
+  .bar > * { touch-action: pan-x; }
   #top { top: 0; padding-top: max(6px, env(safe-area-inset-top)); }
   #panel { bottom: 0; padding-bottom: max(6px, env(safe-area-inset-bottom)); overflow-x: auto; }
   .chip { background: rgba(10,16,8,.82); border: 1px solid rgba(255,255,255,.12); border-radius: 10px;
@@ -63,6 +67,7 @@
 <canvas id="c"></canvas>
 
 <div id="top" class="bar">
+  <button id="btnPause" class="ghost">❚❚</button>
   <span id="credits" class="chip">$0</span>
   <span id="clock" class="chip" title="Time played">0:00</span>
   <span id="powerChip" class="chip" style="display:none;color:#ffde5a"></span>
@@ -70,7 +75,6 @@
   <button id="btnMap" class="ghost">Map</button>
   <button id="btnBox" class="ghost">Box select</button>
   <button id="btnAll" class="ghost">Army</button>
-  <button id="btnPause" class="ghost">❚❚</button>
 </div>
 
 <div id="panel" class="bar">
