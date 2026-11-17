@@ -22,6 +22,8 @@ A small real-time strategy game inspired by classic 90s RTS games, built step by
 - **Forests** stop tanks and extractors. Infantry walk through slowly and are hidden inside unless an enemy gets close or they open fire; the Scout Buggy can drive through slowly but can't hide. Anything standing in a forest only sees 70% as far.
 - Units find their own way around obstacles and buildings.
 
+- **Crushing:** tanks and Extractors drive straight over enemy infantry and crush them.
+
 ## Controls (touch or mouse)
 - Drag to scroll, pinch (or mouse wheel) to zoom, tap the minimap to jump.
 - Tap a unit or building to select it. **Box select**, then drag, to select several units.

@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.22', date: '17 Nov 2026', title: 'Run them over',
+    changes: [
+      'Extractors now run over enemy infantry in their way, just like tanks.',
+      'Tanks and Extractors no longer politely swerve around enemy infantry: they drive straight through and crush them. (Before, tanks only crushed soldiers who wandered into them.) They still steer round their own units and enemy vehicles.',
+    ],
+  },
+  {
     version: '5.21.1', date: '17 Nov 2026', title: 'Computer takes its time',
     changes: [
       'The computer no longer rushes for Oil Derricks: it goes for them from 5 minutes in on Hard, 6 on Normal and 8 on Easy, with a small escort.',

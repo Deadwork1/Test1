@@ -838,8 +838,10 @@ function moveToward(e, tx, ty, dt) {
   if (!e.docked) {
     const look = e.r * 2 + 14;
     let block = null, bp = Infinity, side = 0;
+    const crusher = isTank(e) || e.type === 'extractor';
     for (const o of game.ents) {
       if (o === e || !isUnit(o) || o.docked || o.hp <= 0) continue;
+      if (crusher && o.team !== e.team && isInfantry(o)) continue;   // tanks and extractors drive straight over enemy infantry
       const ox = o.x - e.x, oy = o.y - e.y;
       if (Math.abs(ox) > look + 20 || Math.abs(oy) > look + 20) continue;
       const along = ox * ux + oy * uy;
@@ -1176,6 +1178,7 @@ function autoHarvest(e) {
 }
 
 function updateExtractor(e, dt) {
+  crush(e);   // like tanks, a moving extractor runs over enemy infantry in its way
   const s = STATS.extractor, o = e.order;
   e.mining = false;
   if (e.docked && (!o || o.type !== 'harvest' || !['docking', 'unloading', 'undocking'].includes(o.phase))) e.docked = false;
