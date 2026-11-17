@@ -22,7 +22,7 @@ const MAPS = {
       [[[880, 1050], [935, 1210], [905, 1385]], 30],   // wall east of your base (gap at the bottom)
       [[[620, 610], [770, 700]], 28],                  // outcrop by the flank field
     ],
-    forests: [[430, 620, 115], [1010, 1270, 85], [150, 600, 95], [800, 230, 90]],
+    forests: [[520, 560, 240, 135, -0.15], [1010, 1270, 85], [800, 230, 90]],   // [x, y, r] or a jungle [x, y, rx, ry, tilt]
     river: { amp: 70, period: 230, half: 36 },
     bridges: [{ y: 230, hw: 62 }],                     // river bridges on your half (mirrored for theirs)
   },
@@ -42,7 +42,7 @@ const MAPS = {
       [[[1350, 600], [1420, 900]], 30],                  // ridge near the river
       [[[620, 1150], [760, 1300]], 28],                  // rocks by the north expansion
     ],
-    forests: [[600, 950, 140], [1500, 1900, 120], [200, 600, 130], [1150, 330, 130], [1150, 1350, 120], [1600, 1300, 90]],
+    forests: [[1100, 950, 270, 200, 0.35], [200, 600, 130], [1500, 1900, 120], [1150, 330, 120]],   // the big jungle sits on the routes between the bases
     river: { amp: 90, period: 320, half: 40 },
     bridges: [{ y: 300, hw: 70 }, { y: 620, hw: 70 }],
   },
@@ -189,15 +189,20 @@ function segDist(px, py, ax, ay, bx, by) {
   const ridges = [];
   for (const [pts, th] of RIDGES) { ridges.push([pts, th]); ridges.push([pts.map(mirror), th]); }
   const forests = [];
-  for (const f of FORESTS) { forests.push(f); const [x, y] = mirror(f); forests.push([x, y, f[2]]); }
+  for (const f of FORESTS) {   // a circle [x, y, r] or an oval jungle [x, y, rx, ry, tilt]
+    const g = f.length === 3 ? [f[0], f[1], f[2], f[2], 0] : f;
+    forests.push(g); const [x, y] = mirror(g); forests.push([x, y, g[2], g[3], g[4]]);
+  }
   for (let r = 0; r < TROWS; r++) {
     for (let c = 0; c < TCOLS; c++) {
       const x = c * TC + TC / 2, y = r * TC + TC / 2;
       const dI = Math.hypot(x - ISLAND.x, y - ISLAND.y);
       let t = T.GRASS;
-      for (const [x0, y0, rad] of forests) {
-        const a = Math.atan2(y - y0, x - x0);
-        if (Math.hypot(x - x0, y - y0) < rad * (0.85 + 0.15 * Math.sin(a * 5 + x0))) t = T.FOREST;
+      for (const [x0, y0, rx, ry, tilt] of forests) {
+        const dx = x - x0, dy = y - y0, co = Math.cos(tilt), si = Math.sin(tilt);
+        const u = (dx * co + dy * si) / rx, v = (-dx * si + dy * co) / ry, a = Math.atan2(v, u);
+        const edge = 0.86 + 0.09 * Math.sin(a * 5 + x0) + 0.05 * Math.sin(a * 11 + y0);   // ragged edge
+        if (Math.hypot(u, v) < edge) t = T.FOREST;
       }
       for (const [pts, th] of ridges) {
         for (let i = 0; i < pts.length - 1; i++) {
@@ -422,13 +427,59 @@ const bg = document.createElement('canvas');
       if (terrain[r * TCOLS + c] === type) fn(c * TC + TC / 2, r * TC + TC / 2);
   };
   const dot = (x, y, rad, col) => { b.fillStyle = col; b.beginPath(); b.arc(x, y, rad, 0, Math.PI * 2); b.fill(); };
-  // river: sandy banks, deep water, lighter middle
-  each(T.WATER, (x, y) => dot(x, y, TC * 1.05, '#9c8a5c'));
-  each(T.BRIDGE, (x, y) => dot(x, y, TC * 0.9, '#9c8a5c'));
-  each(T.WATER, (x, y) => dot(x, y, TC * 0.8, '#2d5f8a'));
-  each(T.BRIDGE, (x, y) => dot(x, y, TC * 0.75, '#2d5f8a'));
-  each(T.WATER, (x, y) => dot(x + (rnd() - .5) * 6, y + (rnd() - .5) * 6, TC * 0.35, 'rgba(110,170,220,0.35)'));
-  // bridges: wooden planks
+  // Smooth shapes: the tile grid is blurred and cut at a level, so rocks, water and forest come out as one
+  // continuous shape with soft natural edges instead of a pile of circles. Level < 0.5 grows the shape, > 0.5 shrinks it.
+  const HS = 2;   // masks are made at half size (edges are smooth anyway)
+  const small = document.createElement('canvas'); small.width = TCOLS; small.height = TROWS;
+  function mask(types, blur, level) {
+    const sc = small.getContext('2d'), img = sc.createImageData(TCOLS, TROWS);
+    for (let i = 0; i < terrain.length; i++) if (types.includes(terrain[i])) { img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = img.data[i * 4 + 3] = 255; }
+    sc.putImageData(img, 0, 0);
+    const m = document.createElement('canvas'); m.width = W / HS; m.height = H / HS;
+    const mc = m.getContext('2d');
+    mc.fillStyle = '#000'; mc.fillRect(0, 0, m.width, m.height);
+    mc.filter = `blur(${blur / HS}px)`; mc.imageSmoothingEnabled = true;
+    mc.drawImage(small, 0, 0, m.width, m.height); mc.filter = 'none';
+    const d = mc.getImageData(0, 0, m.width, m.height), px = d.data;
+    for (let i = 0; i < px.length; i += 4) {
+      const v = px[i] / 255, a = Math.max(0, Math.min(1, (v - level) / 0.08 + 0.5));
+      px[i] = px[i + 1] = px[i + 2] = 255; px[i + 3] = a * 255;
+    }
+    mc.putImageData(d, 0, 0);
+    return m;
+  }
+  // paint a fill (colour, or a function that draws a texture) through a mask, optionally shifted
+  function paint(m, fill, dx = 0, dy = 0) {
+    const t = document.createElement('canvas'); t.width = W; t.height = H;
+    const tc = t.getContext('2d');
+    if (typeof fill === 'string') { tc.fillStyle = fill; tc.fillRect(0, 0, W, H); } else fill(tc);
+    tc.globalCompositeOperation = 'destination-in'; tc.imageSmoothingEnabled = true;
+    tc.drawImage(m, 0, 0, W, H);
+    b.drawImage(t, dx, dy);
+  }
+  const speckle = (base, cols, n, rMin, rMax) => tc => {
+    tc.fillStyle = base; tc.fillRect(0, 0, W, H);
+    for (let i = 0; i < n * (W * H) / (2400 * 1500); i++) {
+      tc.fillStyle = cols[Math.floor(rnd() * cols.length)];
+      tc.beginPath(); tc.ellipse(rnd() * W, rnd() * H, rMin + rnd() * (rMax - rMin), (rMin + rnd() * (rMax - rMin)) * 0.6, rnd() * 3, 0, Math.PI * 2); tc.fill();
+    }
+  };
+
+  // river: sandy banks, water, deeper channel, ripples
+  const wet = [T.WATER, T.BRIDGE];
+  paint(mask(wet, 22, 0.28), '#a08c5b');                       // bank
+  paint(mask(wet, 22, 0.36), '#7e8a63');                       // damp edge
+  const water = mask(wet, 18, 0.5);
+  paint(water, '#2f6390');
+  paint(mask(wet, 30, 0.72), '#24537d');                       // deep middle
+  paint(water, tc => {                                         // ripples
+    tc.strokeStyle = 'rgba(170,215,240,0.28)'; tc.lineWidth = 2;
+    for (let i = 0; i < 900 * (W * H) / (2400 * 1500); i++) {
+      const x = rnd() * W, y = rnd() * H, l = 6 + rnd() * 14;
+      tc.beginPath(); tc.moveTo(x, y); tc.quadraticCurveTo(x + l / 2, y - 3, x + l, y); tc.stroke();
+    }
+  });
+  // bridges: wooden planks over the water
   for (const br of BRIDGES) {
     b.fillStyle = 'rgba(0,0,0,0.35)'; b.fillRect(br.x - br.hw + 4, br.y - br.hh + 5, br.hw * 2, br.hh * 2);
     b.fillStyle = '#8b6a3e'; b.fillRect(br.x - br.hw, br.y - br.hh, br.hw * 2, br.hh * 2);
@@ -436,19 +487,35 @@ const bg = document.createElement('canvas');
     for (let x = br.x - br.hw + 8; x < br.x + br.hw; x += 9) { b.beginPath(); b.moveTo(x, br.y - br.hh); b.lineTo(x, br.y + br.hh); b.stroke(); }
     b.fillStyle = '#4a3720'; b.fillRect(br.x - br.hw, br.y - br.hh, br.hw * 2, 4); b.fillRect(br.x - br.hw, br.y + br.hh - 4, br.hw * 2, 4);
   }
-  // rocks and cliffs
-  each(T.ROCK, (x, y) => dot(x + 4, y + 5, TC * 0.85, 'rgba(0,0,0,0.35)'));
-  each(T.ROCK, (x, y) => dot(x, y, TC * 0.85, '#6f6a62'));
-  each(T.ROCK, (x, y) => dot(x - 3 + (rnd() - .5) * 6, y - 3 + (rnd() - .5) * 6, TC * 0.5, '#8d877c'));
-  each(T.ROCK, (x, y) => { if (rnd() < 0.4) dot(x + (rnd() - .5) * 14, y + (rnd() - .5) * 14, 3 + rnd() * 4, '#a8a295'); });
-  // forests: ground then tree canopies
-  each(T.FOREST, (x, y) => dot(x, y, TC * 0.85, '#2f4a24'));
-  each(T.FOREST, (x, y) => {
-    for (let i = 0; i < 2; i++) {
-      const tx = x + (rnd() - .5) * TC, ty = y + (rnd() - .5) * TC, rad = 9 + rnd() * 7;
-      dot(tx + 3, ty + 4, rad, 'rgba(0,0,0,0.3)');
-      dot(tx, ty, rad, rnd() < 0.5 ? '#2c5a26' : '#356b2c');
-      dot(tx - rad * 0.3, ty - rad * 0.3, rad * 0.45, 'rgba(140,190,90,0.35)');
+
+  // forests: one dark mass of ground, then a dense canopy of trees that spills a little over its edge
+  const woods = mask([T.FOREST], 20, 0.5);
+  paint(mask([T.FOREST], 20, 0.42), 'rgba(0,0,0,0.25)', 6, 8);  // shadow
+  paint(woods, '#22401c');
+  paint(mask([T.FOREST], 20, 0.35), tc => {
+    const tree = (x, y, rad, col) => {
+      tc.fillStyle = 'rgba(0,0,0,0.3)'; tc.beginPath(); tc.arc(x + 3, y + 4, rad, 0, Math.PI * 2); tc.fill();
+      tc.fillStyle = col; tc.beginPath(); tc.arc(x, y, rad, 0, Math.PI * 2); tc.fill();
+      tc.fillStyle = 'rgba(150,200,95,0.28)'; tc.beginPath(); tc.arc(x - rad * 0.3, y - rad * 0.35, rad * 0.45, 0, Math.PI * 2); tc.fill();
+    };
+    const greens = ['#2a5524', '#2f6229', '#25491f', '#356b2c', '#3c7431'];
+    each(T.FOREST, (x, y) => { for (let i = 0; i < 3; i++) tree(x + (rnd() - .5) * TC * 1.3, y + (rnd() - .5) * TC * 1.3, 8 + rnd() * 9, greens[Math.floor(rnd() * greens.length)]); });
+  });
+
+  // rocks and cliffs: a drop shadow, a sunlit rim, the rock body and a lighter weathered top with cracks
+  const rockTypes = [T.ROCK];
+  const body = mask(rockTypes, 16, 0.5);
+  paint(mask(rockTypes, 16, 0.44), 'rgba(0,0,0,0.42)', 8, 11);  // shadow on the ground
+  paint(body, '#4c4741', 0, 4);                                // dark lower face
+  paint(body, '#a49e91', -2, -3);                              // light upper rim
+  paint(body, speckle('#6e685f', ['#77716a', '#625d55', '#7c766c'], 900, 4, 14));
+  paint(mask(rockTypes, 24, 0.66), speckle('#878175', ['#918b7f', '#7d776c', '#9a9487'], 700, 3, 10), -2, -3);   // weathered top
+  paint(body, tc => {                                          // cracks
+    tc.strokeStyle = 'rgba(40,36,32,0.45)'; tc.lineWidth = 1.5;
+    for (let i = 0; i < 1600 * (W * H) / (2400 * 1500); i++) {
+      let x = rnd() * W, y = rnd() * H; tc.beginPath(); tc.moveTo(x, y);
+      for (let k = 0; k < 3; k++) { x += (rnd() - .5) * 14; y += 4 + rnd() * 6; tc.lineTo(x, y); }
+      tc.stroke();
     }
   });
   b.strokeStyle = 'rgba(0,0,0,0.5)'; b.lineWidth = 6; b.strokeRect(3, 3, W - 6, H - 6);

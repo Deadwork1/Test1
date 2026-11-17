@@ -2,6 +2,14 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.10', date: '17 Nov 2026', title: 'New look for the land',
+    changes: [
+      'Cliffs and rocks are now drawn as solid, continuous rock with a shadow, a sunlit edge, a weathered top and cracks, instead of a pile of circles.',
+      'The river is one flowing body of water with sandy banks, a deeper channel down the middle and ripples.',
+      'Fewer, bigger forests: each map now has a large jungle on the routes between the bases (mirrored for both sides), plus a few smaller woods. Vehicles still go round them; infantry can hide inside.',
+    ],
+  },
+  {
     version: '5.9', date: '17 Nov 2026', title: 'Line of sight',
     changes: [
       'Rocks now block vision: you can\'t see what\'s behind a ridge until you go round it or over the top of a gap. The same goes for the computer.',
