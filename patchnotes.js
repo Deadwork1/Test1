@@ -2,6 +2,14 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.21', date: '17 Nov 2026', title: 'Computer takes the high ground',
+    changes: [
+      'The computer now holds plateaus: on Normal it sends a squad of its longest-range units (Snipers, Rocket Soldiers, Grenadiers first) up its best plateau, on Hard up two. On the Huge map it goes for its river lookout first. It tops the squad up when units are lost, and they stay put instead of wandering home.',
+      'The computer now guards the Oil Derricks it takes, with a small garrison (1 on Easy, 2 on Normal, 3 on Hard).',
+      'Easy now goes for Oil Derricks too (from 5 minutes in, with a smaller escort).',
+    ],
+  },
+  {
     version: '5.20.1', date: '17 Nov 2026', title: 'Cheaper, rounder Radar',
     changes: [
       'Radar now costs $300 (was $500), so it sells for $150.',

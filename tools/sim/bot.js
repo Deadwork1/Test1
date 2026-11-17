@@ -57,7 +57,7 @@ function putRefineryNearOre() {
 }
 window.runSim = function (strategy, maxMinutes) {
   const S = STRATS[strategy]; newGame(); wallPlan = []; gatesLeft = null; allPlans = null; retryGates = []; lastGateRetry = 0; game.paused = false;
-  const st = { strategy, difficulty, map: mapChoice, produced: [{}, {}], died: [{}, {}], kills: {}, killValue: {}, spent: [{}, {}], captures: [0, 0], derrickSecs: [0, 0], firstDerrick: [null, null], stuckEvents: 0, stuckTypes: {},
+  const st = { strategy, difficulty, map: mapChoice, produced: [{}, {}], died: [{}, {}], kills: {}, killValue: {}, spent: [{}, {}], captures: [0, 0], derrickSecs: [0, 0], firstDerrick: [null, null], highUnitSecs: [0, 0], firstOnHigh: [null, null], stuckEvents: 0, stuckTypes: {},
                peakExtractors: [0, 0], idleCashSamples: [], crushes: 0, firstTank: [null, null], firstAttackOnPlayerBase: null, aiWaves: 0, errors: [] };
   const P0 = window.produce;
   window.produce = (b, u) => { const k = u || (PRODUCES[b.type] || [])[0]; const ok = P0(b, u); if (ok) { st.produced[b.team][k] = (st.produced[b.team][k] || 0) + 1; st.spent[b.team][k] = (st.spent[b.team][k] || 0) + COST[k]; } return ok; };
@@ -139,6 +139,7 @@ window.runSim = function (strategy, maxMinutes) {
     const teamsBefore = new Map(game.ents.filter(isBuilding).map(e => [e.id, e.team]));
     try { U(0.05); } catch (err) { st.errors.push(String(err)); break; }
     step++;
+    if (step % 20 === 0) for (const t of [0, 1]) { const n = game.ents.filter(e => e.team === t && isCombat(e) && elevAt(e.x, e.y)).length; st.highUnitSecs[t] += n; if (n && st.firstOnHigh[t] === null) st.firstOnHigh[t] = Math.round(game.time); }   // unit-seconds spent on high ground
     for (const d of game.ents) if (d.type === 'derrick' && d.team < 2) { st.derrickSecs[d.team] += 0.05; if (st.firstDerrick[d.team] === null) st.firstDerrick[d.team] = Math.round(game.time); }
     if (lastCred) for (const t of [0, 1]) { const d = game.credits[t] - lastCred[t]; if (d > 20 && game.time > (end - 300)) incomeLog[t] += d; } lastCred = game.credits.slice();
     const nowIds = new Set(game.ents.map(e => e.id));

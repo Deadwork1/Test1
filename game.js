@@ -145,11 +145,14 @@ const SHORT = { buggy: 'Buggy', rocket: 'Rocket', sniper: 'Sniper', light: 'Ligh
 //  extractors / refineries: how big its economy gets   walls: whether it builds a wall line with a gate
 const DIFFICULTY = {
   easy:   { label: 'Easy',   think: 2.5, slow: 1.5,  income: 0.7,  attackAt: 5, attackAfter: 300, barracks: 1, maxArmy: 11, towers: 0, buggies: false, plants: 0,
-            guard: 1, maxWave: 6, extractors: 2, refineries: 1, walls: false, grenadiers: false, engineers: 0, rockets: false, snipers: 0, factory: false, tanks: 0, heavyTanks: false, artillery: 0, raidEvery: 0, waveEvery: 240, minWave: 3, focus: 'nearest' },
+            guard: 1, maxWave: 6, extractors: 2, refineries: 1, walls: false, grenadiers: false, engineers: 0, rockets: false, snipers: 0, factory: false, tanks: 0, heavyTanks: false, artillery: 0, raidEvery: 0, waveEvery: 240, minWave: 3, focus: 'nearest',
+            derricks: true, derrickAfter: 300, escort: 2, garrison: 1, hill: 0, hillSize: 0 },
   normal: { label: 'Normal', think: 1.5, slow: 1.18, income: 0.85, attackAt: 7, attackAfter: 180, barracks: 1, maxArmy: 20, towers: 2, buggies: true, plants: 1,
-            guard: 3, maxWave: 14, extractors: 4, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 1, factory: true, tanks: 0.25, heavyTanks: false, artillery: 1, raidEvery: 240, waveEvery: 180, minWave: 4, focus: 'economy' },
+            guard: 3, maxWave: 14, extractors: 4, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 1, factory: true, tanks: 0.25, heavyTanks: false, artillery: 1, raidEvery: 240, waveEvery: 180, minWave: 4, focus: 'economy',
+            derricks: true, derrickAfter: 120, escort: 4, garrison: 2, hill: 1, hillSize: 3 },
   hard:   { label: 'Hard',   think: 1,   slow: 1,    income: 1,    attackAt: 6, attackAfter: 0,   barracks: 2, maxArmy: Infinity, towers: 3, buggies: true, plants: 2,
-            guard: 4, maxWave: 22, extractors: 8, refineries: 3, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true, artillery: 2, raidEvery: 180, earlyRefinery: true, expandAt: 1500, waveEvery: 120, minWave: 5, focus: 'defences' },
+            guard: 4, maxWave: 22, extractors: 8, refineries: 3, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true, artillery: 2, raidEvery: 180, earlyRefinery: true, expandAt: 1500, waveEvery: 120, minWave: 5, focus: 'defences',
+            derricks: true, derrickAfter: 120, escort: 4, garrison: 3, hill: 2, hillSize: 3 },
 };
 let difficulty = 'normal';
 try { if (DIFFICULTY[localStorage.getItem('mini-rts-difficulty')]) difficulty = localStorage.getItem('mini-rts-difficulty'); } catch (err) {}
@@ -1945,6 +1948,7 @@ function defendBuildings() {
       // anyone within 450 comes; units standing idle (guards at another entrance, say) come from right across the base
       const d = Math.hypot(u.x - b.x, u.y - b.y);
       if (u.team !== b.team || !isCombat(u) || d > (u.order || u.role === 'wave' ? 450 : 1000)) continue;
+      if ((u.role === 'hill' || u.role === 'garrison') && d > 300) continue;   // they hold their post unless the fight is right there
       const o = u.order;
       if (o && o.type === 'attack' && byId(o.target) && byId(o.target).hp > 0 && !isBuilding(byId(o.target))) continue;   // already fighting a unit
       if (o && o.type === 'move' && u.team === 0 && game.time - (o.given || 0) < 3) continue;   // you only just told it where to go
@@ -2073,10 +2077,10 @@ function runAI(dt) {
   const needsFix = mine.some(b => isBuilding(b) && !isWallType(b.type) && b.built && b.hp < b.maxHp * 0.6);
   const raidDue = D.raidEvery && game.time > 360 && game.time - (ai.lastRaid || 0) > D.raidEvery && !ai.raidPending && [...ai.known.keys()].some(id => { const b = byId(id); return b && b.team === 0 && b.type !== 'hq' && canCapture(b); });
   // win back buildings your engineers took: send an engineer with an escort (try again if it's killed)
-  const retake = game.lost[1].map(byId).filter(b => b && b.team === 0 && canCapture(b));
-  if (game.time > 120) for (const d of game.ents) if (d.type === 'derrick' && d.team !== 1 && exploredAt(d.x, d.y, 1) && !retake.includes(d)) retake.push(d);   // and Oil Derricks it has found
+  const retake = D.engineers > 0 ? game.lost[1].map(byId).filter(b => b && b.team === 0 && canCapture(b)) : [];
+  if (D.derricks && game.time > D.derrickAfter) for (const d of game.ents) if (d.type === 'derrick' && d.team !== 1 && exploredAt(d.x, d.y, 1) && !retake.includes(d)) retake.push(d);   // and Oil Derricks it has found
   const retaking = of('engineer').some(en => en.retake) || ai.retakePending;
-  const retakeDue = D.engineers > 0 && retake.length && !retaking && game.time - (ai.lastRetake || -99) > 25;
+  const retakeDue = (D.engineers > 0 || D.derricks) && retake.length && !retaking && game.time - (ai.lastRetake || -99) > 25;
   const wantEngineer = (D.engineers > 0 && needsFix && repairers < D.engineers) || raidDue || retakeDue;
   // War Factory first: buggies (about one per two soldiers) and tanks (a share of its army; heavies once it has a Tech Centre).
   // While it wants a vehicle, the barracks hold back so the money can build up.
@@ -2109,7 +2113,7 @@ function runAI(dt) {
   }
   // engineers fix its most damaged building, and otherwise wait safely by the HQ
   // an engineer already standing about at home takes the job straight away
-  if (D.engineers > 0 && retake.length && !of('engineer').some(en => en.retake)) {
+  if ((D.engineers > 0 || D.derricks) && retake.length && !of('engineer').some(en => en.retake)) {
     const spare = of('engineer').find(en => !en.raid && (!en.order || en.order.type === 'move'));
     if (spare) { spare.retake = true; spare.order = null; ai.retakePending = false; }
   }
@@ -2121,7 +2125,7 @@ function runAI(dt) {
       if (!en.order || en.order.target !== t.id) en.order = { type: 'capture', target: t.id };
       for (const u of army) if (u.order && u.order.type === 'attack' && u.order.target === t.id) u.order = null;   // stop shooting what it's taking back
       // escort: up to four home units clear the way just ahead of it
-      const escort = army.filter(u => u.role === 'guard' || !u.role).sort((a, b) => Math.hypot(a.x - en.x, a.y - en.y) - Math.hypot(b.x - en.x, b.y - en.y)).slice(0, 4);
+      const escort = army.filter(u => u.role === 'guard' || !u.role).sort((a, b) => Math.hypot(a.x - en.x, a.y - en.y) - Math.hypot(b.x - en.x, b.y - en.y)).slice(0, D.escort || 4);
       for (const u of escort) if (!u.order || u.order.type === 'move') { u.order = { type: 'attackmove', x: en.x + (t.x - en.x) * 0.5, y: en.y + (t.y - en.y) * 0.5 }; u.passive = false; }
       continue;
     }
@@ -2146,7 +2150,7 @@ function runAI(dt) {
     if (sc) {
       ai.scout = sc.id; sc.role = 'scout'; sc.passive = true;
       if (!sc.order) {   // villages first (it knows the map, like a player who has played it before), then wherever it hasn't been
-        const dk = diff().engineers > 0 && game.ents.filter(d => d.type === 'derrick' && !exploredAt(d.x, d.y, 1)).sort((a, b) => Math.hypot(a.x - sc.x, a.y - sc.y) - Math.hypot(b.x - sc.x, b.y - sc.y))[0];
+        const dk = diff().derricks && game.ents.filter(d => d.type === 'derrick' && !exploredAt(d.x, d.y, 1)).sort((a, b) => Math.hypot(a.x - sc.x, a.y - sc.y) - Math.hypot(b.x - sc.x, b.y - sc.y))[0];
         const spot = dk ? { x: dk.x, y: dk.y + dk.size / 2 + 60 } : aiExploreSpot(sc.x, sc.y, true);
         if (spot) sc.order = { type: 'move', x: spot.x, y: spot.y };
       }
@@ -2162,6 +2166,12 @@ function runAI(dt) {
     if (guards.length >= D.guard || (!ai.wavesSent && free.length - (D.guard - guards.length) < ai.waveSize)) break;
     u.role = 'guard'; guards.push(u);
   }
+  // high ground and derricks: once it has a few units to spare, it holds its best plateaus with its longest-range
+  // units, and leaves a small garrison at every Oil Derrick it owns. Losses are topped up from new units.
+  const spare = () => army.filter(u => !u.role && !(u.order && u.order.type === 'attack'));
+  const spareNow = (ai.wavesSent || 0) >= 1 || army.length >= D.guard + D.minWave + 2;
+  if (spareNow && D.hill) aiHoldHills(army, spare);
+  if (spareNow && D.garrison) aiGarrisonDerricks(army, spare);
 
   // defend: if your units come near its base, the guards and everyone gathering (and any wave close to home) fight back
   const base = mine.filter(e => isBuilding(e) && !isWallType(e.type));
@@ -2170,7 +2180,7 @@ function runAI(dt) {
   if (intruders.length) {
     for (const u of army) {
       if (u.role === 'scout') continue;
-      if (u.role === 'wave' && Math.hypot(u.x - hq.x, u.y - hq.y) > 700) continue;
+      if ((u.role === 'wave' || u.role === 'hill' || u.role === 'garrison') && Math.hypot(u.x - hq.x, u.y - hq.y) > 700) continue;
       if (u.order && u.order.type === 'attack' && byId(u.order.target)) continue;
       const t = nearest(u, intruders);
       u.order = { type: 'attack', target: t.id }; u.passive = false;
@@ -2184,7 +2194,7 @@ function runAI(dt) {
       if (Math.hypot(u.x - x, u.y - y) > 60) u.order = { type: 'move', x, y };
     });
     for (const u of army) {
-      if (u.role === 'wave' || u.role === 'scout' || u.role === 'guard' && ents.length || u.order) continue;
+      if (u.role === 'wave' || u.role === 'scout' || u.role === 'hill' || u.role === 'garrison' || u.role === 'guard' && ents.length || u.order) continue;
       if (Math.hypot(u.x - rally.x, u.y - rally.y) > 90) u.order = { type: 'move', x: rally.x + (Math.random() - .5) * 60, y: rally.y + (Math.random() - .5) * 60 };
     }
   }
@@ -2195,7 +2205,7 @@ function runAI(dt) {
   // when you're nearly beaten (only a few buildings left that it knows of, and it clearly has the bigger army) it goes all in, guards too
   const yourArmy = game.ents.filter(e => e.team === 0 && isCombat(e) && visibleAt(e.x, e.y, 1)).length;
   const allIn = ai.known.size > 0 && ai.known.size <= 3 && army.length >= Math.max(6, yourArmy * 2);
-  const gathered = army.filter(u => (allIn ? u.role !== 'scout' && u.role !== 'wave' : !u.role) && (allIn || Math.hypot(u.x - rally.x, u.y - rally.y) < 160));
+  const gathered = army.filter(u => (allIn ? u.role !== 'scout' && u.role !== 'wave' && u.role !== 'hill' && u.role !== 'garrison' : !u.role) && (allIn || Math.hypot(u.x - rally.x, u.y - rally.y) < 160));
   const lost = !ai.known.size && game.time > D.attackAfter + 90;   // still hasn't found you: go looking in force
   const due = game.time >= D.attackAfter && game.time >= (ai.nextWave || 0);
   const enough = gathered.length >= D.minWave;   // when it's due it goes with what it has, as long as there's a handful
@@ -2233,6 +2243,60 @@ function runAI(dt) {
       const t = aiWaveTarget(u, targets, D.focus) || ai.exploreTarget;
       if (t) { u.order = { type: 'attackmove', x: t.x, y: t.y, bld: !!t.type }; ai.waveTarget = t; }
     }
+  }
+}
+
+// The plateaus worth holding, best first: on its own half of the map, the river lookouts first, then the ones
+// nearest the middle. Each comes with a few spots along its top edge, facing the middle (where enemies come from).
+function aiHillSpots() {
+  const hq = hqOf(1); if (!hq) return [];
+  const foe = START[0], mid = { x: W / 2, y: H / 2 }, out = [];
+  for (const base of MAP.plateaus || []) for (const pl of [base, { ...base, x: W - base.x, y: H - base.y }]) {
+    if (Math.hypot(pl.x - hq.x, pl.y - hq.y) > Math.hypot(pl.x - foe.x, pl.y - foe.y)) continue;   // the enemy's half
+    // every bit of standable high ground on this plateau; the edge that faces the middle is where to stand
+    const tiles = [], R = Math.max(pl.rx, pl.ry) + 30;
+    for (let y = pl.y - R; y <= pl.y + R; y += TC) for (let x = pl.x - R; x <= pl.x + R; x += TC) {
+      const cx = (Math.floor(x / TC) + 0.5) * TC, cy = (Math.floor(y / TC) + 0.5) * TC;
+      if (elevAt(cx, cy) && terrainAt(cx, cy) === T.GRASS && Math.hypot(cx - pl.x, cy - pl.y) < R) tiles.push({ x: cx, y: cy, d: Math.hypot(cx - mid.x, cy - mid.y) });
+    }
+    if (tiles.length < 6) continue;
+    tiles.sort((p, q) => p.d - q.d);
+    const spots = [];
+    for (const t of tiles) { if (spots.length >= 5) break; if (Math.hypot(t.x - tiles[0].x, t.y - tiles[0].y) < 90 && spots.every(s => Math.hypot(s.x - t.x, s.y - t.y) >= 26)) spots.push({ x: t.x, y: t.y }); }
+    if (spots.length) out.push({ x: pl.x, y: pl.y, spots, score: (pl.overhang ? -10000 : 0) + Math.hypot(pl.x - mid.x, pl.y - mid.y) });
+  }
+  return out.sort((p, q) => p.score - q.score);
+}
+const RANGED = ['sniper', 'rocket', 'grenadier', 'soldier', 'civilian'];   // who it sends up the hills, best first
+function aiHoldHills(army, spare) {
+  const ai = game.ai, D = diff();
+  if (!ai.hills) ai.hills = aiHillSpots().slice(0, D.hill);
+  ai.hills.forEach((h, k) => {
+    const squad = army.filter(u => u.role === 'hill' && u.hill === k);
+    if (squad.length < D.hillSize) {
+      const pick = spare().filter(u => RANGED.includes(u.type)).sort((a, b) => RANGED.indexOf(a.type) - RANGED.indexOf(b.type)).slice(0, D.hillSize - squad.length);
+      for (const u of pick) { u.role = 'hill'; u.hill = k; u.passive = false; u.order = null; squad.push(u); }
+    }
+    squad.forEach((u, j) => {
+      const s = h.spots[j % h.spots.length];
+      if (!u.order && Math.hypot(u.x - s.x, u.y - s.y) > 30) u.order = { type: 'move', x: s.x, y: s.y };
+    });
+  });
+}
+function aiGarrisonDerricks(army, spare) {
+  const D = diff();
+  for (const u of army) if (u.role === 'garrison') { const d = byId(u.post); if (!d || d.team !== 1) { u.role = null; u.post = null; } }   // lost it: back to the pool
+  for (const d of game.ents) {
+    if (d.type !== 'derrick' || d.team !== 1) continue;
+    const g = army.filter(u => u.role === 'garrison' && u.post === d.id);
+    if (g.length < D.garrison) {
+      const pick = spare().sort((a, b) => Math.hypot(a.x - d.x, a.y - d.y) - Math.hypot(b.x - d.x, b.y - d.y)).slice(0, D.garrison - g.length);
+      for (const u of pick) { u.role = 'garrison'; u.post = d.id; u.passive = false; u.order = null; g.push(u); }
+    }
+    g.forEach((u, j) => {
+      const a = 1.2 + j * 2.1, x = d.x + Math.cos(a) * 70, y = d.y + Math.sin(a) * 70;
+      if (!u.order && Math.hypot(u.x - x, u.y - y) > 40) u.order = { type: 'move', x, y };
+    });
   }
 }
 
