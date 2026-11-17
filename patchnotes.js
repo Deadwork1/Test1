@@ -2,6 +2,15 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.18', date: '17 Nov 2026', title: 'River lookouts',
+    changes: [
+      'Huge map: two plateaus have moved to the middle, one on each side, right against the river ring around the island. Their rock juts out over the river, with a sheer cliff down to the water.',
+      'Each has just one ramp, on the side facing away from the middle, so it is easy to hold.',
+      'From the edge you can shoot onto the island: Rocket Soldiers and tanks reach well onto it, Snipers further still, Soldiers just onto the shore. Units on the island can\'t see up there, so they can\'t shoot back without a spotter.',
+      'Fixed: low ground could see up onto high ground from across the river, and a unit standing right at a cliff edge could sometimes be seen from below.',
+    ],
+  },
+  {
     version: '5.17.1', date: '17 Nov 2026', title: 'Map switching fixed on phones',
     changes: [
       'Fixed: on some phones (iPhones especially) the Large and Huge maps could fail to load, which also left the map buttons dead so you couldn\'t switch map again. Drawing the map now uses far less memory (Huge needs about 200 MB instead of going past the phone\'s limit).',

@@ -6,7 +6,7 @@ srv = http.server.ThreadingHTTPServer(('127.0.0.1', int(sys.argv[2])), functools
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 with sync_playwright() as p:
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--no-sandbox'])
-    for m in ['classic','large']:
+    for m in ['classic','large','huge']:
         pg = b.new_page(); pg.goto(f'http://127.0.0.1:{sys.argv[2]}/index.html'); pg.evaluate(f"localStorage.setItem('mini-rts-map','{m}')"); pg.wait_for_timeout(800)
         pg.goto(f'http://127.0.0.1:{sys.argv[2]}/index.html', wait_until='domcontentloaded'); pg.wait_for_timeout(3000); pg.click('#ovBtn')
         print(m, pg.evaluate("""(()=>{ const out=[];

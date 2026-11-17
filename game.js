@@ -70,7 +70,7 @@ const MAPS = {
     ],
     forests: [[1470, 1250, 360, 250, 0.35], [270, 820, 160], [1530, 420, 160], [980, 1950, 130], [1700, 1500, 110]],   // the big jungle sits on the routes between the bases
     plateaus: [
-      { x: 1880, y: 2180, rx: 270, ry: 175, tilt: -0.25, ramps: [3.4, 0.2] },
+      { x: 2050, y: 1880, rx: 250, ry: 165, tilt: 0.7, ramps: [Math.PI], overhang: true },   // lookout over the island: juts out over the river
       { x: 760, y: 470, rx: 210, ry: 150, tilt: 0.3, ramps: [1.7] },
       { x: 420, y: 1190, rx: 150, ry: 100, tilt: 0.1, ramps: [1.6, 0] },
     ],
@@ -235,6 +235,7 @@ function segDist(px, py, ax, ay, bx, by) {
   for (const [pts, th] of RIDGES) { ridges.push([pts, th]); ridges.push([pts.map(mirror), th]); }
   const plateaus = [];
   for (const pl of MAP.plateaus || []) { plateaus.push(pl); const [x, y] = mirror([pl.x, pl.y]); plateaus.push({ ...pl, x, y, ramps: pl.ramps.map(a => a + Math.PI) }); }
+  const overhung = (x, y) => plateaus.some(pl => pl.overhang && Math.hypot(x - pl.x, y - pl.y) < Math.max(pl.rx, pl.ry) + 10);
   const forests = [];
   for (const f of FORESTS) {   // a circle [x, y, r] or an oval jungle [x, y, rx, ry, tilt]
     const g = f.length === 3 ? [f[0], f[1], f[2], f[2], 0] : f;
@@ -257,7 +258,7 @@ function segDist(px, py, ax, ay, bx, by) {
         const u = (dx * co + dy * si) / pl.rx, v = (-dx * si + dy * co) / pl.ry, a = Math.atan2(v, u);
         const edge = 1 + 0.07 * Math.sin(a * 4 + pl.x) + 0.04 * Math.sin(a * 9 + pl.y), d = Math.hypot(u, v) / edge;
         const rimW = 42 / Math.min(pl.rx, pl.ry);   // thick enough that the cliff never has holes
-        if (d < 1) {
+        if (d < 1 && dI > ISLAND.r + (pl.overhang ? 0 : 34)) {
           const ang = Math.atan2(dy, dx);
           const onRamp = pl.ramps.some(ra => Math.abs(Math.atan2(Math.sin(ang - ra), Math.cos(ang - ra))) < 0.3);
           elev[r * TCOLS + c] = 1;
@@ -270,11 +271,27 @@ function segDist(px, py, ax, ay, bx, by) {
           if (segDist(x, y, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]) < th) t = T.ROCK;
         }
       }
-      if (Math.abs(dI - ISLAND.r) < 34 || (Math.abs(x - riverX(y)) < MAP.river.half && dI > ISLAND.r)) t = T.WATER;
+      if (Math.abs(dI - ISLAND.r) < 34 || (Math.abs(x - riverX(y)) < MAP.river.half && dI > ISLAND.r)) {
+        if (!(elev[r * TCOLS + c] && overhung(x, y))) t = T.WATER;   // a lookout plateau's rock juts out over the river here
+      }
+      if (t === T.WATER) elev[r * TCOLS + c] = 0;   // water is never high ground
       for (const b of BRIDGES) if (Math.abs(x - b.x) < b.hw && Math.abs(y - b.y) < b.hh) t = T.BRIDGE;
       terrain[r * TCOLS + c] = t;
     }
   }
+  // high ground that runs up to (or out over) the river ends in a cliff at the water's edge, one tile thick
+  const toCliff = [];
+  for (let r = 0; r < TROWS; r++) for (let c = 0; c < TCOLS; c++) {
+    const i = r * TCOLS + c;
+    if (!elev[i] || terrain[i] === T.CLIFF || terrain[i] === T.WATER) continue;
+    let wet = false;
+    for (let dr = -1; dr <= 1 && !wet; dr++) for (let dc = -1; dc <= 1; dc++) {
+      const rr = r + dr, cc = c + dc;
+      if (rr >= 0 && cc >= 0 && rr < TROWS && cc < TCOLS && terrain[rr * TCOLS + cc] === T.WATER) { wet = true; break; }
+    }
+    if (wet) toCliff.push(i);
+  }
+  for (const i of toCliff) terrain[i] = T.CLIFF;
 })();
 
 const elevAt = (x, y) => { const c = Math.floor(x / TC), r = Math.floor(y / TC); return c < 0 || r < 0 || c >= TCOLS || r >= TROWS ? 0 : elev[r * TCOLS + c]; };
@@ -894,6 +911,18 @@ const exploredAt = (x, y, team = 0) => fog[team].exp[cellIndex(x, y)] === 1;
 // a rock in between hides the square (the rock face itself can still be seen). Terrain never changes, so each
 // tile + sight radius is worked out once and remembered.
 const losCache = new Map();
+// which fog squares count as high ground: the middle of the square is, or the only ground you can stand on in it is
+// (along a cliff edge over the river the middle of a square can be over the cliff or the water)
+const cellHigh = new Uint8Array(COLS * ROWS);
+for (let row = 0; row < ROWS; row++) for (let col = 0; col < COLS; col++) {
+  let hi = false, lo = false;
+  for (let y = row * CELL + TC / 2; y < (row + 1) * CELL; y += TC) for (let x = col * CELL + TC / 2; x < (col + 1) * CELL; x += TC) {
+    const t = terrainAt(x, y); if (t === T.WATER || t === T.CLIFF || t === T.ROCK) continue;
+    if (elevAt(x, y)) hi = true; else lo = true;
+  }
+  cellHigh[row * COLS + col] = elevAt(col * CELL + CELL / 2, row * CELL + CELL / 2) || (hi && !lo) ? 1 : 0;
+}
+const overWater = (x0, y0, x1, y1) => { const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 8); for (let k = 1; k < n; k++) if (terrainAt(x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n) === T.WATER) return true; return false; };
 function visibleCells(x, y, r) {
   const tc = Math.floor(x / TC), tr = Math.floor(y / TC), key = (tr * TCOLS + tc) * 512 + Math.round(r);
   let cells = losCache.get(key);
@@ -905,7 +934,7 @@ function visibleCells(x, y, r) {
     const cx = col * CELL + CELL / 2, cy = row * CELL + CELL / 2, dist = Math.hypot(cx - ox, cy - oy);
     if (dist > r) continue;
     // from low ground you can't see up onto a plateau (except right at the foot of its ramp)
-    if (!high && elevAt(cx, cy) && dist > 60) continue;
+    if (!high && cellHigh[row * COLS + col] && (dist > 60 || overWater(ox, oy, cx, cy))) continue;   // ...and never from across the river
     let clear = true;
     const steps = Math.ceil(dist / 8);
     for (let k = 1; k < steps; k++) {
