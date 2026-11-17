@@ -1,0 +1,42 @@
+import sys, http.server, threading, functools
+from playwright.sync_api import sync_playwright
+root = sys.argv[1]
+srv = http.server.ThreadingHTTPServer(('127.0.0.1', 8765), functools.partial(http.server.SimpleHTTPRequestHandler, directory=root))
+threading.Thread(target=srv.serve_forever, daemon=True).start()
+errors = []
+with sync_playwright() as p:
+    b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--no-sandbox'])
+    pg = b.new_page(viewport={'width': 844, 'height': 390}, device_scale_factor=2, has_touch=True, is_mobile=True)
+    pg.on('pageerror', lambda e: errors.append(str(e)))
+    pg.on('console', lambda m: m.type == 'error' and errors.append(m.text))
+    pg.goto('http://127.0.0.1:8765/index.html'); pg.wait_for_timeout(500)
+    pg.screenshot(path='out/s0_start.png')
+    pg.click('#ovBtn'); pg.wait_for_timeout(300)
+    def scr(x, y): return pg.evaluate(f'[view.ox + {x}*view.scale, view.oy + {y}*view.scale]')
+    sx, sy = pg.evaluate("(()=>{const s=game.ents.find(e=>e.team===0&&e.type==='settler');return [view.ox+s.x*view.scale, view.oy+s.y*view.scale]})()")
+    pg.mouse.click(sx, sy); pg.wait_for_timeout(200)
+    print('selected after tap:', pg.evaluate("[...game.selected].map(id=>game.ents.find(e=>e.id===id).type)"))
+    pg.click('#btnDeploy'); pg.wait_for_timeout(200)
+    print('after deploy selected:', pg.evaluate("[...game.selected].map(id=>game.ents.find(e=>e.id===id).type)"))
+    pg.click('#btnBuild'); pg.wait_for_timeout(100)
+    x, y = scr(290, 420); pg.mouse.move(x, y); pg.wait_for_timeout(100)
+    pg.screenshot(path='out/s1_placing.png')
+    pg.mouse.click(x, y); pg.wait_for_timeout(100)
+    print('my ents:', pg.evaluate("game.ents.filter(e=>e.team===0).map(e=>e.type+(e.built===false?'(building)':''))"), 'credits', pg.evaluate("Math.floor(game.credits[0])"))
+    # fast-forward 12s
+    pg.evaluate("for(let i=0;i<240;i++) update(0.05)")
+    bx, by = pg.evaluate("(()=>{const s=game.ents.find(e=>e.team===0&&e.type==='barracks');return [view.ox+s.x*view.scale, view.oy+s.y*view.scale]})()")
+    pg.mouse.click(bx, by); pg.wait_for_timeout(100)
+    for _ in range(3): pg.click('#btnTrain')
+    pg.evaluate("for(let i=0;i<300;i++) update(0.05)")
+    pg.wait_for_timeout(200)
+    pg.screenshot(path='out/s2_soldiers.png')
+    print('my ents:', pg.evaluate("game.ents.filter(e=>e.team===0).map(e=>e.type)"))
+    print('enemy ents:', pg.evaluate("game.ents.filter(e=>e.team===1).map(e=>e.type)"))
+    # simulate long AI game: does AI eventually attack and win?
+    pg.evaluate("for(let i=0;i<20*120 && !game.over;i++) update(0.05)")
+    print('after 2 more min: over=', pg.evaluate("game.over"), 'mine', pg.evaluate("game.ents.filter(e=>e.team===0).map(e=>e.type)"), 'enemy', pg.evaluate("game.ents.filter(e=>e.team===1).length"))
+    pg.wait_for_timeout(200); pg.screenshot(path='out/s3_late.png')
+    print('ERRORS:', errors)
+    b.close()
+srv.shutdown()
