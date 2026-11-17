@@ -2,6 +2,12 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.6.1', date: '17 Nov 2026', title: 'Tougher Heavy Tank',
+    changes: [
+      'Heavy Tank: health 800 to 1000, speed 35 to 40. It can now push through a wall and Guard Tower on its own; rocket soldiers in numbers are still its counter.',
+    ],
+  },
+  {
     version: '5.6', date: '17 Nov 2026', title: 'Walls in the gaps, tidy formations',
     changes: [
       'The computer now seals the gap in the rocks in front of its base with a wall running from one rock face to the other (gate in the middle), and puts its first two Guard Towers just behind it at each end.',
