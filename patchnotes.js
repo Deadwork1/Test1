@@ -2,6 +2,15 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.21.1', date: '17 Nov 2026', title: 'Computer takes its time',
+    changes: [
+      'The computer no longer rushes for Oil Derricks: it goes for them from 5 minutes in on Hard, 6 on Normal and 8 on Easy, with a small escort.',
+      'Its high-ground squads start from 6 minutes (Hard) or 7 minutes (Normal) and wander up one unit at a time; the second plateau only once the first is held.',
+      'Its scout looks for your base first instead of running to the villages.',
+      'Reminder: Civilians only come out the first time a village\'s Derrick is captured, for whoever takes it, so get there first.',
+    ],
+  },
+  {
     version: '5.21', date: '17 Nov 2026', title: 'Computer takes the high ground',
     changes: [
       'The computer now holds plateaus: on Normal it sends a squad of its longest-range units (Snipers, Rocket Soldiers, Grenadiers first) up its best plateau, on Hard up two. On the Huge map it goes for its river lookout first. It tops the squad up when units are lost, and they stay put instead of wandering home.',
