@@ -76,6 +76,8 @@ const MAPS = {
     ],
     river: { amp: 110, period: 420, half: 44 },
     bridges: [{ y: 380, hw: 74 }, { y: 820, hw: 74 }],
+    // neutral villages: an Oil Derrick and a few houses. This one (and its mirror) is about as far from both bases.
+    villages: [{ x: 1880, y: 560, derrick: [0, 0], houses: [[-100, -62], [96, -58], [-84, 82]] }],
   },
 };
 let mapChoice = 'large';
@@ -118,6 +120,9 @@ const STATS = {
   tower:     { hp: 700, size: 46, sight: 230, buildTime: 12, range: 170, dmg: 14, cooldown: 0.9 },
   wall:      { hp: 400, size: 25, sight: 50 },
   gate:      { hp: 600, size: 50, sight: 60 },
+  // neutral buildings: they start out belonging to no one (team 2) and can't be hurt while neutral
+  derrick:   { hp: 600, size: 64, sight: 160, pay: 100, payEvery: 15 },   // an Engineer captures it; then it pays its owner every 15s
+  house:     { hp: 400, size: 42, sight: 0 },                             // village houses: scenery for now
 };
 const PRODUCES = { barracks: ['soldier', 'grenadier', 'rocket', 'sniper', 'engineer'], refinery: ['extractor'], factory: ['buggy', 'light', 'artillery', 'heavy'] };
 // Tech tree: what else you need (finished, and still standing) before you can build or train something
@@ -152,12 +157,15 @@ const POWER_BONUS = 0.25, POWER_MAX = 2;
 const powerBoost = team => Math.min(POWER_MAX, 1 + POWER_BONUS * game.ents.filter(b => b.team === team && b.type === 'power' && b.built).length);
 // how many times longer than normal this side takes to build things (difficulty slow-down ÷ power boost)
 const slowOf = e => (e.team === 1 ? diff().slow : 1) / powerBoost(e.team);
-const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', rocket: 'Rocket Soldier', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', tower: 'Guard Tower', power: 'Power Plant', wall: 'Wall', gate: 'Gate' };
+const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', rocket: 'Rocket Soldier', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', tower: 'Guard Tower', power: 'Power Plant', wall: 'Wall', gate: 'Gate', derrick: 'Oil Derrick', house: 'House' };
 
 const TEAMS = [
   { name: 'You',   color: '#3b82f6', dark: '#1d3f8f', light: '#93c5fd' },
   { name: 'Enemy', color: '#ef4444', dark: '#8f1d1d', light: '#fca5a5' },
+  { name: 'Neutral', color: '#b8b2a6', dark: '#5f5a52', light: '#e7e5e4' },
 ];
+const NEUTRAL = 2;
+const isNeutralType = t => t === 'derrick' || t === 'house';
 const START = [{ x: MAP.start.x, y: MAP.start.y }, { x: W - MAP.start.x, y: H - MAP.start.y }];
 
 // ore fields: a small one by each base, a big rich one in the middle, two on the flanks
@@ -666,6 +674,19 @@ const bg = document.createElement('canvas');
       tc.stroke();
     }
   });
+  // village paths: worn dirt tracks from each house to the derrick, and one leading out of the village
+  for (const v of MAP.villages || []) for (const [vx, vy] of [[v.x, v.y], mirror([v.x, v.y])]) {
+    const k = vx === v.x ? 1 : -1, dx0 = vx + v.derrick[0] * k, dy0 = vy + v.derrick[1] * k;
+    const track = (x1, y1, x2, y2, w) => {
+      const mx = (x1 + x2) / 2 + (y2 - y1) * 0.12, my = (y1 + y2) / 2 - (x2 - x1) * 0.12;   // a gentle bend
+      b.lineCap = 'round';
+      b.strokeStyle = 'rgba(105,88,58,0.55)'; b.lineWidth = w + 6; b.beginPath(); b.moveTo(x1, y1); b.quadraticCurveTo(mx, my, x2, y2); b.stroke();
+      b.strokeStyle = 'rgba(140,118,80,0.7)'; b.lineWidth = w; b.beginPath(); b.moveTo(x1, y1); b.quadraticCurveTo(mx, my, x2, y2); b.stroke();
+    };
+    b.fillStyle = 'rgba(120,102,68,0.45)'; b.beginPath(); b.ellipse(dx0, dy0 + 6, 70, 56, 0, 0, Math.PI * 2); b.fill();   // trodden square
+    for (const [hx, hy] of v.houses) track(vx + hx * k, vy + hy * k + 18 * k, dx0, dy0, 10);
+    track(dx0, dy0, dx0 + 40 * k, dy0 + 230 * k, 12);
+  }
   b.strokeStyle = 'rgba(0,0,0,0.5)'; b.lineWidth = 6; b.strokeRect(3, 3, W - 6, H - 6);
 })();
 
@@ -700,6 +721,11 @@ function newGame() {
       game.ore.push({ id: game.nextId++, x, y, amount: f.amount, max: f.amount, rot: rnd() * 6 });
     }
   }
+  for (const v of MAP.villages || []) for (const [vx, vy] of [[v.x, v.y], mirror([v.x, v.y])]) {
+    const k = vx === v.x ? 1 : -1;   // the mirrored village is turned round too
+    spawn('derrick', NEUTRAL, vx + v.derrick[0] * k, vy + v.derrick[1] * k);
+    v.houses.forEach(([dx, dy], i) => { spawn('house', NEUTRAL, vx + dx * k, vy + dy * k).look = i % 3; });
+  }
   spawn('settler', 0, START[0].x, START[0].y);
   spawn('settler', 1, START[1].x, START[1].y);
   cam.x = START[0].x; cam.y = START[0].y; setZoom(1); clampCam();
@@ -713,7 +739,7 @@ function spawn(type, team, x, y) {
   if (isBuildingType(type)) {
     bldDirty = true;
     e.size = s.size;
-    if (type === 'hq' || isWallType(type)) { e.built = true; e.progress = 1; }   // walls go up instantly
+    if (type === 'hq' || isWallType(type) || isNeutralType(type)) { e.built = true; e.progress = 1; }   // walls go up instantly
     else { e.built = false; e.progress = 0; e.hp = s.hp * 0.1; }
     e.queue = 0; e.trainT = 0; e.qTypes = [];
   } else {
@@ -724,7 +750,7 @@ function spawn(type, team, x, y) {
   return e;
 }
 
-function isBuildingType(t) { return t === 'hq' || t === 'barracks' || t === 'refinery' || t === 'factory' || t === 'tech' || t === 'power' || t === 'tower' || t === 'wall' || t === 'gate'; }
+function isBuildingType(t) { return t === 'derrick' || t === 'house' || t === 'hq' || t === 'barracks' || t === 'refinery' || t === 'factory' || t === 'tech' || t === 'power' || t === 'tower' || t === 'wall' || t === 'gate'; }
 const isWallType = t => t === 'wall' || t === 'gate';
 const gateHalf = vertical => vertical ? { hx: TC / 2, hy: TC } : { hx: TC, hy: TC / 2 };
 const halfX = e => e.type === 'gate' ? gateHalf(e.vertical).hx : e.size / 2;
@@ -841,6 +867,7 @@ function visibleCells(x, y, r) {
 function updateFog() {
   for (const f of fog) f.vis.fill(0);
   for (const e of game.ents) {
+    if (e.team === NEUTRAL) continue;
     const f = fog[e.team];
     const r = STATS[e.type].sight * (isBuilding(e) && !e.built ? 0.6 : 1) * (elevAt(e.x, e.y) ? HIGH_SIGHT : 1);
     for (const i of visibleCells(e.x, e.y, r)) { f.vis[i] = 1; f.exp[i] = 1; }
@@ -890,7 +917,7 @@ function deploy(settler) {
 // Your build area: a circle round the HQ plus one round every other finished building (walls and gates don't count),
 // so it grows as your base spreads out.
 function buildAreaSources(team) {
-  return game.ents.filter(b => b.team === team && isBuilding(b) && b.built && !isWallType(b.type))
+  return game.ents.filter(b => b.team === team && isBuilding(b) && b.built && !isWallType(b.type) && !isNeutralType(b.type))
     .map(b => ({ x: b.x, y: b.y, r: b.size / 2 + (b.type === 'hq' ? BUILD_RADIUS : BUILD_RADIUS_OTHER), b }));
 }
 function inBuildArea(team, x, y, extra = 0) {
@@ -1153,12 +1180,21 @@ function update(dt) {
     else if (e.type === 'engineer') updateEngineer(e, dt);
     else if (e.type === 'extractor') updateExtractor(e, dt);
     else if (e.type === 'tower') updateTower(e, dt);
+    else if (e.type === 'derrick') updateDerrick(e, dt);
     else if (isBuilding(e)) updateBuilding(e, dt);
   }
 
   separate();
 
   for (const e of game.ents) {
+    if (e.team === NEUTRAL) { e.hp = e.maxHp; continue; }
+    if (e.type === 'derrick' && e.hp <= 0) {
+      game.effects.push({ kind: 'boom', x: e.x, y: e.y, t: 0, big: true });
+      game.effects.push({ kind: 'text', x: e.x, y: e.y - 34, text: 'Derrick knocked out', t: 0, color: '#e7e5e4' });
+      e.team = NEUTRAL; e.hp = e.maxHp; e.payT = 0; e.takenAt = undefined; e.target = null;
+      game.ai.known.delete(e.id); bldDirty = true;
+      continue;
+    }
     if (e.hp <= 0) {
       game.selected.delete(e.id);
       if (isBuilding(e)) bldDirty = true;
@@ -1208,7 +1244,7 @@ function update(dt) {
   updateFog();
 
   // a side is beaten once all its buildings are gone (walls and gates don't count) and it has no Settler left to start again
-  const alive = [0, 1].map(t => game.ents.some(e => e.team === t && ((isBuilding(e) && !isWallType(e.type)) || e.type === 'settler')));
+  const alive = [0, 1].map(t => game.ents.some(e => e.team === t && ((isBuilding(e) && !isWallType(e.type) && !isNeutralType(e.type)) || e.type === 'settler')));
   if (!alive[1]) endGame(true);
   else if (!alive[0]) endGame(false);
 }
@@ -1219,7 +1255,7 @@ const beingRetaken = (o, team) => isBuilding(o) && ((o.takenAt !== undefined && 
 function findEnemyNear(e, radius) {
   let best = null, bestD = radius;
   for (const o of game.ents) {
-    if (o.team === e.team || hiddenFrom(o, e.team) || isWallType(o.type) || beingRetaken(o, e.team)) continue;
+    if (o.team === e.team || o.team === NEUTRAL || hiddenFrom(o, e.team) || isWallType(o.type) || beingRetaken(o, e.team)) continue;
     if (!visibleAt(o.x, o.y, e.team)) continue;   // can't pick a target it can't see (behind rocks or in the fog)
     const d = edgeDist(e.x, e.y, o);
     if (d < bestD) { bestD = d; best = o; }
@@ -1251,7 +1287,7 @@ function findSiegeTarget(e, radius) {
   let best = null, bestScore = Infinity;
   const min = STATS[e.type].minRange || 0;
   for (const o of game.ents) {
-    if (o.team === e.team || hiddenFrom(o, e.team) || (isWallType(o.type) && o.type !== 'gate') || beingRetaken(o, e.team)) continue;
+    if (o.team === e.team || o.team === NEUTRAL || hiddenFrom(o, e.team) || (isWallType(o.type) && o.type !== 'gate') || beingRetaken(o, e.team)) continue;
     if (!visibleAt(o.x, o.y, e.team)) continue;
     const d = edgeDist(e.x, e.y, o);
     if (d > radius || (isUnit(o) && d < min)) continue;
@@ -1264,7 +1300,7 @@ function findSiegeTarget(e, radius) {
 function findInfantryNear(e, radius) {   // nearest enemy infantry in view (not hidden in a forest)
   let best = null, bestD = radius;
   for (const o of game.ents) {
-    if (o.team === e.team || !isInfantry(o) || hiddenFrom(o, e.team) || !visibleAt(o.x, o.y, e.team)) continue;
+    if (o.team === e.team || o.team === NEUTRAL || !isInfantry(o) || hiddenFrom(o, e.team) || !visibleAt(o.x, o.y, e.team)) continue;
     const d = edgeDist(e.x, e.y, o);
     if (d < bestD) { bestD = d; best = o; }
   }
@@ -1274,7 +1310,7 @@ function findInfantryNear(e, radius) {   // nearest enemy infantry in view (not 
 function findVehicleNear(e, radius) {   // nearest enemy vehicle (buggy, extractor, settler) in view
   let best = null, bestD = radius;
   for (const o of game.ents) {
-    if (o.team === e.team || !isUnit(o) || isInfantry(o) || !visibleAt(o.x, o.y, e.team)) continue;
+    if (o.team === e.team || o.team === NEUTRAL || !isUnit(o) || isInfantry(o) || !visibleAt(o.x, o.y, e.team)) continue;
     const d = edgeDist(e.x, e.y, o);
     if (d < bestD) { bestD = d; best = o; }
   }
@@ -1328,7 +1364,7 @@ function updateSoldier(e, dt) {   // soldiers and buggies
     if (r) { e.order = null; if (o.slot && r === true) { e.home = { x: o.x, y: o.y, face: o.face }; e.facing = o.face; } }   // arrived (true) or can't get there ('fail')
   } else if (o.type === 'attack') {
     const t = byId(o.target);
-    if (!t || hiddenFrom(t, e.team)) { e.order = o.resume || null; return; }
+    if (!t || t.team === e.team || t.team === NEUTRAL || hiddenFrom(t, e.team)) { e.order = o.resume || null; return; }   // gone, captured or knocked back to neutral
     // a unit that slips into the fog is lost: go to where it was last seen, then stop (no tracking it through the fog)
     if (isUnit(t) && !visibleAt(t.x, t.y, e.team) && Math.hypot(t.x - e.x, t.y - e.y) > s.sight) {
       // head for the last spot it was seen, ready to fight anything met on the way
@@ -1380,7 +1416,7 @@ function updateSoldier(e, dt) {   // soldiers and buggies
 }
 
 // Engineers: walk to a building, then either repair it (yours) or capture it (theirs). They're very fragile, so escort them.
-const canCapture = b => isBuilding(b) && !isWallType(b.type) && b.type !== 'tower' && b.built;   // any finished building except walls, gates and guard towers
+const canCapture = b => isBuilding(b) && !isWallType(b.type) && b.type !== 'tower' && b.type !== 'house' && b.built;   // any finished building except walls, gates and guard towers
 function updateEngineer(e, dt) {
   const o = e.order;
   e.working = false;
@@ -1411,13 +1447,25 @@ function captureBuilding(b, team) {
   const was = b.team;
   b.team = team;
   b.takenAt = game.time;
-  if (game.lost) { game.lost[team] = game.lost[team].filter(id => id !== b.id); if (!game.lost[was].includes(b.id)) game.lost[was].push(b.id); }
+  if (game.lost && was !== NEUTRAL) { game.lost[team] = game.lost[team].filter(id => id !== b.id); if (!game.lost[was].includes(b.id)) game.lost[was].push(b.id); }
+  if (b.type === 'derrick') b.payT = 0;
   b.queue = 0; b.qTypes = []; b.trainT = 0; b.dockedBy = null; b.target = null;
   if (game.selected.has(b.id) && team !== 0) game.selected.delete(b.id);
   game.ai.known.delete(b.id);
-  game.effects.push({ kind: 'text', x: b.x, y: b.y - 30, text: team === 0 ? 'Captured!' : 'Lost!', t: 0, color: team === 0 ? '#7dff7d' : '#ff6b6b' });
+  if (team === 0 || was === 0 || visibleAt(b.x, b.y)) game.effects.push({ kind: 'text', x: b.x, y: b.y - 30, text: team === 0 ? 'Captured!' : was === 0 ? 'Lost!' : 'Taken by the enemy', t: 0, color: team === 0 ? '#7dff7d' : '#ff6b6b' });
   bldDirty = true;
   if (team === 0 && was === 1) game.selected = new Set([b.id]);
+}
+
+// an owned Oil Derrick pumps money for its owner: $100 every 15 seconds
+function updateDerrick(e, dt) {
+  if (e.team === NEUTRAL) return;
+  const s = STATS.derrick;
+  e.payT = (e.payT || 0) + dt;
+  if (e.payT < s.payEvery) return;
+  e.payT -= s.payEvery;
+  game.credits[e.team] += e.team === 1 ? Math.round(s.pay * diff().income) : s.pay;
+  if (e.team === 0) game.effects.push({ kind: 'text', x: e.x, y: e.y - 30, text: '+$' + s.pay, t: 0 });
 }
 
 function updateBuilding(e, dt) {
@@ -1767,14 +1815,14 @@ function defendBuildings() {
   game.defendT = 5;   // every quarter of a second
   const alarms = [];
   for (const b of game.ents) {
-    if (!isBuilding(b) || !b.hitAt || game.time - b.hitAt > 2) continue;
+    if (!isBuilding(b) || b.team === NEUTRAL || !b.hitAt || game.time - b.hitAt > 2) continue;
     const foe = byId(b.hitBy);
     if (foe && foe.hp > 0 && foe.team !== b.team) alarms.push({ b, foe });
   }
   // enemy fighters walking into your base (close to one of your buildings) raise the alarm too, before they start shooting
   for (const foe of game.ents) {
     if (!isCombat(foe) || alarms.some(a => a.foe === foe)) continue;
-    const b = game.ents.find(b => isBuilding(b) && b.team !== foe.team && !isWallType(b.type) && b.built && Math.hypot(b.x - foe.x, b.y - foe.y) < 250);
+    const b = game.ents.find(b => isBuilding(b) && b.team !== foe.team && b.team !== NEUTRAL && !isWallType(b.type) && b.built && Math.hypot(b.x - foe.x, b.y - foe.y) < 250);
     if (b && visibleAt(foe.x, foe.y, b.team) && !hiddenFrom(foe, b.team)) alarms.push({ b, foe });
   }
   for (const { b, foe } of alarms) {
@@ -1909,6 +1957,7 @@ function runAI(dt) {
   const raidDue = D.raidEvery && game.time > 360 && game.time - (ai.lastRaid || 0) > D.raidEvery && !ai.raidPending && [...ai.known.keys()].some(id => { const b = byId(id); return b && b.team === 0 && b.type !== 'hq' && canCapture(b); });
   // win back buildings your engineers took: send an engineer with an escort (try again if it's killed)
   const retake = game.lost[1].map(byId).filter(b => b && b.team === 0 && canCapture(b));
+  if (game.time > 120) for (const d of game.ents) if (d.type === 'derrick' && d.team !== 1 && exploredAt(d.x, d.y, 1) && !retake.includes(d)) retake.push(d);   // and Oil Derricks it has found
   const retaking = of('engineer').some(en => en.retake) || ai.retakePending;
   const retakeDue = D.engineers > 0 && retake.length && !retaking && game.time - (ai.lastRetake || -99) > 25;
   const wantEngineer = (D.engineers > 0 && needsFix && repairers < D.engineers) || raidDue || retakeDue;
@@ -1979,7 +2028,11 @@ function runAI(dt) {
     const sc = scout || army.find(u => u.type === 'buggy' && !u.role) || army.find(u => !u.role);
     if (sc) {
       ai.scout = sc.id; sc.role = 'scout'; sc.passive = true;
-      if (!sc.order) { const spot = aiExploreSpot(sc.x, sc.y, true); if (spot) sc.order = { type: 'move', x: spot.x, y: spot.y }; }
+      if (!sc.order) {   // villages first (it knows the map, like a player who has played it before), then wherever it hasn't been
+        const dk = diff().engineers > 0 && game.ents.filter(d => d.type === 'derrick' && !exploredAt(d.x, d.y, 1)).sort((a, b) => Math.hypot(a.x - sc.x, a.y - sc.y) - Math.hypot(b.x - sc.x, b.y - sc.y))[0];
+        const spot = dk ? { x: dk.x, y: dk.y + dk.size / 2 + 60 } : aiExploreSpot(sc.x, sc.y, true);
+        if (spot) sc.order = { type: 'move', x: spot.x, y: spot.y };
+      }
     }
   } else if (scout) {
     scout.order = { type: 'move', x: rally.x, y: rally.y }; scout.passive = false; scout.role = null; ai.scout = null;
@@ -2180,9 +2233,11 @@ function draw() {
     else if (e.type === 'light') drawTank(e);
     else if (e.type === 'heavy') drawHeavyTank(e);
     else if (e.type === 'artillery') drawArtillery(e);
+    else if (e.type === 'derrick') drawDerrick(e);
+    else if (e.type === 'house') drawHouse(e);
     else drawSoldier(e);
   }
-  for (const e of ents) if (sel.has(e.id) || e.hp < e.maxHp) drawHealth(e);
+  for (const e of ents) if ((sel.has(e.id) || e.hp < e.maxHp) && e.type !== 'house') drawHealth(e);
   for (const e of ents) if (sel.has(e.id) && isBuilding(e)) drawNameTag(e);
   for (const e of ents) if (sel.has(e.id) && e.type === 'tower') drawRange(e.x, e.y, STATS.tower.range);
   for (const e of ents) if (sel.has(e.id) && e.type === 'artillery' && e.team === 0) drawRange(e.x, e.y, rangeOf(e));
@@ -3125,6 +3180,94 @@ function drawPower(e) {
   ctx.beginPath(); ctx.moveTo(ex + 2, ey - 6); ctx.lineTo(ex - 3, ey + 1); ctx.lineTo(ex, ey + 1); ctx.lineTo(ex - 2, ey + 6); ctx.lineTo(ex + 3, ey - 1); ctx.lineTo(ex, ey - 1); ctx.closePath(); ctx.fill();
 }
 
+// Oil Derrick: a nodding-donkey pump on a dirt pad with a storage tank. It only pumps once someone owns it.
+function drawDerrick(e) {
+  const c = TEAMS[e.team], h = e.size / 2, x0 = e.x - h, y0 = e.y - h, t = performance.now() / 1000, owned = e.team !== NEUTRAL;
+  // packed-dirt pad with oil stains
+  ctx.fillStyle = '#857a62'; ctx.fillRect(x0 - 6, y0 - 4, e.size + 12, e.size + 8);
+  ctx.fillStyle = 'rgba(0,0,0,0.15)'; ctx.fillRect(x0 - 6, y0 + e.size + 1, e.size + 12, 3);
+  ctx.fillStyle = 'rgba(20,16,10,0.55)';
+  ctx.beginPath(); ctx.ellipse(e.x + 12, e.y + 12, 14, 6, 0.2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x0 + 10, y0 + e.size - 6, 6, 3, 0, 0, Math.PI * 2); ctx.fill();
+  // storage tank (back left) with a band in the owner's colour
+  const tx = x0 + 10, ty = y0 + 6;
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(tx + 4, ty + 12, 9, 5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#9d988c'; ctx.fillRect(tx - 8, ty, 16, 10);
+  ctx.beginPath(); ctx.ellipse(tx, ty + 10, 8, 3, 0, 0, Math.PI); ctx.fill();
+  ctx.fillStyle = c.color; ctx.fillRect(tx - 8, ty + 4, 16, 3);
+  ctx.fillStyle = '#d6d2c7'; ctx.beginPath(); ctx.ellipse(tx, ty, 8, 3, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#7d786c'; ctx.lineWidth = 1; ctx.stroke();
+  // pipe from the wellhead to the tank
+  ctx.strokeStyle = '#4a4740'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(e.x + 24, e.y + 14); ctx.lineTo(e.x + 24, y0 + 20); ctx.lineTo(tx + 8, y0 + 20); ctx.lineTo(tx + 8, ty + 8); ctx.stroke();
+  // skid the pump stands on
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(e.x - 14, e.y + 15, 44, 7);
+  ctx.fillStyle = '#5b574f'; ctx.fillRect(e.x - 16, e.y + 11, 44, 7);
+  ctx.fillStyle = c.color; ctx.fillRect(e.x - 16, e.y + 11, 44, 2);
+  // wellhead
+  ctx.fillStyle = '#3d3a34'; ctx.fillRect(e.x + 21, e.y + 6, 7, 9);
+  // crank and counterweight at the back end (turns while pumping)
+  const spin = owned ? t * 2.2 : 0.6;
+  const cx = e.x - 8, cy = e.y + 4;
+  ctx.fillStyle = '#4a4740'; ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(spin);
+  ctx.fillStyle = '#6b665c'; ctx.fillRect(-2, -2, 13, 4);
+  ctx.fillStyle = '#3f3c36'; ctx.beginPath(); ctx.arc(10, 0, 6, -1.2, 1.2); ctx.lineTo(10, 0); ctx.fill();
+  ctx.restore();
+  // samson post: an A-frame up to the pivot
+  const px = e.x + 8, py = e.y - 12;
+  ctx.strokeStyle = '#6b665c'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(px - 8, e.y + 12); ctx.lineTo(px, py); ctx.lineTo(px + 8, e.y + 12); ctx.stroke();
+  // walking beam with the horse's head over the well, nodding up and down
+  const nod = owned ? Math.sin(spin) * 0.28 : 0.12;
+  ctx.save(); ctx.translate(px, py); ctx.rotate(nod);
+  ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(-19, 3, 40, 5);
+  ctx.fillStyle = '#d9a520'; ctx.fillRect(-20, -3, 38, 6);
+  ctx.fillStyle = '#f0c548'; ctx.fillRect(-20, -3, 38, 2);
+  ctx.fillStyle = '#d9a520';   // horse's head
+  ctx.beginPath(); ctx.moveTo(16, -6); ctx.quadraticCurveTo(26, -4, 25, 10); ctx.lineTo(19, 10); ctx.quadraticCurveTo(19, 0, 14, -2); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#4a4740'; ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  // the rod down into the well, hanging from the horse's head
+  const hx = px + Math.cos(nod) * 22 - Math.sin(nod) * 10, hy = py + Math.sin(nod) * 22 + Math.cos(nod) * 10;
+  ctx.strokeStyle = '#2b2924'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(e.x + 24, e.y + 6); ctx.stroke();
+  flag(x0 + e.size + 2, y0 + 4, e.team);
+}
+
+// village house: walls, a pitched tiled roof with a chimney, a door and windows. Three looks so a village isn't all the same.
+const HOUSE_LOOKS = [
+  { roof: '#a2513f', roofDark: '#7e3b2d', wall: '#dccfb2', wallDark: '#b9ab8d' },
+  { roof: '#7b5a3c', roofDark: '#5c422b', wall: '#e3dccb', wallDark: '#c2b9a4' },
+  { roof: '#5f6f78', roofDark: '#46535a', wall: '#d6c7a6', wallDark: '#b3a383' },
+];
+function drawHouse(e) {
+  const L = HOUSE_LOOKS[e.look || 0], s = e.size, x0 = e.x - s / 2, y0 = e.y - s / 2;
+  // little dirt yard
+  ctx.fillStyle = 'rgba(120,100,65,0.55)'; ctx.beginPath(); ctx.ellipse(e.x, e.y + 4, s * 0.72, s * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+  // shadow, then the front wall
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(x0 + 5, y0 + 6, s, s - 2);
+  const wallH = 14;
+  ctx.fillStyle = L.wall; ctx.fillRect(x0 + 2, y0 + s - wallH, s - 4, wallH);
+  ctx.fillStyle = L.wallDark; ctx.fillRect(x0 + 2, y0 + s - 3, s - 4, 3);
+  // door and two windows
+  ctx.fillStyle = '#5a3d24'; ctx.fillRect(e.x - 4, y0 + s - 11, 8, 11);
+  ctx.fillStyle = '#c9a03c'; ctx.fillRect(e.x + 2, y0 + s - 6, 1.5, 1.5);
+  ctx.fillStyle = '#9cc9e8'; ctx.fillRect(x0 + 7, y0 + s - 10, 6, 5); ctx.fillRect(x0 + s - 13, y0 + s - 10, 6, 5);
+  ctx.strokeStyle = L.wallDark; ctx.lineWidth = 1; ctx.strokeRect(x0 + 7, y0 + s - 10, 6, 5); ctx.strokeRect(x0 + s - 13, y0 + s - 10, 6, 5);
+  // pitched roof: the far slope catches the light, the near slope is darker, a ridge along the top
+  const rh = s - wallH;
+  ctx.fillStyle = L.roof; ctx.fillRect(x0, y0, s, rh / 2);
+  ctx.fillStyle = L.roofDark; ctx.fillRect(x0, y0 + rh / 2, s, rh / 2);
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.lineWidth = 1;   // rows of tiles
+  for (let y = y0 + 4; y < y0 + rh; y += 4) { ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x0 + s, y); ctx.stroke(); }
+  ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.fillRect(x0, y0 + rh / 2 - 1.5, s, 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(x0, y0 + rh - 2, s, 2);   // eaves
+  // chimney
+  ctx.fillStyle = '#8a7f72'; ctx.fillRect(x0 + s - 12, y0 + 2, 6, 9);
+  ctx.fillStyle = '#5e564c'; ctx.fillRect(x0 + s - 12, y0 + 2, 6, 2);
+}
+
 function drawRange(x, y, r) {
   ctx.strokeStyle = 'rgba(255,233,160,0.55)'; ctx.fillStyle = 'rgba(255,233,160,0.06)';
   ctx.setLineDash([8, 6]); ctx.lineWidth = 2;
@@ -3312,6 +3455,18 @@ function handleTap(x, y) {
     }
     if (soldiers.length || engineers.length) game.effects.push({ kind: 'marker', x: hit.x, y: hit.y, t: 0, color: '#ff6b6b' });
     return;
+  }
+
+  if (hit && hit.team === NEUTRAL) {
+    if (engineers.length && canCapture(hit)) {   // engineers go in to capture it; anyone else selected goes along to guard it
+      engineers.sort((a, b) => Math.hypot(a.x - hit.x, a.y - hit.y) - Math.hypot(b.x - hit.x, b.y - hit.y));
+      for (const en of engineers) en.order = { type: 'capture', target: hit.id };
+      const others = myUnits.filter(e => e.type !== 'engineer');
+      if (others.length) groupMove(others, hit.x, hit.y + hit.size / 2 + 40);
+      game.effects.push({ kind: 'marker', x: hit.x, y: hit.y, t: 0, color: '#7dff7d' });
+      return;
+    }
+    if (!myUnits.length) { game.selected = new Set([hit.id]); return; }   // nothing selected: show what it is
   }
 
   const ore = oreAt(x, y);
@@ -3584,12 +3739,16 @@ function updateHUD() {
   else if (sel.length === 1 && sel[0].type === 'power') text = sel[0].built
     ? `Power Plant — you build ${Math.round((powerBoost(0) - 1) * 100)}% faster${powerBoost(0) >= POWER_MAX ? ' (max)' : ''}`
     : `Power Plant: ${Math.floor(sel[0].progress * 100)}% built`;
+  else if (sel.length === 1 && sel[0].type === 'derrick') text = sel[0].team === 0
+    ? 'Oil Derrick — pays $' + STATS.derrick.pay + ' every ' + STATS.derrick.payEvery + 's (next in ' + Math.ceil(STATS.derrick.payEvery - (sel[0].payT || 0)) + 's)'
+    : 'Oil Derrick — neutral. Send an Engineer to capture it: $' + STATS.derrick.pay + ' every ' + STATS.derrick.payEvery + 's';
+  else if (sel.length === 1 && sel[0].type === 'house') text = 'Village house';
   else if (sel.length === 1 && sel[0].type === 'tower') text = sel[0].built ? 'Guard Tower — fires at enemies in range' : `Guard Tower: ${Math.floor(sel[0].progress * 100)}% built`;
   else if (producer) text = producer.built ? `${NAMES[producer.type]}${producer.queue ? ' — making ×' + producer.queue : ''}` : `${NAMES[producer.type]}: ${Math.floor(producer.progress * 100)}% built`;
   else if (extractors.length === 1 && sel.length === 1) text = extractorStatus(extractors[0]);
   else if (sel.length === 1 && sel[0].type === 'engineer') {
     const o = sel[0].order;
-    text = o && o.type === 'repair' ? 'Engineer: repairing' : o && o.type === 'capture' ? 'Engineer: going in to capture' : 'Engineer — tap your damaged building to repair, or an enemy building to capture';
+    text = o && o.type === 'repair' ? 'Engineer: repairing' : o && o.type === 'capture' ? 'Engineer: going in to capture' : 'Engineer — tap your damaged building to repair, or an enemy building or Oil Derrick to capture';
   } else if (sel.length) {
     const counts = {};
     for (const e of sel) counts[e.type] = (counts[e.type] || 0) + 1;

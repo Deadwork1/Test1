@@ -2,6 +2,17 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.15', date: '17 Nov 2026', title: 'Villages and Oil Derricks',
+    changes: [
+      'The Huge map now has two small neutral villages, one north of the middle and one south, each about as far from both bases. Each has three houses and an Oil Derrick, joined by dirt paths.',
+      'Oil Derricks start out neutral: nobody can damage them. Send an Engineer in to capture one (the Engineer is used up). Once it is yours it pumps $100 every 15 seconds, about as much as one Extractor, and it never runs out.',
+      'An owned Derrick can be shot. Knocked down to nothing it doesn\'t blow up: it goes back to neutral, ready for anyone to capture. An enemy Engineer can also steal it.',
+      'Derricks don\'t count towards winning or losing and don\'t extend your build area. Tap one to see what it pays.',
+      'The computer goes for Derricks too on Normal and Hard: once it has found one, it sends an Engineer with an escort.',
+      'Houses are neutral scenery for now: they block movement and can\'t be harmed.',
+    ],
+  },
+  {
     version: '5.14', date: '17 Nov 2026', title: 'Huge map',
     changes: [
       'New Huge map (4800 x 3000, a third bigger each way than Large). Pick it on the start screen.',

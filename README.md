@@ -10,6 +10,7 @@ A small real-time strategy game inspired by classic 90s RTS games, built step by
 - Each Refinery comes with one free **Extractor** and can build more ($150). They wait until you tap some **ore**, then run back and forth automatically. When a patch runs out they go idle; **Auto-harvest** sends them to the nearest ore you've discovered.
 - The big ore field in the middle is the prize. Destroy every enemy building (walls and gates don't count) to win, as long as they have no Settler left.
 - The computer plays under the same fog of war: it has to scout to find ore and your base.
+- On the Huge map, two neutral **villages** each hold an **Oil Derrick**. Capture one with an Engineer and it pays $100 every 15 seconds. Neutral Derricks can't be damaged; an owned one knocked down to nothing goes back to neutral. The computer goes for them too (Normal and Hard).
 
 ## Terrain
 - **Rocks & cliffs** block everything. Each base has a cliff wall with a gap.
@@ -20,7 +21,7 @@ A small real-time strategy game inspired by classic 90s RTS games, built step by
 ## Controls (touch or mouse)
 - Drag to scroll, pinch (or mouse wheel) to zoom, tap the minimap to jump.
 - Tap a unit or building to select it. **Box select**, then drag, to select several units.
-- Tap ground to move (groups move in formation), an enemy to attack, ore to harvest (extractors). With engineers selected, tap your damaged building to repair it or an enemy building to capture it.
+- Tap ground to move (groups move in formation), an enemy to attack, ore to harvest (extractors). With engineers selected, tap your damaged building to repair it or an enemy building or Oil Derrick to capture it.
 
 ## Files
 - `index.html` – page layout and buttons

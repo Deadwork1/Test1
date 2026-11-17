@@ -18,7 +18,8 @@ Example: `python3 sim/run.py .. 8800 out/results.jsonl "$(cat sim/plan0.json)"`
 Example: `python3 rec/record.py .. 8801 large hard mixed 60`
 
 ## tests/ — checks and pictures
-- `test_*.py` check one feature each, for example paths, walls, retaking buildings or artillery.
+- `test_*.py` check one feature each, for example paths, walls, retaking buildings, artillery or Oil Derricks (`test_derrick.py`).
+- `pic_village.py <game folder> <port> <out prefix>` renders a village close up, neutral and owned.
 - `pic_*.py` render close-up pictures of units, buildings and terrain. `pic_map.py <game folder> <port> <map> <out.jpg>` renders a whole map with the fog lifted.
 - `dbg_*.py` are one-off debugging scripts.
 

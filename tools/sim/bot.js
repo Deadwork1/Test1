@@ -57,7 +57,7 @@ function putRefineryNearOre() {
 }
 window.runSim = function (strategy, maxMinutes) {
   const S = STRATS[strategy]; newGame(); wallPlan = []; gatesLeft = null; allPlans = null; retryGates = []; lastGateRetry = 0; game.paused = false;
-  const st = { strategy, difficulty, map: mapChoice, produced: [{}, {}], died: [{}, {}], kills: {}, killValue: {}, spent: [{}, {}], captures: [0, 0], stuckEvents: 0, stuckTypes: {},
+  const st = { strategy, difficulty, map: mapChoice, produced: [{}, {}], died: [{}, {}], kills: {}, killValue: {}, spent: [{}, {}], captures: [0, 0], derrickSecs: [0, 0], firstDerrick: [null, null], stuckEvents: 0, stuckTypes: {},
                peakExtractors: [0, 0], idleCashSamples: [], crushes: 0, firstTank: [null, null], firstAttackOnPlayerBase: null, aiWaves: 0, errors: [] };
   const P0 = window.produce;
   window.produce = (b, u) => { const k = u || (PRODUCES[b.type] || [])[0]; const ok = P0(b, u); if (ok) { st.produced[b.team][k] = (st.produced[b.team][k] || 0) + 1; st.spent[b.team][k] = (st.spent[b.team][k] || 0) + COST[k]; } return ok; };
@@ -104,6 +104,7 @@ window.runSim = function (strategy, maxMinutes) {
         if (S.fac) for (const f of of('factory')) if ((!saving || facWait) && f.built && f.queue < 1 && f.want) { if (!unlocked(0, f.want)) f.want = pick(S.fac); else if (game.credits[0] >= COST[f.want] && window.produce(f, f.want)) f.want = null; }
         // win back buildings an enemy engineer took: an engineer with a few escorts
         const retake = game.lost[0].map(byId).filter(b => b && b.team === 1 && canCapture(b));
+        if (game.time > 120) for (const d of game.ents) if (d.type === 'derrick' && d.team !== 0 && !retake.includes(d)) retake.push(d);   // Oil Derricks too (a player knows where the villages are)
         if (retake.length) {
           let en = of('engineer').find(e => e.retake) || of('engineer').find(e => !e.order || e.order.type !== 'capture');
           if (!en) { const b = of('barracks').find(b => b.built && !b.qTypes.includes('engineer')); if (b && game.credits[0] >= COST.engineer) window.produce(b, 'engineer'); }
@@ -138,6 +139,7 @@ window.runSim = function (strategy, maxMinutes) {
     const teamsBefore = new Map(game.ents.filter(isBuilding).map(e => [e.id, e.team]));
     try { U(0.05); } catch (err) { st.errors.push(String(err)); break; }
     step++;
+    for (const d of game.ents) if (d.type === 'derrick' && d.team < 2) { st.derrickSecs[d.team] += 0.05; if (st.firstDerrick[d.team] === null) st.firstDerrick[d.team] = Math.round(game.time); }
     if (lastCred) for (const t of [0, 1]) { const d = game.credits[t] - lastCred[t]; if (d > 20 && game.time > (end - 300)) incomeLog[t] += d; } lastCred = game.credits.slice();
     const nowIds = new Set(game.ents.map(e => e.id));
     for (const [id, e] of before) if (!nowIds.has(id) && !e.deployed) {
@@ -167,7 +169,8 @@ window.runSim = function (strategy, maxMinutes) {
   st.winner = game.over === 'win' ? 'player' : game.over === 'lose' ? 'ai' : 'timeout';
   st.minutes = +(game.time / 60).toFixed(1);
   st.aiWaves = game.ai.wavesSent || 0; st.playerWaves = waves;
-  st.finalBuildings = [0, 1].map(t => game.ents.filter(e => e.team === t && isBuilding(e) && !isWallType(e.type)).length);
+  st.finalBuildings = [0, 1].map(t => game.ents.filter(e => e.team === t && isBuilding(e) && !isWallType(e.type) && e.type !== 'derrick').length);
+  st.derrickSecs = st.derrickSecs.map(Math.round);
   st.finalArmy = [0, 1].map(t => game.ents.filter(e => e.team === t && isCombat(e)).length);
   st.finalCredits = game.credits.map(Math.round);
   st.oreLeft = Math.round(game.ore.reduce((a, o) => a + Math.max(0, o.amount), 0)); st.oreStart = oreStart;
