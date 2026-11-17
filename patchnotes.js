@@ -4,7 +4,7 @@ const PATCH_NOTES = [
   {
     version: '5.11.1', date: '17 Nov 2026', title: 'Softer slopes',
     changes: [
-      'The way up onto each plateau now looks like the ground gently rising and falling, shaded and blended into the grass, instead of a flat dirt patch.',
+      'The way up onto each plateau now looks like the ground gently rising and falling, shaded and blended into the grass, instead of a flat dirt patch. No more dark cliff-face lines cutting across the slopes.',
     ],
   },
   {

@@ -514,16 +514,26 @@ const bg = document.createElement('canvas');
   // high ground: a shadow at its foot, a craggy cliff face below its south edge, the raised top (a little lighter),
   // dirt slopes for the ramps, and jagged rock along the cliff rim
   const isHigh = i => elev[i] === 1;
-  // a ramp is a raised tile that steps straight down onto walkable low ground (no cliff in between)
-  const top = mask(isHigh, 14, 0.5);
-  paint(mask(isHigh, 18, 0.42), 'rgba(0,0,0,0.38)', 12, 20);                                   // shadow on the low ground
+  // where a plateau slopes down to the ground (no cliff between) there is no drop, so no cliff face or shadow:
+  // find those open edge tiles and keep the face and shadow well clear of them
+  const open = new Uint8Array(TCOLS * TROWS);
+  for (let r = 0; r < TROWS; r++) for (let c = 0; c < TCOLS; c++) {
+    const i = r * TCOLS + c; if (elev[i] !== 1 || terrain[i] === T.CLIFF) continue;
+    const low = (cc, rr) => cc >= 0 && rr >= 0 && cc < TCOLS && rr < TROWS && !elev[rr * TCOLS + cc] && terrain[rr * TCOLS + cc] !== T.CLIFF;
+    if (low(c + 1, r) || low(c - 1, r) || low(c, r + 1) || low(c, r - 1))
+      for (let rr = r - 3; rr <= r + 3; rr++) for (let cc = c - 3; cc <= c + 3; cc++)
+        if (cc >= 0 && rr >= 0 && cc < TCOLS && rr < TROWS && (cc - c) ** 2 + (rr - r) ** 2 <= 10) open[rr * TCOLS + cc] = 1;
+  }
+  const hasFace = i => elev[i] === 1 && !open[i];
+  const top = mask(isHigh, 14, 0.5), face = mask(hasFace, 14, 0.5);
+  paint(mask(hasFace, 18, 0.42), 'rgba(0,0,0,0.38)', 12, 20);                                  // shadow on the low ground
   const crag = tc => {   // craggy rock: blotches plus short vertical cracks, like a sheer face
     speckle('#5b4d3c', ['#6d5d48', '#4a3e30', '#7a6a53', '#3d332a'], 2200, 3, 9)(tc);
     tc.strokeStyle = 'rgba(30,24,18,0.5)'; tc.lineWidth = 1.5;
     for (let i = 0; i < 4000 * (W * H) / (2400 * 1500); i++) { const x = rnd() * W, y = rnd() * H; tc.beginPath(); tc.moveTo(x, y); tc.lineTo(x + (rnd() - .5) * 4, y + 6 + rnd() * 8); tc.stroke(); }
   };
-  for (let k = 22; k > 0; k -= 6) paint(top, crag, 0, k);                                       // cliff face, seen from the south (several layers = height)
-  paint(top, tc => { tc.fillStyle = 'rgba(0,0,0,0.3)'; tc.fillRect(0, 0, W, H); }, 0, 22);
+  for (let k = 22; k > 0; k -= 6) paint(face, crag, 0, k);                                       // cliff face, seen from the south (several layers = height)
+  paint(face, tc => { tc.fillStyle = 'rgba(0,0,0,0.3)'; tc.fillRect(0, 0, W, H); }, 0, 22);
   paint(top, speckle('#577a3c', ['#5f8442', '#4e6f35', '#668a48'], 1500, 6, 26));              // the raised top
   paint(mask([T.CLIFF], 8, 0.5), crag);                                                        // rough rim
   paint(mask([T.CLIFF], 8, 0.62), tc => { tc.fillStyle = 'rgba(190,175,150,0.35)'; tc.fillRect(0, 0, W, H); }, -2, -3);   // sunlit lip
