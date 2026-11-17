@@ -660,7 +660,8 @@ function inBuildArea(team, x, y, extra = 0) {
 function canPlace(team, type, x, y) {
   const size = STATS[type].size;
   if (!unlocked(team, type)) return false;
-  if (!inBuildArea(team, x, y, type === 'tower' ? WALL_REACH : 0) || !siteIsFree(x, y, size)) return false;   // towers, like walls, can go out to the edge of your area
+  if (!inBuildArea(team, x, y, type === 'tower' ? WALL_REACH : 0) || !siteIsFree(x, y, size)) return false;
+  if (team === 1 && game.ai.wallPlan && game.ai.wallPlan.tiles.some(t => Math.abs(t.x - x) < size / 2 + 20 && Math.abs(t.y - y) < size / 2 + 20)) return false;   // keep the wall line clear   // towers, like walls, can go out to the edge of your area
   for (const b of game.ents) {   // never sit on the doorstep of a building that makes units
     if (!isBuilding(b) || !PRODUCES[b.type]) continue;
     const od = frontDoor(b);
@@ -1308,6 +1309,7 @@ function chokeOnRoute(hq, tx, ty) {
       }
       if (!bw) continue;   // open ground: not a gap
       const { l, r, cx, cy } = bw;
+      if (!planGapWall({ ax: x - cx * (l + 4), ay: y - cy * (l + 4), bx: x + cx * (r + 4), by: y + cy * (r + 4) })) continue;   // trees or ore in the way: can't wall it
       const width = l + r + fromHq * 0.15;   // slight preference for gaps closer to home
       if (!best || width < best.width) best = { width, x: x + cx * (r - l) / 2, y: y + cy * (r - l) / 2, ux, uy, gap: l + r,
         ax: x - cx * (l + 4), ay: y - cy * (l + 4), bx: x + cx * (r + 4), by: y + cy * (r + 4) };   // centre of the gap and its two rocky ends
@@ -1340,34 +1342,40 @@ function findEntrances(team) {
 }
 const findChoke = team => findEntrances(team)[0] || null;
 
-// A wall that seals a gap from one rocky end to the other, with a gate in the middle (tiles in a 4-connected line, so nothing slips through diagonally)
-function planGapWall(ch) {
-  const c0 = Math.floor(ch.ax / TC), r0 = Math.floor(ch.ay / TC), c1 = Math.floor(ch.bx / TC), r1 = Math.floor(ch.by / TC);
-  const cells = [];
-  let c = c0, r = r0;
-  const dc = Math.sign(c1 - c0), dr = Math.sign(r1 - r0), nc = Math.abs(c1 - c0), nr = Math.abs(r1 - r0);
-  let ec = 0, er = 0;
-  cells.push([c, r]);
-  while (c !== c1 || r !== r1) {   // step one tile at a time, sideways or up/down, never diagonally
-    if ((ec + 1) * nr < (er + 1) * nc || r === r1) { c += dc; ec++; } else { r += dr; er++; }
-    cells.push([c, r]);
+// A wall that seals a gap from one rocky end to the other, with a gate in the middle. The wall is a 4-connected
+// staircase of tiles (nothing slips through diagonally) and the gate always sits on a straight 2-tile stretch,
+// lined up with the wall, so it works however the gap is angled.
+function line4(c0, r0, c1, r1) {
+  const out = [[c0, r0]], dc = Math.sign(c1 - c0), dr = Math.sign(r1 - r0), nc = Math.abs(c1 - c0), nr = Math.abs(r1 - r0);
+  let c = c0, r = r0, ec = 0, er = 0;
+  while (c !== c1 || r !== r1) {
+    if (r === r1 || (c !== c1 && (ec + 0.5) * nr < (er + 0.5) * nc)) { c += dc; ec++; } else { r += dr; er++; }
+    out.push([c, r]);
   }
-  const free = ([cc, rr]) => { const x = cc * TC + TC / 2, y = rr * TC + TC / 2, t = terrainAt(x, y); return t !== T.ROCK && t !== T.WATER; };
-  const line = cells.filter(free);
-  if (line.length < 3) return null;
-  const vertical = nr > nc;   // a wall running up/down gets a gate turned to match
-  const mid = line[Math.floor(line.length / 2)];
-  const gate = vertical ? { x: mid[0] * TC + TC / 2, y: mid[1] * TC, vertical: true } : { x: mid[0] * TC, y: mid[1] * TC + TC / 2, vertical: false };
-  const { hx, hy } = gateHalf(vertical);
-  const tiles = line.map(([cc, rr]) => ({ x: cc * TC + TC / 2, y: rr * TC + TC / 2 }))
-    .filter(t => !(Math.abs(t.x - gate.x) < hx && Math.abs(t.y - gate.y) < hy));
-  return { tiles, gate };
+  return out;
+}
+function planGapWall(ch) {
+  let a = [Math.floor(ch.ax / TC), Math.floor(ch.ay / TC)], b = [Math.floor(ch.bx / TC), Math.floor(ch.by / TC)];
+  const horiz = Math.abs(b[0] - a[0]) >= Math.abs(b[1] - a[1]);
+  if (horiz ? a[0] > b[0] : a[1] > b[1]) [a, b] = [b, a];   // a is left (or top) end
+  const m = [Math.round((a[0] + b[0]) / 2), Math.round((a[1] + b[1]) / 2)];
+  const g1 = horiz ? [m[0] - 1, m[1]] : [m[0], m[1] - 1], g2 = m;   // the gate's two tiles, side by side along the wall
+  const cells = [...line4(a[0], a[1], g1[0], g1[1]), ...line4(g2[0], g2[1], b[0], b[1])];
+  const blockedT = ([c, r]) => { const t = terrainAt(c * TC + TC / 2, r * TC + TC / 2); return t === T.ROCK || t === T.WATER; };
+  const isGate = ([c, r]) => (c === g1[0] && r === g1[1]) || (c === g2[0] && r === g2[1]);
+  const wallCells = cells.filter(t => !blockedT(t) && !isGate(t));
+  // every piece must be buildable: open grass (no trees) and clear of ore
+  const okCell = ([c, r]) => { const x = c * TC + TC / 2, y = r * TC + TC / 2;
+    return terrainAt(x, y) === T.GRASS && !game.ore.some(o => Math.abs(o.x - x) < TC / 2 + 10 && Math.abs(o.y - y) < TC / 2 + 10); };
+  if (!wallCells.every(okCell) || !okCell(g1) || !okCell(g2) || wallCells.length < 2) return null;
+  const gate = horiz ? { x: g2[0] * TC, y: g2[1] * TC + TC / 2, vertical: false } : { x: g2[0] * TC + TC / 2, y: g2[1] * TC, vertical: true };
+  return { tiles: wallCells.map(([c, r]) => ({ x: c * TC + TC / 2, y: r * TC + TC / 2 })), gate };
 }
 // where to put guard towers for a gap: just behind the wall, near each rocky end
 function gapTowerSpots(ch) {
   const out = [];
   for (const end of [[ch.ax, ch.ay], [ch.bx, ch.by]]) {
-    const ex = end[0] + (ch.x - end[0]) * 0.35 - ch.ux * 45, ey = end[1] + (ch.y - end[1]) * 0.35 - ch.uy * 45;
+    const ex = end[0] + (ch.x - end[0]) * 0.3 - ch.ux * 75, ey = end[1] + (ch.y - end[1]) * 0.3 - ch.uy * 75;   // far enough back to leave room for the wall
     out.push({ x: ex, y: ey });
   }
   return out;
@@ -1519,8 +1527,8 @@ function runAI(dt) {
   if (D.walls && sent >= 1 && game.credits[1] >= 200) {
     const ch = findChoke(1);
     const plan = ai.wallPlan || (ai.wallPlan = (ch && planGapWall(ch)) || aiWallPlan(hq));
-    if (!of('gate').length && !ai.gateTried) {
-      ai.gateTried = true;
+    if (!of('gate').length && game.time - (ai.gateTried || -99) > 20) {   // (try again now and then if it didn't fit)
+      ai.gateTried = game.time;
       placeBuilding(1, 'gate', plan.gate.x, plan.gate.y, plan.gate.vertical);
     }
     let n = 0;
