@@ -25,6 +25,7 @@ Example: `python3 rec/record.py .. 8801 large hard mixed 60`
 - `test_canvas_memory.py <game folder> <port> [limit MB]` simulates a phone's canvas memory cap (iPhones: about 384 MB) and checks every map loads and the map buttons work.
 - `test_lookout.py` checks the Huge map's river lookouts: shooting onto the island from the plateau edge without being seen. `test_plateau.py` now covers all three maps.
 - `test_highground_all.py` checks every plateau on every map is an advantage point (a unit on the cliff edge sees and beats one below without being seen).
+- `test_uphill.py` checks shooting uphill does half damage (Grenadiers and Artillery full).
 - `dbg_*.py` are one-off debugging scripts. `dbg_inbuilding.py <game folder> <port> <map> <difficulty> <strategy> [minutes] [seed]` plays a seeded game and reports units stuck walking into buildings (total stuck-seconds), for comparing two versions of the game.
 - `pic_forest_sight.py <game folder> <port> <out.png>` shows a soldier's view inside a forest next to one on grass.
 

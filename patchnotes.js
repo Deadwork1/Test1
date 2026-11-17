@@ -2,6 +2,14 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.19', date: '17 Nov 2026', title: 'Shooting uphill',
+    changes: [
+      'Units on low ground only do half damage to anything up on a plateau (when they can see it at all: from right at the foot of the cliff, or with a spotter up top). This goes for rifles, rockets, sniper shots, tank shells and Guard Towers.',
+      'Grenadiers and Artillery lob their shots, so they still do full damage uphill: bring them to crack a dug-in plateau.',
+      'High ground now gives: 25% more sight, 20% more range, can\'t be seen from below, and half damage taken from below.',
+    ],
+  },
+  {
     version: '5.18', date: '17 Nov 2026', title: 'River lookouts',
     changes: [
       'Huge map: two plateaus have moved to the middle, one on each side, right against the river ring around the island. Their rock juts out over the river, with a sheer cliff down to the water.',

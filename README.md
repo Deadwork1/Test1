@@ -18,7 +18,7 @@ A small real-time strategy game inspired by classic 90s RTS games, built step by
 ## Terrain
 - **Rocks & cliffs** block everything. Each base has a cliff wall with a gap.
 - **River** blocks all ground units; cross at the **bridges**. The rich ore field sits on an island in the middle, reached by two bridges.
-- **Plateaus** are high ground with cliffs and ramps: units up there see 25% further and shoot 20% further, and can't be seen from below. On the Huge map two of them are **river lookouts** jutting out over the river by the middle island, with one ramp each facing away from the middle.
+- **Plateaus** are high ground with cliffs and ramps: units up there see 25% further and shoot 20% further, can't be seen from below, and take only half damage from units below (Grenadiers and Artillery lob their shots and do full damage). On the Huge map two of them are **river lookouts** jutting out over the river by the middle island, with one ramp each facing away from the middle.
 - **Forests** stop tanks and extractors. Infantry walk through slowly and are hidden inside unless an enemy gets close or they open fire; the Scout Buggy can drive through slowly but can't hide. Anything standing in a forest only sees 70% as far.
 - Units find their own way around obstacles and buildings.
 

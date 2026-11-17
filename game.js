@@ -296,6 +296,8 @@ function segDist(px, py, ax, ay, bx, by) {
 
 const elevAt = (x, y) => { const c = Math.floor(x / TC), r = Math.floor(y / TC); return c < 0 || r < 0 || c >= TCOLS || r >= TROWS ? 0 : elev[r * TCOLS + c]; };
 const HIGH_SIGHT = 1.25, HIGH_RANGE = 1.2;   // seeing and shooting from high ground
+const UPHILL = 0.5;   // shooting up at high ground from below only does half damage (grenades and artillery shells are lobbed, so they don't lose any)
+const uphill = (x, y, t) => !elevAt(x, y) && elevAt(t.x, t.y) ? UPHILL : 1;
 const FOREST_SIGHT = 0.7;   // units standing in a forest can't see as far through the trees
 const rangeOf = e => STATS[e.type].range * (elevAt(e.x, e.y) ? HIGH_RANGE : 1);
 const terrainAt = (x, y) => {
@@ -1317,7 +1319,7 @@ function update(dt) {
       r.done = true;
       if (t && t.hp > 0 && d <= step + 30) {
         const S = STATS.rocket;
-        t.hp -= r.dmg * (isInfantry(t) ? S.vsInfantry : isBuilding(t) ? S.vsBuilding : t.type === 'heavy' ? S.vsHeavy : S.vsVehicle);   // the heavy tank's thick armour shrugs off some of it
+        t.hp -= r.dmg * (isInfantry(t) ? S.vsInfantry : isBuilding(t) ? S.vsBuilding : t.type === 'heavy' ? S.vsHeavy : S.vsVehicle) * uphill(r.fromX, r.fromY, t);   // the heavy tank's thick armour shrugs off some of it
       }
       game.effects.push({ kind: 'blast', x: r.tx, y: r.ty, r: 16, t: 0 });
     } else { r.x += dx / d * step; r.y += dy / d * step; }
@@ -1476,7 +1478,7 @@ function updateSoldier(e, dt) {   // soldiers and buggies
         e.revealT = s.reveal || 1.5;   // firing gives away your position (snipers only briefly)
         if (isBuilding(t)) { t.hitBy = e.id; t.hitAt = game.time; }   // so the owner's units nearby can come and deal with it
         if (s.rocket) {   // rocket: flies fast and homes in, so it's hard to dodge
-          game.rockets.push({ x: e.x + Math.cos(e.facing) * 12, y: e.y + Math.sin(e.facing) * 12, target: t.id, tx: t.x, ty: t.y, team: e.team, dmg: s.dmg, life: 1.5 });
+          game.rockets.push({ x: e.x + Math.cos(e.facing) * 12, y: e.y + Math.sin(e.facing) * 12, target: t.id, tx: t.x, ty: t.y, team: e.team, dmg: s.dmg, life: 1.5, fromX: e.x, fromY: e.y });
           e.throwT = 0.2;
         } else if (s.siege) {   // artillery shell: a long, high arc that lands near (not exactly on) the target
           const sp = isBuilding(t) ? 0 : s.spread;
@@ -1488,10 +1490,10 @@ function updateSoldier(e, dt) {   // soldiers and buggies
                                t: 0, dur: s.flight, team: e.team, dmg: s.dmg, r: s.splash });
           e.throwT = 0.25;
         } else {
-          t.hp -= s.dmg * (isInfantry(t) ? 1 : isBuilding(t) ? (s.vsBuilding || 1) : (s.vsVehicle || 1)) * armour(e.type, t);
+          t.hp -= s.dmg * (isInfantry(t) ? 1 : isBuilding(t) ? (s.vsBuilding || 1) : (s.vsVehicle || 1)) * armour(e.type, t) * uphill(e.x, e.y, t);
           if (s.tank) {   // shell burst: also nicks enemy infantry right next to the target (quarter damage)
             game.effects.push({ kind: 'blast', x: t.x, y: t.y, r: e.type === 'heavy' ? 18 : 13, t: 0 });
-            for (const o of game.ents) if (o !== t && o.team !== e.team && isInfantry(o) && Math.hypot(o.x - t.x, o.y - t.y) < 22) o.hp -= s.dmg * 0.25 * armour(e.type, o);
+            for (const o of game.ents) if (o !== t && o.team !== e.team && isInfantry(o) && Math.hypot(o.x - t.x, o.y - t.y) < 22) o.hp -= s.dmg * 0.25 * armour(e.type, o) * uphill(e.x, e.y, o);
           }
           game.effects.push({ kind: 'shot', heavy: e.type === 'sniper' || !!s.tank, x: e.x, y: e.y, x2: t.x + (Math.random() - .5) * 8,
                               y2: t.y + (Math.random() - .5) * 8, team: e.team, t: 0 });
@@ -1596,7 +1598,7 @@ function updateTower(e, dt) {
   e.aim = Math.atan2(t.y - e.y, t.x - e.x);
   if (e.cooldown <= 0) {
     e.cooldown = s.cooldown;
-    t.hp -= s.dmg * armour('tower', t);
+    t.hp -= s.dmg * armour('tower', t) * uphill(e.x, e.y, t);
     game.effects.push({ kind: 'shot', x: e.x + Math.cos(e.aim) * 20, y: e.y + Math.sin(e.aim) * 20 - 6,
                         x2: t.x, y2: t.y, team: e.team, t: 0, heavy: true });
     if (isCombat(t) && !t.order) t.order = { type: 'attack', target: e.id };   // units charge the tower
