@@ -17,7 +17,7 @@ with sync_playwright() as p:
         pg.goto(f'http://127.0.0.1:{port}/index.html'); pg.wait_for_timeout(3000); pg.click('#ovBtn')
         pg.evaluate(bot)
         t0 = time.time()
-        r = pg.evaluate(f"runSim('{g['strat']}', {g.get('mins',25)})")
+        r = pg.evaluate(f"runSim('{g['strat']}', {g.get('mins',60)})")
         r['pageErrors'] = errs[:3]; r['realSecs'] = round(time.time() - t0, 1); r['id'] = g['id']
         with open(out, 'a') as f: f.write(json.dumps(r) + '\n')
         pg.close(); break

@@ -6,7 +6,7 @@ They need Python 3 with Playwright, plus Google Chrome at `/usr/bin/google-chrom
 
 ## sim/ — the game simulator
 - `bot.js` is a scripted player (Blue) that plays real games against the computer (Red). It has several strategies: rush, mixed, tech, turtle and more.
-- `run.py <game folder> <port> <results.jsonl> '<plan json>'` plays a batch of headless games at high speed and writes one JSON line per game. See `plan0.json`–`plan3.json` for example plans (map, difficulty, strategy, minutes).
+- `run.py <game folder> <port> <results.jsonl> '<plan json>'` plays a batch of headless games at high speed and writes one JSON line per game. See `plan0.json`–`plan3.json` for example plans (map, difficulty, strategy, minutes). Each game stops at its minute limit (default 60 game minutes) and counts as a "timeout"; the real game has no time limit.
 - `analyse.py` summarises a results file: win rates, game lengths, units built.
 - `dbg.py` and `dbgwave.py` debug one game or one AI attack wave.
 
