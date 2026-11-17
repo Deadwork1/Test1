@@ -93,7 +93,7 @@ const INCOME = 1;                     // small trickle per second so nobody gets
 const BUILD_RADIUS = 300;             // how far from your HQ you can place buildings
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
 
-const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250, grenadier: 160, engineer: 75, rocket: 200, sniper: 200, light: 400, heavy: 700, artillery: 450, tech: 600, radar: 500 };
+const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250, grenadier: 160, engineer: 75, rocket: 200, sniper: 200, light: 400, heavy: 700, artillery: 450, tech: 600, radar: 300 };
 const WALL_REACH = 150;              // walls, gates and guard towers can go this much further out than other buildings
 
 const STATS = {
@@ -3260,38 +3260,44 @@ function drawGate(e) {
   ctx.restore();
 }
 
-// Radar: a concrete pad with a control hut and a lattice mast carrying a big dish that sweeps round
+// Radar: everything round. A circular concrete pad, a round control building with a band in the team colour,
+// and on top a pedestal carrying a wide dish that sweeps slowly round
 function drawRadar(e) {
   if (!e.built) return drawConstruction(e);
-  const c = TEAMS[e.team], h = e.size / 2, x0 = e.x - h, y0 = e.y - h, t = performance.now() / 1000;
-  ctx.fillStyle = '#8f8a7e'; ctx.fillRect(x0 - 3, y0 - 3, e.size + 6, e.size + 6);   // pad
+  const c = TEAMS[e.team], R = e.size / 2, t = performance.now() / 1000, x = e.x, y = e.y;
+  // round pad with a darker kerb and spokes in the concrete
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.arc(x + 4, y + 5, R + 3, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#7d786c'; ctx.beginPath(); ctx.arc(x, y, R + 3, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#958f82'; ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth = 1;
-  for (let k = 16; k < e.size; k += 16) { ctx.beginPath(); ctx.moveTo(x0 - 3 + k, y0 - 3); ctx.lineTo(x0 - 3 + k, y0 + e.size + 3); ctx.stroke(); }
-  // control hut along the front, with a lit window, a door and the team stripe
-  block(x0 + 6, y0 + e.size - 26, e.size - 12, 22, '#7b766a', '#4c4840', 9);
-  ctx.fillStyle = c.color; ctx.fillRect(x0 + 6, y0 + e.size - 26, e.size - 12, 3);
-  ctx.fillStyle = '#9fe0ff'; ctx.fillRect(x0 + 12, y0 + e.size - 13, 12, 5);
-  ctx.fillStyle = '#2a2824'; ctx.fillRect(e.x + 6, y0 + e.size - 15, 9, 11);
-  // lattice mast: four legs and cross bracing, seen from above at a slant
-  const mx = e.x, my = y0 + 22;
-  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(mx + 8, my + 12, 16, 8, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = '#5c5a55'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(mx - 11, my + 14); ctx.lineTo(mx - 3, my - 2); ctx.moveTo(mx + 11, my + 14); ctx.lineTo(mx + 3, my - 2); ctx.stroke();
-  ctx.lineWidth = 1;
-  for (let k = 0; k < 3; k++) { const y = my + 12 - k * 5, w = 10 - k * 2.5; ctx.beginPath(); ctx.moveTo(mx - w, y); ctx.lineTo(mx + w - 2.5, y - 5); ctx.moveTo(mx + w, y); ctx.lineTo(mx - w + 2.5, y - 5); ctx.stroke(); }
-  // the dish: a big curved reflector with a feed arm, turning slowly
-  ctx.save(); ctx.translate(mx, my - 3); ctx.rotate(t * 0.9);
-  ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(3, 4, 21, 9, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#d8dcdf'; ctx.strokeStyle = '#8c949a'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.ellipse(0, 0, 21, 9, 0, Math.PI, 0); ctx.quadraticCurveTo(0, 6, -21, 0); ctx.fill(); ctx.stroke();
-  ctx.strokeStyle = 'rgba(120,130,138,0.7)'; ctx.lineWidth = 1;
-  for (const k of [-12, -4, 4, 12]) { ctx.beginPath(); ctx.moveTo(k, -8 + Math.abs(k) * 0.3); ctx.lineTo(k * 0.9, 2); ctx.stroke(); }
-  ctx.strokeStyle = '#6c7378'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, 1); ctx.lineTo(0, -14); ctx.stroke();   // feed arm
-  ctx.fillStyle = c.color; ctx.beginPath(); ctx.arc(0, -15, 2.5, 0, Math.PI * 2); ctx.fill();
+  for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * R * 0.62, y + Math.sin(a) * R * 0.62); ctx.lineTo(x + Math.cos(a) * R, y + Math.sin(a) * R); ctx.stroke(); }
+  // round control building: a short drum, its wall showing at the front, a team-coloured band, small lit windows
+  const B = R * 0.62;
+  ctx.fillStyle = '#4c4840'; ctx.beginPath(); ctx.ellipse(x, y + 5, B, B, 0, 0, Math.PI); ctx.fill();               // front wall
+  ctx.fillStyle = '#9fe0ff'; for (const a of [0.55, 1.25, 1.95, 2.6]) ctx.fillRect(x + Math.cos(a) * B * 0.86 - 2, y + 4 + Math.sin(a) * B * 0.86, 4, 3);
+  ctx.fillStyle = '#7b766a'; ctx.beginPath(); ctx.arc(x, y, B, 0, Math.PI * 2); ctx.fill();                          // roof
+  ctx.strokeStyle = c.color; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, B - 1.5, 0, Math.PI * 2); ctx.stroke(); // team band
+  ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.beginPath(); ctx.arc(x - B * 0.3, y - B * 0.3, B * 0.45, 0, Math.PI * 2); ctx.fill();
+  // pedestal
+  ctx.fillStyle = '#5c5a55'; ctx.beginPath(); ctx.arc(x, y, B * 0.38, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#6f6c66'; ctx.beginPath(); ctx.arc(x, y - 1, B * 0.28, 0, Math.PI * 2); ctx.fill();
+  // the dish: a wide round reflector seen at a tilt, with ribs and a feed on struts, sweeping round
+  ctx.save(); ctx.translate(x, y - 3); ctx.rotate(t * 0.9);
+  const D = R * 0.78;
+  ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.beginPath(); ctx.ellipse(4, 6, D, D * 0.62, 0, 0, Math.PI * 2); ctx.fill();   // its shadow
+  const gr = ctx.createRadialGradient(-D * 0.25, -D * 0.2, 2, 0, 0, D);
+  gr.addColorStop(0, '#f4f6f7'); gr.addColorStop(0.7, '#cfd5d9'); gr.addColorStop(1, '#a9b1b7');
+  ctx.fillStyle = gr; ctx.strokeStyle = '#7f878d'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.ellipse(0, 0, D, D * 0.62, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = 'rgba(110,120,128,0.55)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.ellipse(0, 0, D * 0.62, D * 0.38, 0, 0, Math.PI * 2); ctx.stroke();                            // inner ring
+  for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * D, Math.sin(a) * D * 0.62); ctx.stroke(); }   // ribs
+  ctx.strokeStyle = '#6c7378'; ctx.lineWidth = 1.2;
+  for (const a of [0.5, 2.6, 4.7]) { ctx.beginPath(); ctx.moveTo(Math.cos(a) * D * 0.8, Math.sin(a) * D * 0.5); ctx.lineTo(D * 0.15, -D * 0.25); ctx.stroke(); }   // feed struts
+  ctx.fillStyle = c.color; ctx.beginPath(); ctx.arc(D * 0.15, -D * 0.25, 3, 0, Math.PI * 2); ctx.fill();               // feed horn
   ctx.restore();
-  ctx.fillStyle = '#4a4740'; ctx.beginPath(); ctx.arc(mx, my - 3, 3, 0, Math.PI * 2); ctx.fill();   // hub
-  if (Math.floor(t * 1.5) % 2) { ctx.fillStyle = '#ff5a5a'; ctx.beginPath(); ctx.arc(x0 + e.size - 8, y0 + 6, 2.2, 0, Math.PI * 2); ctx.fill(); }   // beacon
-  flag(x0 + 4, y0 + 4, e.team);
+  if (Math.floor(t * 1.5) % 2) { ctx.fillStyle = '#ff5a5a'; ctx.beginPath(); ctx.arc(x + R * 0.72, y - R * 0.72, 2.4, 0, Math.PI * 2); ctx.fill(); }   // beacon
+  flag(x - R * 0.72, y - R * 0.62, e.team);
 }
 
 function drawPower(e) {

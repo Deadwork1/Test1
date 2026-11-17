@@ -2,9 +2,16 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.20.1', date: '17 Nov 2026', title: 'Cheaper, rounder Radar',
+    changes: [
+      'Radar now costs $300 (was $500), so it sells for $150.',
+      'New round look: a circular pad, a round control building with a band in your colour, and a wide dish sweeping round on top.',
+    ],
+  },
+  {
     version: '5.20', date: '17 Nov 2026', title: 'Radar',
     changes: [
-      'New building: Radar ($500, built from the HQ, needs a Power Plant). Once finished it reveals everything within 650 of it, more than twice as far as the HQ sees.',
+      'New building: Radar ($300 since 5.20.1, built from the HQ, needs a Power Plant). Once finished it reveals everything within 650 of it, more than twice as far as the HQ sees.',
       'It is a radar, not eyes: it sees over rocks and up onto plateaus. Infantry hiding in forests still stay hidden.',
       'It has no weapon and only 400 HP, so keep it safe. Like any building it can be sold for half its price.',
       'The computer builds one too on Normal and Hard once it has a Power Plant.',

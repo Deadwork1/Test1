@@ -33,8 +33,8 @@ with sync_playwright() as p:
       out.soldFor = Math.round(game.credits[0] - c0 - 0.05);
       return out; })()""")
     print(json.dumps(r, indent=1)); print('errors', errs[:3])
-    ok = (r['lockedDisabled'] and 'needs Power Plant' in r['lockedLabel'] and r['unlockedLabel'] == 'Radar $500' and r['placed'] and r['built'] and not r['behindRockSeenWhileBuilding']
-          and r['behindRockSeen'] and r['edgeSeen'] and not r['beyondSeen'] and r['forestInfantryVisible'] in (False, 'no forest in range') and r['soldFor'] == 250 and not errs)
+    ok = (r['lockedDisabled'] and 'needs Power Plant' in r['lockedLabel'] and r['unlockedLabel'] == 'Radar $300' and r['placed'] and r['built'] and not r['behindRockSeenWhileBuilding']
+          and r['behindRockSeen'] and r['edgeSeen'] and not r['beyondSeen'] and r['forestInfantryVisible'] in (False, 'no forest in range') and r['soldFor'] == 150 and not errs)
     print('PASS' if ok else 'FAIL')
     b.close()
 srv.shutdown()
