@@ -23,6 +23,7 @@ const MAPS = {
       [[[620, 610], [770, 700]], 28],                  // outcrop by the flank field
     ],
     forests: [[520, 560, 240, 135, -0.15], [1010, 1270, 85], [800, 230, 90]],   // [x, y, r] or a jungle [x, y, rx, ry, tilt]
+    plateaus: [{ x: 930, y: 470, rx: 175, ry: 130, tilt: 0.2, ramps: [3.0, 1.5] }],   // high ground: cliff all round except the ramps
     river: { amp: 70, period: 230, half: 36 },
     bridges: [{ y: 230, hw: 62 }],                     // river bridges on your half (mirrored for theirs)
   },
@@ -43,6 +44,7 @@ const MAPS = {
       [[[620, 1150], [760, 1300]], 28],                  // rocks by the north expansion
     ],
     forests: [[1100, 950, 270, 200, 0.35], [200, 600, 130], [1500, 1900, 120], [1150, 330, 120]],   // the big jungle sits on the routes between the bases
+    plateaus: [{ x: 1420, y: 1660, rx: 210, ry: 140, tilt: -0.25, ramps: [3.4, 0.2] }, { x: 560, y: 380, rx: 170, ry: 120, tilt: 0.3, ramps: [1.7] }],
     river: { amp: 90, period: 320, half: 40 },
     bridges: [{ y: 300, hw: 70 }, { y: 620, hw: 70 }],
   },
@@ -163,8 +165,9 @@ const toWorld = (sx, sy) => { const s = scale(); return { x: (sx - scr.w / 2) / 
 // ---------- Terrain (rocks, river, bridges, forests) ----------
 // The map is a grid of 25×25 tiles. Layout is mirrored so both sides are fair.
 const TC = 25, TCOLS = W / TC, TROWS = H / TC;
-const T = { GRASS: 0, ROCK: 1, WATER: 2, BRIDGE: 3, FOREST: 4 };
+const T = { GRASS: 0, ROCK: 1, WATER: 2, BRIDGE: 3, FOREST: 4, CLIFF: 5 };
 const terrain = new Uint8Array(TCOLS * TROWS);
+const elev = new Uint8Array(TCOLS * TROWS);   // 1 = high ground (plateau tops and their ramps)
 
 const mirror = ([x, y]) => [W - x, H - y];
 // cliff ridges ([points], thickness) and forests ([x, y, radius]) for your side; mirrored below
@@ -188,6 +191,8 @@ function segDist(px, py, ax, ay, bx, by) {
 (function buildTerrain() {
   const ridges = [];
   for (const [pts, th] of RIDGES) { ridges.push([pts, th]); ridges.push([pts.map(mirror), th]); }
+  const plateaus = [];
+  for (const pl of MAP.plateaus || []) { plateaus.push(pl); const [x, y] = mirror([pl.x, pl.y]); plateaus.push({ ...pl, x, y, ramps: pl.ramps.map(a => a + Math.PI) }); }
   const forests = [];
   for (const f of FORESTS) {   // a circle [x, y, r] or an oval jungle [x, y, rx, ry, tilt]
     const g = f.length === 3 ? [f[0], f[1], f[2], f[2], 0] : f;
@@ -204,6 +209,20 @@ function segDist(px, py, ax, ay, bx, by) {
         const edge = 0.86 + 0.09 * Math.sin(a * 5 + x0) + 0.05 * Math.sin(a * 11 + y0);   // ragged edge
         if (Math.hypot(u, v) < edge) t = T.FOREST;
       }
+      // high ground: inside the oval is raised; its rim is a sheer cliff except where a ramp leads up
+      for (const pl of plateaus) {
+        const dx = x - pl.x, dy = y - pl.y, co = Math.cos(pl.tilt), si = Math.sin(pl.tilt);
+        const u = (dx * co + dy * si) / pl.rx, v = (-dx * si + dy * co) / pl.ry, a = Math.atan2(v, u);
+        const edge = 1 + 0.07 * Math.sin(a * 4 + pl.x) + 0.04 * Math.sin(a * 9 + pl.y), d = Math.hypot(u, v) / edge;
+        const rimW = 42 / Math.min(pl.rx, pl.ry);   // thick enough that the cliff never has holes
+        if (d < 1) {
+          const ang = Math.atan2(dy, dx);
+          const onRamp = pl.ramps.some(ra => Math.abs(Math.atan2(Math.sin(ang - ra), Math.cos(ang - ra))) < 0.3);
+          elev[r * TCOLS + c] = 1;
+          if (d > 1 - rimW && !onRamp) t = T.CLIFF;
+          else if (t === T.FOREST && d > 1 - rimW) t = T.GRASS;   // keep ramps clear of trees
+        }
+      }
       for (const [pts, th] of ridges) {
         for (let i = 0; i < pts.length - 1; i++) {
           if (segDist(x, y, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]) < th) t = T.ROCK;
@@ -216,6 +235,9 @@ function segDist(px, py, ax, ay, bx, by) {
   }
 })();
 
+const elevAt = (x, y) => { const c = Math.floor(x / TC), r = Math.floor(y / TC); return c < 0 || r < 0 || c >= TCOLS || r >= TROWS ? 0 : elev[r * TCOLS + c]; };
+const HIGH_SIGHT = 1.25, HIGH_RANGE = 1.2;   // seeing and shooting from high ground
+const rangeOf = e => STATS[e.type].range * (elevAt(e.x, e.y) ? HIGH_RANGE : 1);
 const terrainAt = (x, y) => {
   const c = Math.floor(x / TC), r = Math.floor(y / TC);
   if (c < 0 || r < 0 || c >= TCOLS || r >= TROWS) return T.ROCK;
@@ -433,7 +455,8 @@ const bg = document.createElement('canvas');
   const small = document.createElement('canvas'); small.width = TCOLS; small.height = TROWS;
   function mask(types, blur, level) {
     const sc = small.getContext('2d'), img = sc.createImageData(TCOLS, TROWS);
-    for (let i = 0; i < terrain.length; i++) if (types.includes(terrain[i])) { img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = img.data[i * 4 + 3] = 255; }
+    const pick = typeof types === 'function' ? types : i => types.includes(terrain[i]);
+    for (let i = 0; i < terrain.length; i++) if (pick(i)) { img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = img.data[i * 4 + 3] = 255; }
     sc.putImageData(img, 0, 0);
     const m = document.createElement('canvas'); m.width = W / HS; m.height = H / HS;
     const mc = m.getContext('2d');
@@ -487,6 +510,28 @@ const bg = document.createElement('canvas');
     for (let x = br.x - br.hw + 8; x < br.x + br.hw; x += 9) { b.beginPath(); b.moveTo(x, br.y - br.hh); b.lineTo(x, br.y + br.hh); b.stroke(); }
     b.fillStyle = '#4a3720'; b.fillRect(br.x - br.hw, br.y - br.hh, br.hw * 2, 4); b.fillRect(br.x - br.hw, br.y + br.hh - 4, br.hw * 2, 4);
   }
+
+  // high ground: a shadow at its foot, a craggy cliff face below its south edge, the raised top (a little lighter),
+  // dirt slopes for the ramps, and jagged rock along the cliff rim
+  const isHigh = i => elev[i] === 1;
+  // a ramp is a raised tile that steps straight down onto walkable low ground (no cliff in between)
+  const lowWalk = (c, r) => c >= 0 && r >= 0 && c < TCOLS && r < TROWS && !elev[r * TCOLS + c] && walkable(terrain[r * TCOLS + c], false);
+  const isRamp = i => { if (elev[i] !== 1 || terrain[i] === T.CLIFF) return false; const c = i % TCOLS, r = (i / TCOLS) | 0;
+    return lowWalk(c + 1, r) || lowWalk(c - 1, r) || lowWalk(c, r + 1) || lowWalk(c, r - 1); };
+  const top = mask(isHigh, 14, 0.5);
+  paint(mask(isHigh, 18, 0.42), 'rgba(0,0,0,0.38)', 12, 20);                                   // shadow on the low ground
+  const crag = tc => {   // craggy rock: blotches plus short vertical cracks, like a sheer face
+    speckle('#5b4d3c', ['#6d5d48', '#4a3e30', '#7a6a53', '#3d332a'], 2200, 3, 9)(tc);
+    tc.strokeStyle = 'rgba(30,24,18,0.5)'; tc.lineWidth = 1.5;
+    for (let i = 0; i < 4000 * (W * H) / (2400 * 1500); i++) { const x = rnd() * W, y = rnd() * H; tc.beginPath(); tc.moveTo(x, y); tc.lineTo(x + (rnd() - .5) * 4, y + 6 + rnd() * 8); tc.stroke(); }
+  };
+  for (let k = 22; k > 0; k -= 6) paint(top, crag, 0, k);                                       // cliff face, seen from the south (several layers = height)
+  paint(top, tc => { tc.fillStyle = 'rgba(0,0,0,0.3)'; tc.fillRect(0, 0, W, H); }, 0, 22);
+  paint(top, speckle('#577a3c', ['#5f8442', '#4e6f35', '#668a48'], 1500, 6, 26));              // the raised top
+  paint(mask(isRamp, 10, 0.5), speckle('#8a7650', ['#7d6a46', '#977f57', '#6f5d3d'], 900, 3, 9));   // ramps
+  paint(mask(isRamp, 10, 0.5), speckle('#8a7650', ['#7d6a46', '#977f57'], 600, 3, 8), 0, 10);       // ramp running down over the face
+  paint(mask([T.CLIFF], 8, 0.5), crag);                                                        // rough rim
+  paint(mask([T.CLIFF], 8, 0.62), tc => { tc.fillStyle = 'rgba(190,175,150,0.35)'; tc.fillRect(0, 0, W, H); }, -2, -3);   // sunlit lip
 
   // forests: one dark mass of ground, then a dense canopy of trees that spills a little over its edge
   const woods = mask([T.FOREST], 20, 0.5);
@@ -665,19 +710,22 @@ function visibleCells(x, y, r) {
   const tc = Math.floor(x / TC), tr = Math.floor(y / TC), key = (tr * TCOLS + tc) * 512 + Math.round(r);
   let cells = losCache.get(key);
   if (cells) return cells;
-  const ox = tc * TC + TC / 2, oy = tr * TC + TC / 2, out = [];
+  const ox = tc * TC + TC / 2, oy = tr * TC + TC / 2, out = [], high = elev[tr * TCOLS + tc];
   const c0 = Math.max(0, Math.floor((ox - r) / CELL)), c1 = Math.min(COLS - 1, Math.floor((ox + r) / CELL));
   const r0 = Math.max(0, Math.floor((oy - r) / CELL)), r1 = Math.min(ROWS - 1, Math.floor((oy + r) / CELL));
   for (let row = r0; row <= r1; row++) for (let col = c0; col <= c1; col++) {
     const cx = col * CELL + CELL / 2, cy = row * CELL + CELL / 2, dist = Math.hypot(cx - ox, cy - oy);
     if (dist > r) continue;
+    // from low ground you can't see up onto a plateau (except right at the foot of its ramp)
+    if (!high && elevAt(cx, cy) && dist > 60) continue;
     let clear = true;
     const steps = Math.ceil(dist / 8);
     for (let k = 1; k < steps; k++) {
       const sx = ox + (cx - ox) * k / steps, sy = oy + (cy - oy) * k / steps;
       if (Math.floor(sx / CELL) === col && Math.floor(sy / CELL) === row) break;   // reached the square itself
       if (Math.hypot(sx - ox, sy - oy) < TC * 0.75) continue;                    // standing right by a rock doesn't blind you
-      if (terrainAt(sx, sy) === T.ROCK) { clear = false; break; }
+      const tt = terrainAt(sx, sy);
+      if (tt === T.ROCK || (tt === T.CLIFF && !high)) { clear = false; break; }
     }
     if (clear) out.push(row * COLS + col);
   }
@@ -690,7 +738,7 @@ function updateFog() {
   for (const f of fog) f.vis.fill(0);
   for (const e of game.ents) {
     const f = fog[e.team];
-    const r = STATS[e.type].sight * (isBuilding(e) && !e.built ? 0.6 : 1);
+    const r = STATS[e.type].sight * (isBuilding(e) && !e.built ? 0.6 : 1) * (elevAt(e.x, e.y) ? HIGH_SIGHT : 1);
     for (const i of visibleCells(e.x, e.y, r)) { f.vis[i] = 1; f.exp[i] = 1; }
   }
   const d = fogImg.data;
@@ -1161,7 +1209,7 @@ function updateSoldier(e, dt) {   // soldiers and buggies
       return;
     }
     o.seenX = t.x; o.seenY = t.y;
-    if (edgeDist(e.x, e.y, t) > s.range) {
+    if (edgeDist(e.x, e.y, t) > rangeOf(e) || !visibleAt(t.x, t.y, e.team)) {   // out of range, or out of sight (e.g. up on a cliff): close in
       if (navigate(e, t.x, t.y, dt) === 'fail') e.order = o.resume || null;
     } else {
       if (s.tank) e.turret = Math.atan2(t.y - e.y, t.x - e.x);   // tanks swing the turret, not the hull
@@ -1256,7 +1304,7 @@ function updateTower(e, dt) {
   const s = STATS.tower;
   e.cooldown -= dt;
   let t = e.target && byId(e.target);
-  if (!t || hiddenFrom(t, e.team) || !visibleAt(t.x, t.y, e.team) || edgeDist(e.x, e.y, t) > s.range) { t = findEnemyNear(e, s.range); e.target = t ? t.id : null; }
+  if (!t || hiddenFrom(t, e.team) || !visibleAt(t.x, t.y, e.team) || edgeDist(e.x, e.y, t) > rangeOf(e)) { t = findEnemyNear(e, rangeOf(e)); e.target = t ? t.id : null; }
   if (!t) return;
   e.aim = Math.atan2(t.y - e.y, t.x - e.x);
   if (e.cooldown <= 0) {
@@ -1380,7 +1428,7 @@ const chokeCache = {};
 function chokeOnRoute(hq, tx, ty) {
   const path = findPath(hq.x, hq.y, tx, ty, false, -1, true);
   if (!path) return null;
-  const blocked = (x, y) => x < 10 || y < 10 || x > W - 10 || y > H - 10 || (() => { const t = terrainAt(x, y); return t === T.ROCK || t === T.WATER; })();
+  const blocked = (x, y) => x < 10 || y < 10 || x > W - 10 || y > H - 10 || (() => { const t = terrainAt(x, y); return t === T.ROCK || t === T.WATER || t === T.CLIFF; })();
   let best = null, ax = hq.x, ay = hq.y;
   for (const pt of path) {
     const sl = Math.hypot(pt.x - ax, pt.y - ay), ux = (pt.x - ax) / (sl || 1), uy = (pt.y - ay) / (sl || 1);
@@ -1452,7 +1500,7 @@ function planGapWall(ch) {
   const m = [Math.round((a[0] + b[0]) / 2), Math.round((a[1] + b[1]) / 2)];
   const g1 = horiz ? [m[0] - 1, m[1]] : [m[0], m[1] - 1], g2 = m;   // the gate's two tiles, side by side along the wall
   const cells = [...line4(a[0], a[1], g1[0], g1[1]), ...line4(g2[0], g2[1], b[0], b[1])];
-  const blockedT = ([c, r]) => { const t = terrainAt(c * TC + TC / 2, r * TC + TC / 2); return t === T.ROCK || t === T.WATER; };
+  const blockedT = ([c, r]) => { const t = terrainAt(c * TC + TC / 2, r * TC + TC / 2); return t === T.ROCK || t === T.WATER || t === T.CLIFF; };
   const isGate = ([c, r]) => (c === g1[0] && r === g1[1]) || (c === g2[0] && r === g2[1]);
   const wallCells = cells.filter(t => !blockedT(t) && !isGate(t));
   // every piece must be buildable: open grass (no trees) and clear of ore

@@ -2,6 +2,14 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.11', date: '17 Nov 2026', title: 'High ground',
+    changes: [
+      'New: raised plateaus with sheer, craggy cliff faces (2 per side on Large, 1 per side on Classic). The cliffs can\'t be climbed; dirt ramps lead up.',
+      'Holding the high ground pays: units and buildings up there see 25% further and shoot 20% further.',
+      'From below you can\'t see up onto a plateau (except right at the foot of a ramp), so you can\'t shoot back until you climb up or bring a spotter.',
+    ],
+  },
+  {
     version: '5.10', date: '17 Nov 2026', title: 'New look for the land',
     changes: [
       'Cliffs and rocks are now drawn as solid, continuous rock with a shadow, a sunlit edge, a weathered top and cracks, instead of a pile of circles.',
