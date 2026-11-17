@@ -2,6 +2,15 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.20', date: '17 Nov 2026', title: 'Radar',
+    changes: [
+      'New building: Radar ($500, built from the HQ, needs a Power Plant). Once finished it reveals everything within 650 of it, more than twice as far as the HQ sees.',
+      'It is a radar, not eyes: it sees over rocks and up onto plateaus. Infantry hiding in forests still stay hidden.',
+      'It has no weapon and only 400 HP, so keep it safe. Like any building it can be sold for half its price.',
+      'The computer builds one too on Normal and Hard once it has a Power Plant.',
+    ],
+  },
+  {
     version: '5.19', date: '17 Nov 2026', title: 'Shooting uphill',
     changes: [
       'Units on low ground only do half damage to anything up on a plateau (when they can see it at all: from right at the foot of the cliff, or with a spotter up top). This goes for rifles, rockets, sniper shots, tank shells and Guard Towers.',

@@ -93,7 +93,7 @@ const INCOME = 1;                     // small trickle per second so nobody gets
 const BUILD_RADIUS = 300;             // how far from your HQ you can place buildings
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
 
-const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250, grenadier: 160, engineer: 75, rocket: 200, sniper: 200, light: 400, heavy: 700, artillery: 450, tech: 600 };
+const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250, grenadier: 160, engineer: 75, rocket: 200, sniper: 200, light: 400, heavy: 700, artillery: 450, tech: 600, radar: 500 };
 const WALL_REACH = 150;              // walls, gates and guard towers can go this much further out than other buildings
 
 const STATS = {
@@ -119,6 +119,7 @@ const STATS = {
   tech:      { hp: 600, size: 70, sight: 180, buildTime: 16 },
   power:     { hp: 400, size: 60, sight: 160, buildTime: 10 },
   tower:     { hp: 700, size: 46, sight: 230, buildTime: 12, range: 170, dmg: 14, cooldown: 0.9 },
+  radar:     { hp: 400, size: 64, sight: 650, buildTime: 14, radar: true },   // sweeps a huge circle: sees over rocks and up onto plateaus (not into forests)
   wall:      { hp: 400, size: 25, sight: 50 },
   gate:      { hp: 600, size: 50, sight: 60 },
   // neutral buildings: they start out belonging to no one (team 2) and can't be hurt while neutral
@@ -127,7 +128,7 @@ const STATS = {
 };
 const PRODUCES = { barracks: ['soldier', 'grenadier', 'rocket', 'sniper', 'engineer'], refinery: ['extractor'], factory: ['buggy', 'light', 'artillery', 'heavy'] };
 // Tech tree: what else you need (finished, and still standing) before you can build or train something
-const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['tower'], heavy: ['tech'], artillery: ['power'] };
+const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['tower'], heavy: ['tech'], artillery: ['power'], radar: ['power'] };
 const hasBuilt = (team, type) => game.ents.some(b => b.team === team && b.type === type && b.built);
 const missingFor = (team, type) => (REQUIRES[type] || []).filter(t => !hasBuilt(team, t));
 const unlocked = (team, type) => missingFor(team, type).length === 0;
@@ -158,7 +159,7 @@ const POWER_BONUS = 0.25, POWER_MAX = 2;
 const powerBoost = team => Math.min(POWER_MAX, 1 + POWER_BONUS * game.ents.filter(b => b.team === team && b.type === 'power' && b.built).length);
 // how many times longer than normal this side takes to build things (difficulty slow-down ÷ power boost)
 const slowOf = e => (e.team === 1 ? diff().slow : 1) / powerBoost(e.team);
-const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', rocket: 'Rocket Soldier', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', tower: 'Guard Tower', power: 'Power Plant', wall: 'Wall', gate: 'Gate', derrick: 'Oil Derrick', house: 'House', civilian: 'Civilian' };
+const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', rocket: 'Rocket Soldier', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', tower: 'Guard Tower', power: 'Power Plant', radar: 'Radar', wall: 'Wall', gate: 'Gate', derrick: 'Oil Derrick', house: 'House', civilian: 'Civilian' };
 
 const TEAMS = [
   { name: 'You',   color: '#3b82f6', dark: '#1d3f8f', light: '#93c5fd' },
@@ -803,7 +804,7 @@ function spawn(type, team, x, y) {
   return e;
 }
 
-function isBuildingType(t) { return t === 'derrick' || t === 'house' || t === 'hq' || t === 'barracks' || t === 'refinery' || t === 'factory' || t === 'tech' || t === 'power' || t === 'tower' || t === 'wall' || t === 'gate'; }
+function isBuildingType(t) { return t === 'derrick' || t === 'house' || t === 'hq' || t === 'barracks' || t === 'refinery' || t === 'factory' || t === 'tech' || t === 'power' || t === 'tower' || t === 'radar' || t === 'wall' || t === 'gate'; }
 const isWallType = t => t === 'wall' || t === 'gate';
 const gateHalf = vertical => vertical ? { hx: TC / 2, hy: TC } : { hx: TC, hy: TC / 2 };
 const halfX = e => e.type === 'gate' ? gateHalf(e.vertical).hx : e.size / 2;
@@ -953,11 +954,25 @@ function visibleCells(x, y, r) {
   return cells;
 }
 
+const radarCache = new Map();
+function radarCells(x, y, r) {   // every fog square within r: a radar isn't blocked by rocks or cliffs
+  const key = Math.round(x) + ',' + Math.round(y) + ',' + r;
+  let cells = radarCache.get(key);
+  if (cells) return cells;
+  const out = [];
+  for (let row = Math.max(0, Math.floor((y - r) / CELL)); row <= Math.min(ROWS - 1, Math.floor((y + r) / CELL)); row++)
+    for (let col = Math.max(0, Math.floor((x - r) / CELL)); col <= Math.min(COLS - 1, Math.floor((x + r) / CELL)); col++)
+      if (Math.hypot(col * CELL + CELL / 2 - x, row * CELL + CELL / 2 - y) <= r) out.push(row * COLS + col);
+  cells = Int32Array.from(out); radarCache.set(key, cells);
+  return cells;
+}
+
 function updateFog() {
   for (const f of fog) f.vis.fill(0);
   for (const e of game.ents) {
     if (e.team === NEUTRAL) continue;
     const f = fog[e.team];
+    if (STATS[e.type].radar && e.built) { for (const i of radarCells(e.x, e.y, STATS[e.type].sight)) { f.vis[i] = 1; f.exp[i] = 1; } continue; }
     const r = STATS[e.type].sight * (isBuilding(e) && !e.built ? 0.6 : 1) * (elevAt(e.x, e.y) ? HIGH_SIGHT : 1) * (isUnit(e) && terrainAt(e.x, e.y) === T.FOREST ? FOREST_SIGHT : 1);
     for (const i of visibleCells(e.x, e.y, r)) { f.vis[i] = 1; f.exp[i] = 1; }
   }
@@ -1971,6 +1986,7 @@ function runAI(dt) {
   // the build phase lasts until this stage's extras are built (or 90s, so it never stalls)
   const wantFactory = D.factory && sent >= 1 && !of('factory').length && unlocked(1, 'factory') && !aiBlocked('factory');
   const wantTech = D.heavyTanks && sent >= 2 && of('factory').some(f => f.built) && !of('tech').length && unlocked(1, 'tech') && !aiBlocked('tech');
+  const wantRadar = D.walls && sent >= 1 && !of('radar').length && unlocked(1, 'radar') && !aiBlocked('radar');   // Normal and Hard
   const extrasDone = (refineries.length >= reqRefineries || aiBlocked('refinery')) && (of('tower').length >= wantTowers || aiBlocked('tower')) && !wantFactory && !wantTech;
   const building = game.time < (ai.buildUntil || 0) && !extrasDone;
   if (refineries.length === 0) aiPlaceRefinery(hq);
@@ -1981,6 +1997,7 @@ function runAI(dt) {
   else if (barracks.length < D.barracks && cash >= 900) aiPlace(hq, 'barracks');
   else if (wantFactory && cash >= COST.factory) aiPlace(hq, 'factory');
   else if (wantTech && cash >= COST.tech) aiPlace(hq, 'tech');
+  else if (wantRadar && cash >= COST.radar + 150) aiPlace(hq, 'radar');
 
   // expand toward fresh ore once the ore by its refineries is running out
   const expanding = aiExpand(hq, refineries, sent);
@@ -2326,6 +2343,7 @@ function draw() {
     else if (e.type === 'refinery') drawRefinery(e);
     else if (e.type === 'tower') drawTower(e);
     else if (e.type === 'power') drawPower(e);
+    else if (e.type === 'radar') drawRadar(e);
     else if (e.type === 'wall') drawWall(e);
     else if (e.type === 'gate') drawGate(e);
     else if (e.type === 'settler') drawSettler(e);
@@ -3242,6 +3260,40 @@ function drawGate(e) {
   ctx.restore();
 }
 
+// Radar: a concrete pad with a control hut and a lattice mast carrying a big dish that sweeps round
+function drawRadar(e) {
+  if (!e.built) return drawConstruction(e);
+  const c = TEAMS[e.team], h = e.size / 2, x0 = e.x - h, y0 = e.y - h, t = performance.now() / 1000;
+  ctx.fillStyle = '#8f8a7e'; ctx.fillRect(x0 - 3, y0 - 3, e.size + 6, e.size + 6);   // pad
+  ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth = 1;
+  for (let k = 16; k < e.size; k += 16) { ctx.beginPath(); ctx.moveTo(x0 - 3 + k, y0 - 3); ctx.lineTo(x0 - 3 + k, y0 + e.size + 3); ctx.stroke(); }
+  // control hut along the front, with a lit window, a door and the team stripe
+  block(x0 + 6, y0 + e.size - 26, e.size - 12, 22, '#7b766a', '#4c4840', 9);
+  ctx.fillStyle = c.color; ctx.fillRect(x0 + 6, y0 + e.size - 26, e.size - 12, 3);
+  ctx.fillStyle = '#9fe0ff'; ctx.fillRect(x0 + 12, y0 + e.size - 13, 12, 5);
+  ctx.fillStyle = '#2a2824'; ctx.fillRect(e.x + 6, y0 + e.size - 15, 9, 11);
+  // lattice mast: four legs and cross bracing, seen from above at a slant
+  const mx = e.x, my = y0 + 22;
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(mx + 8, my + 12, 16, 8, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#5c5a55'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(mx - 11, my + 14); ctx.lineTo(mx - 3, my - 2); ctx.moveTo(mx + 11, my + 14); ctx.lineTo(mx + 3, my - 2); ctx.stroke();
+  ctx.lineWidth = 1;
+  for (let k = 0; k < 3; k++) { const y = my + 12 - k * 5, w = 10 - k * 2.5; ctx.beginPath(); ctx.moveTo(mx - w, y); ctx.lineTo(mx + w - 2.5, y - 5); ctx.moveTo(mx + w, y); ctx.lineTo(mx - w + 2.5, y - 5); ctx.stroke(); }
+  // the dish: a big curved reflector with a feed arm, turning slowly
+  ctx.save(); ctx.translate(mx, my - 3); ctx.rotate(t * 0.9);
+  ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(3, 4, 21, 9, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#d8dcdf'; ctx.strokeStyle = '#8c949a'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.ellipse(0, 0, 21, 9, 0, Math.PI, 0); ctx.quadraticCurveTo(0, 6, -21, 0); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = 'rgba(120,130,138,0.7)'; ctx.lineWidth = 1;
+  for (const k of [-12, -4, 4, 12]) { ctx.beginPath(); ctx.moveTo(k, -8 + Math.abs(k) * 0.3); ctx.lineTo(k * 0.9, 2); ctx.stroke(); }
+  ctx.strokeStyle = '#6c7378'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, 1); ctx.lineTo(0, -14); ctx.stroke();   // feed arm
+  ctx.fillStyle = c.color; ctx.beginPath(); ctx.arc(0, -15, 2.5, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  ctx.fillStyle = '#4a4740'; ctx.beginPath(); ctx.arc(mx, my - 3, 3, 0, Math.PI * 2); ctx.fill();   // hub
+  if (Math.floor(t * 1.5) % 2) { ctx.fillStyle = '#ff5a5a'; ctx.beginPath(); ctx.arc(x0 + e.size - 8, y0 + 6, 2.2, 0, Math.PI * 2); ctx.fill(); }   // beacon
+  flag(x0 + 4, y0 + 4, e.team);
+}
+
 function drawPower(e) {
   if (!e.built) return drawConstruction(e);
   const c = TEAMS[e.team], h = e.size / 2, x0 = e.x - h, y0 = e.y - h, t = performance.now() / 1000;
@@ -3640,7 +3692,7 @@ const selectedOfType = type => [...game.selected].map(byId).filter(e => e && e.t
 const $ = id => document.getElementById(id);
 const ui = {
   credits: $('credits'), clock: $('clock'), info: $('info'), powerChip: $('powerChip'), sell: $('btnSell'),
-  deploy: $('btnDeploy'), barracks: $('btnBarracks'), refinery: $('btnRefinery'), tower: $('btnTower'), power: $('btnPower'), factory: $('btnFactory'), tech: $('btnTech'), wall: $('btnWall'), gate: $('btnGate'), rotate: $('btnRotate'), 
+  deploy: $('btnDeploy'), radar: $('btnRadar'), barracks: $('btnBarracks'), refinery: $('btnRefinery'), tower: $('btnTower'), power: $('btnPower'), factory: $('btnFactory'), tech: $('btnTech'), wall: $('btnWall'), gate: $('btnGate'), rotate: $('btnRotate'), 
   harvest: $('btnHarvest'), place: $('btnPlace'), cancel: $('btnCancel'), deselect: $('btnDeselect'),
   box: $('btnBox'), all: $('btnAll'), pause: $('btnPause'), map: $('btnMap'),
   overlay: $('overlay'), ovTitle: $('ovTitle'), ovText: $('ovText'), ovBtn: $('ovBtn'),
@@ -3663,6 +3715,7 @@ ui.barracks.addEventListener('click', () => startPlacing('barracks'));
 ui.refinery.addEventListener('click', () => startPlacing('refinery'));
 ui.tower.addEventListener('click', () => startPlacing('tower'));
 ui.power.addEventListener('click', () => startPlacing('power'));
+ui.radar.addEventListener('click', () => startPlacing('radar'));
 ui.factory.addEventListener('click', () => startPlacing('factory'));
 ui.tech.addEventListener('click', () => startPlacing('tech'));
 ui.wall.addEventListener('click', () => startPlacing('wall'));
@@ -3828,6 +3881,7 @@ function updateHUD() {
   show(ui.tech, !!hq && !placing);
   show(ui.tower, !!hq && !placing);
   show(ui.power, !!hq && !placing);
+  show(ui.radar, !!hq && !placing);
   show(ui.wall, !!hq && !placing);
   show(ui.gate, !!hq && !placing);
   syncProduceButtons(producer && !placing ? producer.type : null);
@@ -3853,7 +3907,7 @@ function updateHUD() {
   ui.powerChip.style.display = boost > 1 ? '' : 'none';
   ui.powerChip.textContent = `⚡ +${Math.round((boost - 1) * 100)}%`;
   // locked buildings say what they still need
-  for (const [btn, type] of [[ui.factory, 'factory'], [ui.tech, 'tech']]) {
+  for (const [btn, type] of [[ui.factory, 'factory'], [ui.tech, 'tech'], [ui.radar, 'radar']]) {
     const miss = missingFor(0, type);
     btn.textContent = miss.length ? `${NAMES[type]}: needs ${miss.map(t => NAMES[t]).join(' + ')}` : `${NAMES[type]} $${COST[type]}`;
     btn.disabled = miss.length > 0 || game.credits[0] < COST[type];
@@ -3892,6 +3946,7 @@ function updateHUD() {
     ? 'Oil Derrick — pays $' + STATS.derrick.pay + ' every ' + STATS.derrick.payEvery + 's (next in ' + Math.ceil(STATS.derrick.payEvery - (sel[0].payT || 0)) + 's)'
     : 'Oil Derrick — neutral. Send an Engineer to capture it: $' + STATS.derrick.pay + ' every ' + STATS.derrick.payEvery + 's';
   else if (sel.length === 1 && sel[0].type === 'house') text = 'Village house';
+  else if (sel.length === 1 && sel[0].type === 'radar') text = sel[0].built ? 'Radar — reveals everything within ' + STATS.radar.sight + ', over rocks and cliffs (not hidden infantry in forests)' : 'Radar: ' + Math.floor(sel[0].progress * 100) + '% built';
   else if (sel.length === 1 && sel[0].type === 'tower') text = sel[0].built ? 'Guard Tower — fires at enemies in range' : `Guard Tower: ${Math.floor(sel[0].progress * 100)}% built`;
   else if (producer) text = producer.built ? `${NAMES[producer.type]}${producer.queue ? ' — making ×' + producer.queue : ''}` : `${NAMES[producer.type]}: ${Math.floor(producer.progress * 100)}% built`;
   else if (extractors.length === 1 && sel.length === 1) text = extractorStatus(extractors[0]);
