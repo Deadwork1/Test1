@@ -515,9 +515,6 @@ const bg = document.createElement('canvas');
   // dirt slopes for the ramps, and jagged rock along the cliff rim
   const isHigh = i => elev[i] === 1;
   // a ramp is a raised tile that steps straight down onto walkable low ground (no cliff in between)
-  const lowWalk = (c, r) => c >= 0 && r >= 0 && c < TCOLS && r < TROWS && !elev[r * TCOLS + c] && walkable(terrain[r * TCOLS + c], false);
-  const isRamp = i => { if (elev[i] !== 1 || terrain[i] === T.CLIFF) return false; const c = i % TCOLS, r = (i / TCOLS) | 0;
-    return lowWalk(c + 1, r) || lowWalk(c - 1, r) || lowWalk(c, r + 1) || lowWalk(c, r - 1); };
   const top = mask(isHigh, 14, 0.5);
   paint(mask(isHigh, 18, 0.42), 'rgba(0,0,0,0.38)', 12, 20);                                   // shadow on the low ground
   const crag = tc => {   // craggy rock: blotches plus short vertical cracks, like a sheer face
@@ -528,10 +525,72 @@ const bg = document.createElement('canvas');
   for (let k = 22; k > 0; k -= 6) paint(top, crag, 0, k);                                       // cliff face, seen from the south (several layers = height)
   paint(top, tc => { tc.fillStyle = 'rgba(0,0,0,0.3)'; tc.fillRect(0, 0, W, H); }, 0, 22);
   paint(top, speckle('#577a3c', ['#5f8442', '#4e6f35', '#668a48'], 1500, 6, 26));              // the raised top
-  paint(mask(isRamp, 10, 0.5), speckle('#8a7650', ['#7d6a46', '#977f57', '#6f5d3d'], 900, 3, 9));   // ramps
-  paint(mask(isRamp, 10, 0.5), speckle('#8a7650', ['#7d6a46', '#977f57'], 600, 3, 8), 0, 10);       // ramp running down over the face
   paint(mask([T.CLIFF], 8, 0.5), crag);                                                        // rough rim
   paint(mask([T.CLIFF], 8, 0.62), tc => { tc.fillStyle = 'rgba(190,175,150,0.35)'; tc.fillRect(0, 0, W, H); }, -2, -3);   // sunlit lip
+  // ramps: a sloping dirt track cut into the cliff, lit at the top and in shade at the bottom, with rocky
+  // banks either side, worn wheel ruts, scattered stones and a fan of loose earth where it meets the ground
+  const plats = [];
+  for (const pl of MAP.plateaus || []) { plats.push(pl); const [x, y] = mirror([pl.x, pl.y]); plats.push({ ...pl, x, y, ramps: pl.ramps.map(a => a + Math.PI) }); }
+  for (const pl of plats) for (const ra of pl.ramps) {
+    const dx = Math.cos(ra), dy = Math.sin(ra), sx = -dy, sy = dx;
+    let d = 0; while (d < 600 && elevAt(pl.x + dx * d, pl.y + dy * d)) d += 4;   // where the plateau ends along the ramp
+    const ex = pl.x + dx * d, ey = pl.y + dy * d;
+    // A ramp is simply the hilltop sloping down to the ground: the same grass, gently shaded so it reads as a
+    // slope (lit at the top, a little darker at the bottom), soft shadows where the cliff ends either side,
+    // and no hard edges, so it blends into the plateau above and the field below.
+    const tx = ex - dx * 36, ty = ey - dy * 36, bx = ex + dx * 58, by = ey + dy * 58;
+    const wt = Math.max(30, d * Math.sin(0.3) + 6), mx = (tx + bx) / 2, my = (ty + by) / 2, len = Math.hypot(bx - tx, by - ty);
+    const R = Math.ceil(len / 2 + wt + 40), ox = mx - R, oy = my - R;
+    const rc = document.createElement('canvas'); rc.width = rc.height = R * 2;
+    const c = rc.getContext('2d'); c.translate(-ox, -oy);
+    // Everything is built from soft round blobs that fade to nothing at their edges, so no shape has a border
+    // and the slope melts into the grass around it.
+    const blob = (x, y, r, rgb, a) => {
+      const gr = c.createRadialGradient(x, y, 0, x, y, r);
+      gr.addColorStop(0, `rgba(${rgb},${a})`); gr.addColorStop(1, `rgba(${rgb},0)`);
+      c.fillStyle = gr; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+    };
+    const at = (f, w) => [tx + (bx - tx) * f + sx * w, ty + (by - ty) * f + sy * w];
+    // smooth over the hilltop's edge where it crosses the slope, so there is no step
+    const fe = 36 / (36 + 58);
+    for (let j = -2; j <= 2; j++) for (const df of [-0.06, 0, 0.06]) {
+      const [x, y] = at(fe + df, j * wt * 0.3);
+      blob(x, y, wt * 0.42, '84,118,58', 0.32);
+    }
+    // the ground rising and falling: the top of the slope catches the light, the bottom sits in shade
+    for (let k = 0; k < 26; k++) {
+      const f = rnd(), w = (rnd() - 0.5) * wt * 1.2, [x, y] = at(f, w), r = wt * (0.45 + rnd() * 0.3);
+      if (f < 0.5) blob(x, y, r, '200,215,140', 0.07 + (0.5 - f) * 0.12);
+      else blob(x, y, r, '25,35,12', 0.06 + (f - 0.5) * 0.22);
+    }
+    // a few gentle swells and dips across it
+    for (let k = 0; k < 3; k++) {
+      const f = 0.3 + k * 0.2 + (rnd() - 0.5) * 0.08;
+      for (let j = -1; j <= 1; j++) {
+        const w = j * wt * 0.4 + (rnd() - 0.5) * 6;
+        const [lx, ly] = at(f - 0.05, w), [dx2, dy2] = at(f + 0.05, w);
+        blob(lx, ly, wt * 0.32, '215,225,160', 0.1);
+        blob(dx2, dy2, wt * 0.34, '20,28,10', 0.13);
+      }
+    }
+    // patches of bare, worn earth where feet and tracks have rubbed the grass away
+    for (let k = 0; k < 14; k++) {
+      const f = 0.15 + rnd() * 0.7, w = (rnd() - 0.5) * wt * 0.7, [x, y] = at(f, w);
+      blob(x, y, 7 + rnd() * 10, rnd() < 0.5 ? '140,118,80' : '118,98,66', 0.16 + rnd() * 0.12);
+    }
+    // the slope's sides fall away into shade where the cliff runs out
+    for (const side of [1, -1]) for (let k = 0; k < 5; k++) {
+      const f = 0.05 + k * 0.12, [x, y] = at(f, side * wt * 0.95);
+      blob(x, y + 4, wt * 0.38 * (1 - k * 0.12), '20,18,10', 0.22 - k * 0.03);
+    }
+    // a few stones where the cliff ends crumble onto the slope
+    for (const side of [1, -1]) for (let k = 0; k < 6; k++) {
+      const f = 0.1 + rnd() * 0.6, w = side * wt * (0.8 + rnd() * 0.25), x = tx + (bx - tx) * f + sx * w, y = ty + (by - ty) * f + sy * w;
+      c.fillStyle = 'rgba(0,0,0,0.25)'; c.beginPath(); c.arc(x + 1, y + 1.5, 2 + rnd() * 2, 0, Math.PI * 2); c.fill();
+      c.fillStyle = rnd() < 0.5 ? '#8d8070' : '#6f6455'; c.beginPath(); c.arc(x, y, 1.6 + rnd() * 2, 0, Math.PI * 2); c.fill();
+    }
+    b.drawImage(rc, ox, oy);
+  }
 
   // forests: one dark mass of ground, then a dense canopy of trees that spills a little over its edge
   const woods = mask([T.FOREST], 20, 0.5);

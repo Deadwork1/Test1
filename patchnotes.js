@@ -2,6 +2,12 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.11.1', date: '17 Nov 2026', title: 'Softer slopes',
+    changes: [
+      'The way up onto each plateau now looks like the ground gently rising and falling, shaded and blended into the grass, instead of a flat dirt patch.',
+    ],
+  },
+  {
     version: '5.11', date: '17 Nov 2026', title: 'High ground',
     changes: [
       'New: raised plateaus with sheer, craggy cliff faces (2 per side on Large, 1 per side on Classic). The cliffs can\'t be climbed; dirt ramps lead up.',
