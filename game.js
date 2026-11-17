@@ -61,7 +61,7 @@ const BUILD_RADIUS = 300;             // how far from your HQ you can place buil
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
 
 const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250, grenadier: 160, engineer: 75, rocket: 200, sniper: 200, light: 400, heavy: 700, tech: 600 };
-const WALL_REACH = 150;              // walls & gates can go this much further out than other buildings
+const WALL_REACH = 150;              // walls, gates and guard towers can go this much further out than other buildings
 
 const STATS = {
   settler:   { hp: 200, speed: 38, r: 16, sight: 180 },
@@ -71,7 +71,7 @@ const STATS = {
   light:     { hp: 350, speed: 60, r: 15, sight: 200, range: 130, dmg: 30, cooldown: 1.5, tank: true },   // light tank: all-rounder
   heavy:     { hp: 800, speed: 35, r: 19, sight: 210, range: 140, dmg: 60, cooldown: 2.0, tank: true },   // heavy tank: slow, very tough
   sniper:    { hp: 45,  speed: 46, r: 9,  sight: 200, range: 160, dmg: 75, cooldown: 2.7, vsVehicle: 0.15, vsBuilding: 0.1, reveal: 0.5 },   // one-shots infantry from far away; useless vs vehicles
-  rocket:    { hp: 55,  speed: 45, r: 9,  sight: 170, range: 130, dmg: 40, cooldown: 2.5, rocket: true, vsVehicle: 2, vsHeavy: 1.25, vsBuilding: 2, vsInfantry: 0.4 },   // anti-vehicle: double vs vehicles & buildings, weak vs infantry
+  rocket:    { hp: 55,  speed: 45, r: 9,  sight: 170, range: 130, dmg: 40, cooldown: 2.5, rocket: true, vsVehicle: 2, vsHeavy: 1.5, vsBuilding: 2, vsInfantry: 0.4 },   // anti-vehicle: double vs vehicles & buildings, weak vs infantry
   grenadier: { hp: 55,  speed: 48, r: 9,  sight: 170, range: 95,  dmg: 16, cooldown: 2.0, splash: 38, flight: 0.55, vsVehicle: 0.5 },   // lobbed grenades: area damage, half vs vehicles
   engineer:  { hp: 20,  speed: 48, r: 9,  sight: 150, repair: 30 },   // no weapon, very fragile: repairs (hp per second) and captures
   hq:        { hp: 900, size: 92, sight: 280 },
@@ -376,10 +376,12 @@ function navigate(e, tx, ty, dt) {
   const nav = e.nav;
   if (nav.fail) return 'fail';
   if (nav.i >= nav.path.length) return true;
-  if (!e.prog || Math.hypot(e.x - e.prog.x, e.y - e.prog.y) > 6) e.prog = { x: e.x, y: e.y, t: game.time };
+  if (!e.prog || Math.hypot(e.x - e.prog.x, e.y - e.prog.y) > 6) { e.prog = { x: e.x, y: e.y, t: game.time }; e.blockN = 0; }
   else if (game.time - e.prog.t > 1.2) {
     // blocked right next to where it was going (someone parked on the spot): call that arrived
-    if (Math.hypot(tx - e.x, ty - e.y) < e.r + 30) { e.nav = null; e.prog = null; return true; }
+    const slot = e.order && e.order.slot;
+    e.blockN = (e.blockN || 0) + 1;
+    if (Math.hypot(tx - e.x, ty - e.y) < e.r + 30 && (!slot || e.blockN >= 3)) { e.nav = null; e.prog = null; e.blockN = 0; return true; }
     e.prog = { x: e.x, y: e.y, t: game.time };
     const a = Math.random() * Math.PI * 2, nx = e.x + Math.cos(a) * 6, ny = e.y + Math.sin(a) * 6;
     if (walkable(terrainAt(nx, ny), isVehicle(e))) { e.x = nx; e.y = ny; }
@@ -549,13 +551,15 @@ function moveToward(e, tx, ty, dt) {
     }
     if (block) {
       const parked = block.team === e.team && !block.order && game.time - (block.movedAt || -9) > 0.3 && !(e.rolling && isInfantry(block));
-      if (parked && !isBuilding(block) && d > 70) {   // just passing through: nudge the parked friend sideways out of the path
+      if (parked && !isBuilding(block) && (d > 70 || !isInfantry(e))) {   // passing through (or a vehicle squeezing by): nudge the parked friend aside
         const px = -uy * -side, py = ux * -side, nx = block.x + px * step * 1.1, ny = block.y + py * step * 1.1;
         if (walkable(terrainAt(nx, ny), isVehicle(block)) && !wallBlocks(nx, ny, block.team)) { block.x = nx; block.y = ny; }
       } else if (block.team === e.team && ((game.time - (block.movedAt || -9) < 0.3 && (block.pace || 0) > 0.6 && Math.cos(block.facing) * ux + Math.sin(block.facing) * uy > 0.5) ||
                  (block.order && block.order.type === 'attack') || (e.nav && e.nav.breaking))) {
         // a friend heading the same way, or busy fighting / smashing a wall: wait behind it instead of everyone swerving about
-      } else {   // swerve around it
+      } else {   // swerve around it (and keep swerving the same way, so it doesn't dither left-right)
+        if (e.swerve && e.swerve.id === block.id && e.swerve.until > game.time) side = e.swerve.side;
+        e.swerve = { id: block.id, side, until: game.time + 1.5 };
         const k = 1.1 * (1 - bp / (e.r * 2 + 14)) + 0.35;
         const sx = ux + -uy * side * k, sy = uy + ux * side * k, sl = Math.hypot(sx, sy);
         const nx = e.x + sx / sl * step, ny = e.y + sy / sl * step;
@@ -656,7 +660,7 @@ function inBuildArea(team, x, y, extra = 0) {
 function canPlace(team, type, x, y) {
   const size = STATS[type].size;
   if (!unlocked(team, type)) return false;
-  if (!inBuildArea(team, x, y) || !siteIsFree(x, y, size)) return false;
+  if (!inBuildArea(team, x, y, type === 'tower' ? WALL_REACH : 0) || !siteIsFree(x, y, size)) return false;   // towers, like walls, can go out to the edge of your area
   for (const b of game.ents) {   // never sit on the doorstep of a building that makes units
     if (!isBuilding(b) || !PRODUCES[b.type]) continue;
     const od = frontDoor(b);
@@ -1033,12 +1037,28 @@ function updateSoldier(e, dt) {   // soldiers and buggies
     const foe = (s.rocket && findVehicleNear(e, s.sight)) || (e.type === 'sniper' && findInfantryNear(e, s.sight)) || findEnemyNear(e, s.sight);
     if (foe) { e.order = { type: 'attack', target: foe.id, resume: o }; o = e.order; }
   }
-  if (!o) return;
+  if (!o) {
+    // holding a place in a formation: drift back to it if something nudged it out of line
+    if (e.home && !e.passive) {
+      const hd = Math.hypot(e.home.x - e.x, e.home.y - e.y);
+      const busy = game.ents.some(m => m !== e && m.team === e.team && isUnit(m) && m.order && game.time - (m.movedAt || -9) < 0.2 && Math.abs(m.x - e.x) < 50 && Math.abs(m.y - e.y) < 50);
+      if (hd > 2.5 && hd < 45 && !busy) { moveToward(e, e.home.x, e.home.y, dt * 0.5); e.facing = e.home.face; }   // (wait while someone squeezes past)
+      else if (hd >= 45) e.home = null;
+    }
+    return;
+  }
+  if (!o.slot) e.home = null;
 
   if (o.type === 'attackmove' && e.holdUntil > game.time) return;   // waiting for the rest of its wave
   if (o.type === 'move' || o.type === 'attackmove') {
-    if (Math.hypot(o.x - e.x, o.y - e.y) < e.r + 6) { e.order = null; return; }   // close enough (someone may be standing on the exact spot)
-    if (navigate(e, o.x, o.y, dt)) e.order = null;   // arrived (true) or can't get there ('fail')
+    const close = Math.hypot(o.x - e.x, o.y - e.y);
+    if (o.slot ? close < 5 : close < e.r + 6) {   // formation moves go (almost) to the exact spot; others just near it
+      e.order = null;
+      if (o.slot) { e.facing = o.face; e.home = { x: o.x, y: o.y, face: o.face }; }
+      return;
+    }
+    const r = navigate(e, o.x, o.y, dt);
+    if (r) { e.order = null; if (o.slot && r === true) { e.home = { x: o.x, y: o.y, face: o.face }; e.facing = o.face; } }   // arrived (true) or can't get there ('fail')
   } else if (o.type === 'attack') {
     const t = byId(o.target);
     if (!t || hiddenFrom(t, e.team)) { e.order = o.resume || null; return; }
@@ -1274,12 +1294,23 @@ function chokeOnRoute(hq, tx, ty) {
     const sl = Math.hypot(pt.x - ax, pt.y - ay), ux = (pt.x - ax) / (sl || 1), uy = (pt.y - ay) / (sl || 1);
     for (let d = 0; d < sl; d += 12) {
       const x = ax + ux * d, y = ay + uy * d, fromHq = Math.hypot(x - hq.x, y - hq.y);
-      if (fromHq < 200 || fromHq > 520) continue;
-      let l = 0, r = 0;
-      while (l < 260 && !blocked(x - uy * (l + 8), y + ux * (l + 8))) l += 8;
-      while (r < 260 && !blocked(x + uy * (r + 8), y - ux * (r + 8))) r += 8;
+      if (fromHq < 260 || fromHq > 700) continue;   // out past the buildings, where the rocks close in
+      // the narrowest line through this spot that runs from blocked ground to blocked ground (any angle)
+      let bw = null;
+      for (let k = 0; k < 18; k++) {
+        const th = k * Math.PI / 18, cx = Math.cos(th), cy = Math.sin(th);
+        let l = 0, r = 0;
+        while (l < 420 && !blocked(x - cx * (l + 8), y - cy * (l + 8))) l += 8;
+        if (l >= 420) continue;
+        while (r < 420 && !blocked(x + cx * (r + 8), y + cy * (r + 8))) r += 8;
+        if (r >= 420 || l + r > 560) continue;
+        if (!bw || l + r < bw.l + bw.r) bw = { l, r, cx, cy };
+      }
+      if (!bw) continue;   // open ground: not a gap
+      const { l, r, cx, cy } = bw;
       const width = l + r + fromHq * 0.15;   // slight preference for gaps closer to home
-      if (!best || width < best.width) best = { width, x: x - uy * (l - r) / 2, y: y + ux * (l - r) / 2, ux, uy, gap: l + r };   // centre of the gap
+      if (!best || width < best.width) best = { width, x: x + cx * (r - l) / 2, y: y + cy * (r - l) / 2, ux, uy, gap: l + r,
+        ax: x - cx * (l + 4), ay: y - cy * (l + 4), bx: x + cx * (r + 4), by: y + cy * (r + 4) };   // centre of the gap and its two rocky ends
     }
     ax = pt.x; ay = pt.y;
   }
@@ -1308,6 +1339,39 @@ function findEntrances(team) {
   return (chokeCache[key] = out);
 }
 const findChoke = team => findEntrances(team)[0] || null;
+
+// A wall that seals a gap from one rocky end to the other, with a gate in the middle (tiles in a 4-connected line, so nothing slips through diagonally)
+function planGapWall(ch) {
+  const c0 = Math.floor(ch.ax / TC), r0 = Math.floor(ch.ay / TC), c1 = Math.floor(ch.bx / TC), r1 = Math.floor(ch.by / TC);
+  const cells = [];
+  let c = c0, r = r0;
+  const dc = Math.sign(c1 - c0), dr = Math.sign(r1 - r0), nc = Math.abs(c1 - c0), nr = Math.abs(r1 - r0);
+  let ec = 0, er = 0;
+  cells.push([c, r]);
+  while (c !== c1 || r !== r1) {   // step one tile at a time, sideways or up/down, never diagonally
+    if ((ec + 1) * nr < (er + 1) * nc || r === r1) { c += dc; ec++; } else { r += dr; er++; }
+    cells.push([c, r]);
+  }
+  const free = ([cc, rr]) => { const x = cc * TC + TC / 2, y = rr * TC + TC / 2, t = terrainAt(x, y); return t !== T.ROCK && t !== T.WATER; };
+  const line = cells.filter(free);
+  if (line.length < 3) return null;
+  const vertical = nr > nc;   // a wall running up/down gets a gate turned to match
+  const mid = line[Math.floor(line.length / 2)];
+  const gate = vertical ? { x: mid[0] * TC + TC / 2, y: mid[1] * TC, vertical: true } : { x: mid[0] * TC, y: mid[1] * TC + TC / 2, vertical: false };
+  const { hx, hy } = gateHalf(vertical);
+  const tiles = line.map(([cc, rr]) => ({ x: cc * TC + TC / 2, y: rr * TC + TC / 2 }))
+    .filter(t => !(Math.abs(t.x - gate.x) < hx && Math.abs(t.y - gate.y) < hy));
+  return { tiles, gate };
+}
+// where to put guard towers for a gap: just behind the wall, near each rocky end
+function gapTowerSpots(ch) {
+  const out = [];
+  for (const end of [[ch.ax, ch.ay], [ch.bx, ch.by]]) {
+    const ex = end[0] + (ch.x - end[0]) * 0.35 - ch.ux * 45, ey = end[1] + (ch.y - end[1]) * 0.35 - ch.uy * 45;
+    out.push({ x: ex, y: ey });
+  }
+  return out;
+}
 
 function aiRally(hq) {
   const ch = findChoke(1);
@@ -1453,7 +1517,8 @@ function runAI(dt) {
 
   // wall line + gate across the approach, a few pieces at a time
   if (D.walls && sent >= 1 && game.credits[1] >= 200) {
-    const plan = ai.wallPlan || (ai.wallPlan = aiWallPlan(hq));
+    const ch = findChoke(1);
+    const plan = ai.wallPlan || (ai.wallPlan = (ch && planGapWall(ch)) || aiWallPlan(hq));
     if (!of('gate').length && !ai.gateTried) {
       ai.gateTried = true;
       placeBuilding(1, 'gate', plan.gate.x, plan.gate.y, plan.gate.vertical);
@@ -1691,11 +1756,11 @@ function aiPlaceRefinery(hq) {
 // towers go near its gate (if it has one) or toward the middle from the HQ
 function aiPlaceTower(hq) {
   // first choice: just inside the choke point, so it covers where attackers come in
-  const ch = findChoke(1);
-  if (ch && game.ents.filter(e => e.team === 1 && e.type === 'tower').length === 0) {
-    for (let tries = 0; tries < 40; tries++) {
-      const back = 40 + Math.random() * 110, side = (Math.random() - 0.5) * Math.min(ch.gap, 160);
-      const x = ch.x - ch.ux * back - ch.uy * side, y = ch.y - ch.uy * back + ch.ux * side;
+  const ch = findChoke(1), have = game.ents.filter(e => e.team === 1 && e.type === 'tower').length;
+  if (ch && have < 2) {   // the first two cover the gap from each rocky end, just behind where the wall goes
+    const spot = gapTowerSpots(ch)[have];
+    for (let tries = 0; tries < 25; tries++) {
+      const x = spot.x + (Math.random() - 0.5) * tries * 3, y = spot.y + (Math.random() - 0.5) * tries * 3;
       if (placeBuilding(1, 'tower', x, y)) return true;
     }
   }
@@ -1823,7 +1888,7 @@ function draw() {
 
 function drawPlacement() {
   const type = game.placing.type, size = STATS[type].size;
-  const extra = isWallType(type) ? WALL_REACH : 0;
+  const extra = isWallType(type) || type === 'tower' ? WALL_REACH : 0;
   const areas = buildAreaSources(0);
   if (areas.length) {   // the build area: all the circles merged into one shape
     ctx.fillStyle = 'rgba(125,255,125,0.08)';
@@ -2855,20 +2920,23 @@ function groupMove(units, x, y) {
   const vehicles = units.filter(u => !isInfantry(u)), infantry = units.filter(isInfantry);
   const side = u => (u.x - cx) * sx + (u.y - cy) * sy;   // keep left-hand units on the left so paths don't cross
   vehicles.sort((a, b) => side(a) - side(b)); infantry.sort((a, b) => side(a) - side(b));
-  const cells = [];   // each cell: a list of units
-  for (const v of vehicles) cells.push([v]);
-  for (let i = 0; i < infantry.length; i += 5) cells.push(infantry.slice(i, i + 5));
-  const cols = Math.max(1, Math.ceil(Math.sqrt(cells.length * 1.6))), CELL = vehicles.some(v => v.type === 'heavy') ? 62 : 56;
-  const rows = Math.ceil(cells.length / cols);
-  const SPOTS = [[0, 0], [-14, -14], [14, -14], [-14, 14], [14, 14]];   // the five places in an infantry square
-  cells.forEach((cell, i) => {
-    const row = Math.floor(i / cols), inRow = Math.min(cols, cells.length - row * cols), col = i % cols;
-    const lat = (col - (inRow - 1) / 2) * CELL, back = (row - (rows - 1) / 2) * CELL;
-    const px = x + sx * lat - fx * back, py = y + sy * lat - fy * back;
-    cell.forEach((u, k) => {
-      const [a, b] = cell.length === 1 ? [0, 0] : SPOTS[k];
-      u.order = { type: 'move', x: px + sx * a - fx * b, y: py + sy * a - fy * b, given: game.time };
-      if (u.type === 'extractor') u.outOfOre = false;
+  // vehicles fill the front row(s), infantry squares the rows behind — never mixed in the same row
+  const stacks = []; for (let i = 0; i < infantry.length; i += 5) stacks.push(infantry.slice(i, i + 5));
+  const cols = Math.max(1, Math.ceil(Math.sqrt((vehicles.length + stacks.length) * 1.6)));
+  const rowsOf = list => { const r = []; for (let i = 0; i < list.length; i += cols) r.push(list.slice(i, i + cols)); return r; };
+  const rows = [...rowsOf(vehicles.map(v => [v])), ...rowsOf(stacks)];
+  const CELL = vehicles.some(v => v.type === 'heavy') ? 64 : 58, face = Math.atan2(fy, fx);
+  const SPOTS = [[0, 0], [-15, -15], [15, -15], [-15, 15], [15, 15]];   // the five places in an infantry square
+  rows.forEach((row, ri) => {
+    const back = (ri - (rows.length - 1) / 2) * CELL;
+    row.forEach((cell, ci) => {
+      const lat = (ci - (row.length - 1) / 2) * CELL;
+      const px = x + sx * lat - fx * back, py = y + sy * lat - fy * back;
+      cell.forEach((u, k) => {
+        const [a, b] = cell.length === 1 ? [0, 0] : SPOTS[k];
+        u.order = { type: 'move', x: px + sx * a - fx * b, y: py + sy * a - fy * b, given: game.time, slot: isCombat(u) || u.type === 'engineer', face };
+        if (u.type === 'extractor') u.outOfOre = false;
+      });
     });
   });
   game.effects.push({ kind: 'marker', x, y, t: 0 });

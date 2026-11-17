@@ -2,6 +2,16 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.6', date: '17 Nov 2026', title: 'Walls in the gaps, tidy formations',
+    changes: [
+      'The computer now seals the gap in the rocks in front of its base with a wall running from one rock face to the other (gate in the middle), and puts its first two Guard Towers just behind it at each end.',
+      'Guard Towers, like walls, can now be built out to the edge of your build area plus a bit, so you can put them up by the rocks.',
+      'Formations are neater: every unit goes to its exact spot, turns to face the way the group was heading and holds its place (stepping aside to let others past, then slotting back in).',
+      'Rocket Soldier vs Heavy Tank: 1.5x damage (was 1.25x).',
+      'Movement: a unit swerving round another keeps going round the same side instead of dithering, and vehicles can ease parked friends aside.',
+    ],
+  },
+  {
     version: '5.5', date: '17 Nov 2026', title: 'Defending the base',
     changes: [
       'When one of your buildings is attacked, every combat unit nearby drops what it\'s doing and rushes the attackers (units you\'ve just ordered somewhere keep going). The computer\'s units do the same.',
