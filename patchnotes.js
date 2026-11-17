@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.9', date: '17 Nov 2026', title: 'Line of sight',
+    changes: [
+      'Rocks now block vision: you can\'t see what\'s behind a ridge until you go round it or over the top of a gap. The same goes for the computer.',
+      'Units and towers only pick targets they can actually see.',
+    ],
+  },
+  {
     version: '5.8', date: '17 Nov 2026', title: 'Relentless enemy',
     changes: [
       'The computer now keeps attacking until the game is over: a new wave every 4 minutes on Easy, 3 on Normal and 2 on Hard. When a wave is due it goes with what it has (as long as it has a handful), and puts training troops ahead of saving up.',

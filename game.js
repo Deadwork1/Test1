@@ -590,19 +590,41 @@ function cellIndex(x, y) {
 const visibleAt = (x, y, team = 0) => fog[team].vis[cellIndex(x, y)] === 1;
 const exploredAt = (x, y, team = 0) => fog[team].exp[cellIndex(x, y)] === 1;
 
+// Line of sight: rocks block vision. Seeing is worked out from the viewer's tile to the middle of each fog square;
+// a rock in between hides the square (the rock face itself can still be seen). Terrain never changes, so each
+// tile + sight radius is worked out once and remembered.
+const losCache = new Map();
+function visibleCells(x, y, r) {
+  const tc = Math.floor(x / TC), tr = Math.floor(y / TC), key = (tr * TCOLS + tc) * 512 + Math.round(r);
+  let cells = losCache.get(key);
+  if (cells) return cells;
+  const ox = tc * TC + TC / 2, oy = tr * TC + TC / 2, out = [];
+  const c0 = Math.max(0, Math.floor((ox - r) / CELL)), c1 = Math.min(COLS - 1, Math.floor((ox + r) / CELL));
+  const r0 = Math.max(0, Math.floor((oy - r) / CELL)), r1 = Math.min(ROWS - 1, Math.floor((oy + r) / CELL));
+  for (let row = r0; row <= r1; row++) for (let col = c0; col <= c1; col++) {
+    const cx = col * CELL + CELL / 2, cy = row * CELL + CELL / 2, dist = Math.hypot(cx - ox, cy - oy);
+    if (dist > r) continue;
+    let clear = true;
+    const steps = Math.ceil(dist / 8);
+    for (let k = 1; k < steps; k++) {
+      const sx = ox + (cx - ox) * k / steps, sy = oy + (cy - oy) * k / steps;
+      if (Math.floor(sx / CELL) === col && Math.floor(sy / CELL) === row) break;   // reached the square itself
+      if (Math.hypot(sx - ox, sy - oy) < TC * 0.75) continue;                    // standing right by a rock doesn't blind you
+      if (terrainAt(sx, sy) === T.ROCK) { clear = false; break; }
+    }
+    if (clear) out.push(row * COLS + col);
+  }
+  cells = Int32Array.from(out);
+  losCache.set(key, cells);
+  return cells;
+}
+
 function updateFog() {
   for (const f of fog) f.vis.fill(0);
   for (const e of game.ents) {
     const f = fog[e.team];
     const r = STATS[e.type].sight * (isBuilding(e) && !e.built ? 0.6 : 1);
-    const c0 = Math.max(0, Math.floor((e.x - r) / CELL)), c1 = Math.min(COLS - 1, Math.floor((e.x + r) / CELL));
-    const r0 = Math.max(0, Math.floor((e.y - r) / CELL)), r1 = Math.min(ROWS - 1, Math.floor((e.y + r) / CELL));
-    for (let row = r0; row <= r1; row++) {
-      for (let col = c0; col <= c1; col++) {
-        const cx = col * CELL + CELL / 2, cy = row * CELL + CELL / 2;
-        if ((cx - e.x) ** 2 + (cy - e.y) ** 2 <= r * r) { const i = row * COLS + col; f.vis[i] = 1; f.exp[i] = 1; }
-      }
-    }
+    for (const i of visibleCells(e.x, e.y, r)) { f.vis[i] = 1; f.exp[i] = 1; }
   }
   const d = fogImg.data;
   const mine = fog[0];
@@ -972,6 +994,7 @@ function findEnemyNear(e, radius) {
   let best = null, bestD = radius;
   for (const o of game.ents) {
     if (o.team === e.team || hiddenFrom(o, e.team) || isWallType(o.type)) continue;
+    if (!visibleAt(o.x, o.y, e.team)) continue;   // can't pick a target it can't see (behind rocks or in the fog)
     const d = edgeDist(e.x, e.y, o);
     if (d < bestD) { bestD = d; best = o; }
   }
@@ -1166,7 +1189,7 @@ function updateTower(e, dt) {
   const s = STATS.tower;
   e.cooldown -= dt;
   let t = e.target && byId(e.target);
-  if (!t || hiddenFrom(t, e.team) || edgeDist(e.x, e.y, t) > s.range) { t = findEnemyNear(e, s.range); e.target = t ? t.id : null; }
+  if (!t || hiddenFrom(t, e.team) || !visibleAt(t.x, t.y, e.team) || edgeDist(e.x, e.y, t) > s.range) { t = findEnemyNear(e, s.range); e.target = t ? t.id : null; }
   if (!t) return;
   e.aim = Math.atan2(t.y - e.y, t.x - e.x);
   if (e.cooldown <= 0) {
