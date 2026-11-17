@@ -10,6 +10,7 @@ const PATCH_NOTES = [
       'Gates now only open while one of your units is actually walking through, not when a guard is just standing next to them.',
       'Extractors now drive into the refinery\'s bay: the front half disappears under the roof while unloading.',
       'Engineers can no longer capture Guard Towers (or walls and gates).',
+      'Group moves now use a Command & Conquer style formation: infantry gather in squares of up to 5 (one in the middle, four round it), each vehicle gets a square of its own, vehicles lead at the front, and the block faces the way it is going.',
       'Heavy Tank: rockets now do 1.25x damage to it instead of 2x (its thick armour), so a few rocket soldiers can no longer delete it in seconds.',
       'Movement: units queue behind friends heading the same way, or busy fighting or breaking a wall, instead of all swerving about in a gap.',
     ],

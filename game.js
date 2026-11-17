@@ -549,7 +549,7 @@ function moveToward(e, tx, ty, dt) {
     }
     if (block) {
       const parked = block.team === e.team && !block.order && game.time - (block.movedAt || -9) > 0.3 && !(e.rolling && isInfantry(block));
-      if (parked && !isBuilding(block)) {   // nudge the parked friend sideways out of the path
+      if (parked && !isBuilding(block) && d > 70) {   // just passing through: nudge the parked friend sideways out of the path
         const px = -uy * -side, py = ux * -side, nx = block.x + px * step * 1.1, ny = block.y + py * step * 1.1;
         if (walkable(terrainAt(nx, ny), isVehicle(block)) && !wallBlocks(nx, ny, block.team)) { block.x = nx; block.y = ny; }
       } else if (block.team === e.team && ((game.time - (block.movedAt || -9) < 0.3 && (block.pace || 0) > 0.6 && Math.cos(block.facing) * ux + Math.sin(block.facing) * uy > 0.5) ||
@@ -2845,12 +2845,31 @@ function handleTap(x, y) {
   else game.selected.clear();
 }
 
+// Group moves use a Command & Conquer style formation: infantry gather in stacks of up to 5 per square
+// (one in the middle, four round it), vehicles get a square each. Vehicles take the front rows, infantry behind,
+// and the whole block faces the way the group is travelling.
 function groupMove(units, x, y) {
-  const cols = Math.ceil(Math.sqrt(units.length)), rows = Math.ceil(units.length / cols);
-  units.forEach((u, i) => {
-    const gx = (i % cols) - (cols - 1) / 2, gy = Math.floor(i / cols) - (rows - 1) / 2;
-    u.order = { type: 'move', x: x + gx * 26, y: y + gy * 26, given: game.time };
-    if (u.type === 'extractor') u.outOfOre = false;
+  const cx = units.reduce((a, u) => a + u.x, 0) / units.length, cy = units.reduce((a, u) => a + u.y, 0) / units.length;
+  let fx = x - cx, fy = y - cy; const fl = Math.hypot(fx, fy) || 1; fx /= fl; fy /= fl;   // forward
+  const sx = -fy, sy = fx;                                                                   // sideways
+  const vehicles = units.filter(u => !isInfantry(u)), infantry = units.filter(isInfantry);
+  const side = u => (u.x - cx) * sx + (u.y - cy) * sy;   // keep left-hand units on the left so paths don't cross
+  vehicles.sort((a, b) => side(a) - side(b)); infantry.sort((a, b) => side(a) - side(b));
+  const cells = [];   // each cell: a list of units
+  for (const v of vehicles) cells.push([v]);
+  for (let i = 0; i < infantry.length; i += 5) cells.push(infantry.slice(i, i + 5));
+  const cols = Math.max(1, Math.ceil(Math.sqrt(cells.length * 1.6))), CELL = vehicles.some(v => v.type === 'heavy') ? 62 : 56;
+  const rows = Math.ceil(cells.length / cols);
+  const SPOTS = [[0, 0], [-14, -14], [14, -14], [-14, 14], [14, 14]];   // the five places in an infantry square
+  cells.forEach((cell, i) => {
+    const row = Math.floor(i / cols), inRow = Math.min(cols, cells.length - row * cols), col = i % cols;
+    const lat = (col - (inRow - 1) / 2) * CELL, back = (row - (rows - 1) / 2) * CELL;
+    const px = x + sx * lat - fx * back, py = y + sy * lat - fy * back;
+    cell.forEach((u, k) => {
+      const [a, b] = cell.length === 1 ? [0, 0] : SPOTS[k];
+      u.order = { type: 'move', x: px + sx * a - fx * b, y: py + sy * a - fy * b, given: game.time };
+      if (u.type === 'extractor') u.outOfOre = false;
+    });
   });
   game.effects.push({ kind: 'marker', x, y, t: 0 });
 }
