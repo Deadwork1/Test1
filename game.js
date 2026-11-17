@@ -962,7 +962,8 @@ function update(dt) {
   runAI(dt);
   updateFog();
 
-  const alive = [0, 1].map(t => game.ents.some(e => e.team === t && !isWallType(e.type)));
+  // a side is beaten once all its buildings are gone (walls and gates don't count) and it has no Settler left to start again
+  const alive = [0, 1].map(t => game.ents.some(e => e.team === t && ((isBuilding(e) && !isWallType(e.type)) || e.type === 'settler')));
   if (!alive[1]) endGame(true);
   else if (!alive[0]) endGame(false);
 }
@@ -3191,7 +3192,7 @@ function endGame(won) {
   game.over = won ? 'win' : 'lose';
   game.selected.clear(); game.placing = null;
   ui.ovTitle.textContent = won ? 'Victory!' : 'Defeat';
-  ui.ovText.textContent = won ? 'You wiped out the enemy base.' : 'Your forces have been destroyed.';
+  ui.ovText.textContent = won ? 'You destroyed every enemy building.' : 'All your buildings have been destroyed.';
   ui.ovBtn.textContent = 'Play again';
   ui.overlay.style.display = 'flex';
 }

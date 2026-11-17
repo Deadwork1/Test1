@@ -2,6 +2,12 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.7', date: '17 Nov 2026', title: 'New win rule',
+    changes: [
+      'You win once every enemy building is destroyed (walls and gates don\'t count) and they have no Settler left to start again. Leftover units no longer keep a beaten side in the game.',
+    ],
+  },
+  {
     version: '5.6.2', date: '17 Nov 2026', title: 'Proper gap walls',
     changes: [
       'The computer\'s wall across its gap is now one unbroken line of tiles from rock to rock (stepping sideways and up/down, never leaving diagonal holes), and the gate always sits on a straight stretch of it, so it opens and closes properly even when the gap is at an angle.',
