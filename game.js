@@ -54,7 +54,7 @@ const MAPS = {
     river: { amp: 90, period: 320, half: 40 },
     bridges: [{ y: 370, hw: 70 }],   // one crossing above the island (and its mirror below), plus the two island bridges
     // a neutral village by your river bridge (its mirror sits by the computer's), guarded by the bridge plateau
-    villages: [{ x: 1480, y: 1840, derrick: [0, 0], houses: [[-100, 62], [96, 58], [-84, -82]], out: [40, -230] }],
+    villages: [{ x: 1480, y: 1795, derrick: [0, 0], houses: [[-100, 62], [96, 58], [-84, -82]], out: [40, -230] }],
   },
   huge: {   // the base corner is laid out like Large's; the extra room is all in the ground between the bases
     label: 'Huge', W: 4800, H: 3000, start: { x: 400, y: 2600 },

@@ -2,6 +2,10 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.37.2', date: '18 Nov 2026', title: 'Room to breathe',
+    changes: ['Large map: each village and its Oil Derrick have moved up a little, away from the cliff of the plateau beside them.'],
+  },
+  {
     version: '5.37.1', date: '18 Nov 2026', title: 'Village nudge',
     changes: ['Large map: the ridge beside each village has moved up a little, and each village and its Oil Derrick have moved a little closer to their side\'s base.'],
   },
