@@ -2,6 +2,10 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.33', date: '18 Nov 2026', title: 'Sharp-eyed Snipers',
+    changes: ['Snipers now see as far as a Scout Buggy: 220 (was 200). In a forest that is 154, on high ground 275.'],
+  },
+  {
     version: '5.32.1', date: '18 Nov 2026', title: 'You Lose',
     changes: ['The results screen now says "You Lose" when you are beaten.'],
   },
