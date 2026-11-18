@@ -2,6 +2,14 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.28', date: '18 Nov 2026', title: 'Lookouts by the bridges, longer Radar',
+    changes: [
+      'Huge map: the river lookouts have slid round the river towards the island bridge on their side, as close as they can go without getting in the way of the bridge. The gold band on the island moved with them.',
+      'Radar now reveals everything within 750 (was 650).',
+      'Hard: attack waves can now grow to 30 units (was 22).',
+    ],
+  },
+  {
     version: '5.27', date: '18 Nov 2026', title: 'Computer holds the map',
     changes: [
       'When the computer has more units at home than its next attack needs, it no longer lets them crowd its base. It sends the extras out, one at a time, to hold useful ground: bigger squads on its plateaus (up to 6), bigger guards at its Oil Derricks (up to 5), a group among the gold on its side of the middle island and another in the middle of it, and a few at its end of each river crossing.',

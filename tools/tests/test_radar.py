@@ -1,4 +1,4 @@
-# Radar: needs a Power Plant; once built it reveals everything within 650, over rocks and up onto plateaus, but
+# Radar: needs a Power Plant; once built it reveals everything within its range (750), over rocks and up onto plateaus, but
 # infantry hidden in a forest stay hidden; it can be sold. Usage: python3 tests/test_radar.py <game folder> <port>
 import sys, http.server, threading, functools, json
 from playwright.sync_api import sync_playwright
@@ -24,7 +24,7 @@ with sync_playwright() as p:
       for (let i = 0; i < 20 * 20 && !rd.built; i++) update(0.05);
       out.built = rd.built; updateFog();
       out.dist = Math.round(Math.hypot(behindRock.x - rd.x, behindRock.y - rd.y)); out.behindRockSeen = visibleAt(behindRock.x, behindRock.y);
-      out.edgeSeen = visibleAt(rd.x + 620, rd.y - 50); out.beyondSeen = visibleAt(rd.x + 720, rd.y - 50);
+      out.edgeSeen = visibleAt(rd.x + STATS.radar.sight - 30, rd.y - 50); out.beyondSeen = visibleAt(rd.x + STATS.radar.sight + 70, rd.y - 50);
       // an enemy soldier hidden in the forest at (200, 600)? too far; plant a forest unit within range instead: find a forest tile within 600
       let ft = null; for (let a = 0; a < 6.28 && !ft; a += 0.05) for (let d = 100; d < 600 && !ft; d += 20) { const x = rd.x + Math.cos(a) * d, y = rd.y + Math.sin(a) * d; if (terrainAt(x, y) === T.FOREST) ft = { x, y }; }
       if (ft) { const hidden = spawn('soldier', 1, ft.x, ft.y); updateFog(); out.forestInfantryVisible = canSee(hidden); hidden.hp = 0; } else out.forestInfantryVisible = 'no forest in range';

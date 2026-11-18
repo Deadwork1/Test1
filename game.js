@@ -70,7 +70,7 @@ const MAPS = {
     ],
     forests: [[1470, 1250, 360, 250, 0.35], [270, 820, 160], [1530, 420, 160], [980, 1950, 130], [1700, 1500, 110]],   // the big jungle sits on the routes between the bases
     plateaus: [
-      { x: 2050, y: 1880, rx: 250, ry: 165, tilt: 0.7, ramps: [Math.PI], overhang: true },   // lookout over the island: juts out over the river
+      { x: 1979, y: 1806, rx: 250, ry: 165, tilt: 0.94, ramps: [2.51], overhang: true },   // lookout over the island, close to its west bridge: juts out over the river   // lookout over the island: juts out over the river
       { x: 1200, y: 1680, rx: 190, ry: 130, tilt: -0.6, ramps: [2.3] },   // beside the main road to the island's west bridge
       { x: 1450, y: 820, rx: 160, ry: 110, tilt: 0.4, ramps: [2.4] },     // north of the jungle, over the way to the north village
     ],
@@ -119,7 +119,7 @@ const STATS = {
   tech:      { hp: 600, size: 70, sight: 180, buildTime: 16 },
   power:     { hp: 400, size: 60, sight: 160, buildTime: 10 },
   tower:     { hp: 700, size: 46, sight: 230, buildTime: 12, range: 170, dmg: 14, cooldown: 0.9 },
-  radar:     { hp: 400, size: 64, sight: 650, buildTime: 14, radar: true },   // sweeps a huge circle: sees over rocks and up onto plateaus (not into forests)
+  radar:     { hp: 400, size: 64, sight: 750, buildTime: 14, radar: true },   // sweeps a huge circle: sees over rocks and up onto plateaus (not into forests)
   wall:      { hp: 400, size: 25, sight: 50 },
   gate:      { hp: 600, size: 50, sight: 60 },
   // neutral buildings: they start out belonging to no one (team 2) and can't be hurt while neutral
@@ -151,7 +151,7 @@ const DIFFICULTY = {
             guard: 3, maxWave: 14, extractors: 4, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 1, factory: true, tanks: 0.25, heavyTanks: false, artillery: 1, raidEvery: 240, waveEvery: 180, minWave: 4, focus: 'economy',
             derricks: true, derrickAfter: 360, escort: 3, garrison: 2, hill: 1, hillSize: 3, hillAfter: 420 },
   hard:   { label: 'Hard',   think: 1,   slow: 1,    income: 1,    attackAt: 6, attackAfter: 0,   barracks: 2, maxArmy: Infinity, towers: 3, buggies: true, plants: 2,
-            guard: 4, maxWave: 22, extractors: 8, refineries: 3, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true, artillery: 2, raidEvery: 180, earlyRefinery: true, expandAt: 1500, waveEvery: 120, minWave: 5, focus: 'defences',
+            guard: 4, maxWave: 30, extractors: 8, refineries: 3, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true, artillery: 2, raidEvery: 180, earlyRefinery: true, expandAt: 1500, waveEvery: 120, minWave: 5, focus: 'defences',
             derricks: true, derrickAfter: 300, escort: 3, garrison: 3, hill: 2, hillSize: 3, hillAfter: 360 },
 };
 let difficulty = 'normal';
