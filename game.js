@@ -160,13 +160,13 @@ const SHORT = { buggy: 'Buggy', rocket: 'Rocket', sniper: 'Sniper', light: 'Ligh
 const DIFFICULTY = {
   easy:   { label: 'Easy',   think: 2.5, slow: 1.5,  income: 0.7,  attackAt: 5, attackAfter: 300, barracks: 1, maxArmy: 11, towers: 0, buggies: false, plants: 0,
             guard: 1, maxWave: 6, extractors: 2, refineries: 1, walls: false, grenadiers: false, engineers: 0, rockets: false, snipers: 0, factory: false, tanks: 0, heavyTanks: false, artillery: 0, raidEvery: 0, waveEvery: 240, minWave: 3, focus: 'nearest',
-            derricks: true, derrickAfter: 480, ruinAfter: 540, turrets: 1, escort: 2, garrison: 1, hill: 0, hillSize: 0, hillAfter: 0 },
+            derricks: true, derrickAfter: 480, ruinAfter: 540, turrets: 1, turretsTotal: 2, engineerCap: 2, escort: 2, garrison: 1, hill: 0, hillSize: 0, hillAfter: 0 },
   normal: { label: 'Normal', think: 1.5, slow: 1.08, income: 0.94, attackAt: 7, attackAfter: 180, barracks: 1, maxArmy: 26, towers: 2, buggies: true, plants: 1,
             guard: 3, maxWave: 16, extractors: 6, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 1, factory: true, tanks: 0.25, heavyTanks: false, artillery: 1, raidEvery: 480, hqGuard: 2, waveEvery: 180, minWave: 4, focus: 'economy',
-            derricks: true, derrickAfter: 360, ruinAfter: 420, turrets: 2, escort: 3, garrison: 2, hill: 1, hillSize: 3, hillAfter: 420 },
+            derricks: true, derrickAfter: 360, ruinAfter: 420, turrets: 1, turretsTotal: 3, engineerCap: 3, escort: 3, garrison: 2, hill: 1, hillSize: 3, hillAfter: 420 },
   hard:   { label: 'Hard',   think: 1,   slow: 1,    income: 1,    attackAt: 6, attackAfter: 0,   barracks: 2, maxArmy: Infinity, towers: 3, buggies: true, plants: 2,
             guard: 4, maxWave: 30, extractors: 8, refineries: 3, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true, artillery: 2, raidEvery: 360, hqGuard: 3, earlyRefinery: true, expandAt: 1500, waveEvery: 120, minWave: 5, focus: 'defences',
-            derricks: true, derrickAfter: 300, ruinAfter: 360, turrets: 3, escort: 3, garrison: 3, hill: 2, hillSize: 3, hillAfter: 360 },
+            derricks: true, derrickAfter: 300, ruinAfter: 360, turrets: 2, turretsTotal: 4, engineerCap: 4, escort: 3, garrison: 3, hill: 2, hillSize: 3, hillAfter: 360 },
 };
 let difficulty = 'normal';
 try { if (DIFFICULTY[localStorage.getItem('mini-rts-difficulty')]) difficulty = localStorage.getItem('mini-rts-difficulty'); } catch (err) {}
@@ -1483,6 +1483,7 @@ function update(dt) {
         const mine = game.stats[e.team], theirs = game.stats[1 - e.team];
         if (isBuilding(e)) { mine.buildingsLost++; theirs.destroyed++; } else { mine.unitsLost++; theirs.kills++; }
         if (e.type === 'turret' && e.crew) { mine.unitsLost++; theirs.kills++; }   // the gunner goes down with it
+        if (e.type === 'turret' && e.team === 1) game.ai.turretLostAt = game.time;
       }
       game.selected.delete(e.id);
       if (isBuilding(e)) bldDirty = true;
@@ -1760,6 +1761,7 @@ function digIn(en) {
   spend(en.team, COST.turret);
   const t = spawn('turret', en.team, en.x, en.y);
   if (game.stats[en.team]) game.stats[en.team].buildings++;
+  if (en.team === 1) game.ai.turretsBuilt = (game.ai.turretsBuilt || 0) + 1;
   game.effects.push({ kind: 'dust', x: en.x, y: en.y, t: 0 });
   en.hp = 0; en.deployed = true;   // the Engineer is used up building it
   game.selected.delete(en.id);
@@ -2328,20 +2330,25 @@ function runAI(dt) {
   // engineers: a repairer only when something is badly damaged, and now and then a raider sent the long way round to steal a building
   const repairers = of('engineer').filter(en => !en.raid).length + qOf('engineer') - (ai.raidPending ? 1 : 0);
   const needsFix = mine.some(b => isBuilding(b) && !isWallType(b.type) && b.built && b.hp < b.maxHp * 0.6);
-  const brokenRuin = mine.some(b => b.ruin && !ruinWorks(b));   // a ruin it has taken but not yet patched up: worth a repair crew of up to 2 extra
+  const brokenRuin = mine.some(b => b.ruin && !ruinWorks(b));   // a ruin it has taken but not yet patched up: worth one extra repairer
   const raidDue = D.raidEvery && game.time > 360 && game.time - (ai.lastRaid || 0) > D.raidEvery && !ai.raidPending && [...ai.known.keys()].some(id => { const b = byId(id); return b && b.team === 0 && b.type !== 'hq' && canCapture(b); });
   // win back buildings your engineers took: send an engineer with an escort (try again if it's killed)
   const retake = D.engineers > 0 ? game.lost[1].map(byId).filter(b => b && b.team === 0 && canCapture(b)) : [];
   if (D.derricks && game.time > D.derrickAfter) for (const d of game.ents) if (d.type === 'derrick' && d.team !== 1 && !retake.includes(d)) retake.push(d);
   if (game.time > (D.ruinAfter || Infinity)) for (const r of game.ents) if (r.ruin && r.team !== 1 && canCapture(r) && !retake.includes(r)) retake.push(r);   // the old ruined bases, one building at a time, without rushing   // it knows where the villages are, like a player who knows the map   // and Oil Derricks it has found
+  // a capture attempt that cost an Engineer (killed on the way) puts that target off limits for 3 minutes, so it doesn't throw Engineers at it
+  ai.retakeWatch = (ai.retakeWatch || []).filter(w => { const en = byId(w.en), t = byId(w.t); if (en && en.hp > 0) return true; if (t && t.team !== 1) (ai.retakeFail = ai.retakeFail || {})[w.t] = game.time; return false; });
+  for (let i = retake.length - 1; i >= 0; i--) if (game.time - ((ai.retakeFail || {})[retake[i].id] || -999) < 180) retake.splice(i, 1);
   const retaking = of('engineer').some(en => en.retake) || ai.retakePending;
-  const retakeDue = (D.engineers > 0 || D.derricks) && retake.length && !retaking && game.time - (ai.lastRetake || -99) > 25;
+  const retakeDue = (D.engineers > 0 || D.derricks) && retake.length && !retaking && game.time - (ai.lastRetake || -99) > 45;
   // turrets: now and then an Engineer digs in at an entrance (then by its Oil Derricks), up to 1 / 2 / 3 on Easy / Normal / Hard
   const turretsPlanned = of('turret').length + of('engineer').filter(en => en.turretAt).length + (ai.turretPending ? 1 : 0);
-  const turretDue = D.turrets && game.time > 300 && turretsPlanned < D.turrets && game.time - (ai.lastTurret || -99) > 60 && game.credits[1] >= COST.engineer + COST.turret;
+  const turretDue = D.turrets && game.time > 300 && turretsPlanned < D.turrets && (ai.turretsBuilt || 0) + (turretsPlanned - of('turret').length) < D.turretsTotal
+    && game.time - (ai.lastTurret || -99) > 60 && game.time - (ai.turretLostAt || -999) > 180 && game.credits[1] >= COST.engineer + COST.turret;
   const idleEng = of('engineer').find(en => !en.raid && !en.retake && !en.turretAt && (!en.order || en.order.type === 'move'));
   if (turretDue && idleEng) { const spot = aiTurretSpot(hq); if (spot) { idleEng.turretAt = spot; idleEng.order = null; ai.lastTurret = game.time; } }
-  const wantEngineer = ((D.engineers > 0 || brokenRuin) && needsFix && repairers < D.engineers + (brokenRuin ? 2 : 0)) || raidDue || retakeDue || (turretDue && !idleEng);
+  const engCount = of('engineer').length + qOf('engineer');
+  const wantEngineer = engCount < (D.engineerCap || 3) && (((D.engineers > 0 || brokenRuin) && needsFix && repairers < D.engineers + (brokenRuin ? 1 : 0)) || raidDue || retakeDue || (turretDue && !idleEng));
   // War Factory first: buggies (about one per two soldiers) and tanks (a share of its army; heavies once it has a Tech Centre).
   // While it wants a vehicle, the barracks hold back so the money can build up.
   const qF = t => of('factory').reduce((n, f) => n + f.qTypes.filter(q => q === t).length, 0);
@@ -2382,7 +2389,7 @@ function runAI(dt) {
     if (en.retake) {
       const t = retake.sort((a, b) => Math.hypot(a.x - en.x, a.y - en.y) - Math.hypot(b.x - en.x, b.y - en.y))[0];
       if (!t) { en.retake = false; continue; }
-      if (!en.order || en.order.target !== t.id) en.order = { type: 'capture', target: t.id };
+      if (!en.order || en.order.target !== t.id) { en.order = { type: 'capture', target: t.id }; ai.retakeWatch = (ai.retakeWatch || []).filter(w => w.en !== en.id); ai.retakeWatch.push({ en: en.id, t: t.id }); }
       for (const u of army) if (u.order && u.order.type === 'attack' && u.order.target === t.id) u.order = null;   // stop shooting what it's taking back
       // escort: up to four home units clear the way just ahead of it
       const escort = army.filter(u => u.role === 'guard' || !u.role).sort((a, b) => Math.hypot(a.x - en.x, a.y - en.y) - Math.hypot(b.x - en.x, b.y - en.y)).slice(0, D.escort || 4);
