@@ -2,6 +2,14 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.35', date: '18 Nov 2026', title: 'Villages across the river',
+    changes: [
+      'Huge map: each village, with its Oil Derrick, has moved across the river, along with the plateau and rocks that guard its bridge. Each side now has a village on its own side of the river, and the other one sits beyond a bridge watched from high ground.',
+      'Your money now sits in its own box just above the bottom bar, so it stays in view when you slide the buttons along.',
+      'New Back to Menu button in the pause menu (tap it twice). It ends the game and takes you back to the start screen, where you can pick another map or difficulty.',
+    ],
+  },
+  {
     version: '5.34', date: '18 Nov 2026', title: 'Hold the high ground',
     changes: [
       'Snipers, and any unit standing on high ground, now hold their ground when idle: they shoot enemies that come within range but no longer run off after them. The base alarm doesn\'t pull them away either unless the fight is right next to them.',

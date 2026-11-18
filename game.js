@@ -3947,13 +3947,14 @@ ui.all.addEventListener('click', () => {
   game.selected = new Set(soldiers.map(e => e.id));
 });
 // ---------- Pause menu ----------
-const pm = { menu: $('pauseMenu'), resume: $('pmResume'), restart: $('pmRestart'), notes: $('pmNotes') };
-let restartArmed = false;
+const pm = { menu: $('pauseMenu'), resume: $('pmResume'), restart: $('pmRestart'), toMenu: $('pmMenu'), notes: $('pmNotes') };
+let restartArmed = false, menuArmed = false;
 function setPaused(on) {
   game.paused = on;
   ui.pause.textContent = on ? '▶' : '❚❚';
   pm.menu.style.display = on ? 'flex' : 'none';
   restartArmed = false; pm.restart.textContent = 'Restart'; pm.restart.classList.remove('danger');
+  menuArmed = false; pm.toMenu.textContent = 'Back to Menu'; pm.toMenu.classList.remove('danger');
 }
 ui.pause.addEventListener('click', () => { if (!game.over) setPaused(!game.paused); });
 pm.resume.addEventListener('click', () => setPaused(false));
@@ -3963,6 +3964,13 @@ pm.restart.addEventListener('click', () => {
     return;
   }
   newGame(); setPaused(false);
+});
+pm.toMenu.addEventListener('click', () => {
+  if (!menuArmed) {   // ask once more: leaving ends this game
+    menuArmed = true; pm.toMenu.textContent = 'Tap again to leave this game'; pm.toMenu.classList.add('danger');
+    return;
+  }
+  setPaused(false); showMenu();
 });
 pm.notes.addEventListener('click', () => { $('notes').style.display = 'flex'; });
 // ---------- Patch notes ----------
@@ -4165,10 +4173,16 @@ function frame(now) {
 
 window.addEventListener('resize', resize);
 resize();
-newGame();
-game.paused = true;
-ui.ovText.innerHTML = 'Deploy your settler, build a <b>Refinery</b> for ore and a <b>Barracks</b> for soldiers, and fight for the big ore field in the middle.<br>Drag to scroll · pinch to zoom · best in landscape.';
-ui.overlay.style.display = 'flex';
+// the start screen: a fresh game waits behind it (also where the pause menu's Back to Menu goes)
+function showMenu() {
+  newGame();
+  game.paused = true;
+  ui.ovTitle.textContent = 'Mini RTS';
+  ui.ovText.innerHTML = 'Deploy your settler, build a <b>Refinery</b> for ore and a <b>Barracks</b> for soldiers, and fight for the big ore field in the middle.<br>Drag to scroll · pinch to zoom · best in landscape.';
+  ui.ovBtn.textContent = 'Start';
+  ui.overlay.style.display = 'flex';
+}
+showMenu();
 requestAnimationFrame(frame);
 
 window.gameLoaded = true;   // (index.html shows a map picker instead if loading ever fails)
