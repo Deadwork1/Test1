@@ -2158,7 +2158,7 @@ function aiRaidPlan(en) {
     if (!b || b.team !== 0 || !canCapture(b) || b.type === 'hq') continue;   // HQs can be captured, but raids don't set out to steal one
     const hqA = hqOf(1);
     if (b.ruin && hqA && (b.x - W / 2) * (hqA.x - W / 2) < 0) continue;   // your ruined base is yours to keep: it only fights over its own
-    if (b.type === 'derrick' && game.time - ((game.ai.derrickLostAt || {})[b.id] || -999) < 300) continue;   // a Derrick it just lost: leave it for now
+    if (b.type === 'derrick' && game.time - ((game.ai.derrickLostAt || {})[b.id] || -999) < 60) continue;   // a Derrick it just lost: leave it for now
     const sc = (prize[b.type] || 1) + Math.random() * 2;
     if (sc > bestS) { bestS = sc; best = b; }
   }
@@ -2355,10 +2355,10 @@ function runAI(dt) {
   const retake = D.engineers > 0 ? game.lost[1].map(byId).filter(b => b && b.team === 0 && canCapture(b)) : [];
   if (D.derricks && game.time > D.derrickAfter) for (const d of game.ents) if (d.type === 'derrick' && d.team !== 1 && !retake.includes(d)) retake.push(d);
   if (game.time > (D.ruinAfter || Infinity)) for (const r of game.ents) if (r.ruin && r.team !== 1 && (r.x - W / 2) * (hq.x - W / 2) > 0 && canCapture(r) && !retake.includes(r)) retake.push(r);   // the old ruined base on its own half (yours it leaves alone), one building at a time, without rushing
-  // an Oil Derrick it held and lost: leave it for 5 minutes rather than fight an endless capture war over it
+  // an Oil Derrick it held and lost: leave it for a minute before going back for it (a longer wait cost it too much income)
   ai.heldDerricks = ai.heldDerricks || {};
   for (const d of game.ents) if (d.type === 'derrick') { if (d.team === 1) ai.heldDerricks[d.id] = true; else if (ai.heldDerricks[d.id]) { delete ai.heldDerricks[d.id]; (ai.derrickLostAt = ai.derrickLostAt || {})[d.id] = game.time; } }
-  for (let i = retake.length - 1; i >= 0; i--) if (retake[i].type === 'derrick' && game.time - ((ai.derrickLostAt || {})[retake[i].id] || -999) < 300) retake.splice(i, 1);   // it knows where the villages are, like a player who knows the map   // and Oil Derricks it has found
+  for (let i = retake.length - 1; i >= 0; i--) if (retake[i].type === 'derrick' && game.time - ((ai.derrickLostAt || {})[retake[i].id] || -999) < 60) retake.splice(i, 1);   // it knows where the villages are, like a player who knows the map   // and Oil Derricks it has found
   // a capture attempt that cost an Engineer (killed on the way) puts that target off limits for 3 minutes, so it doesn't throw Engineers at it
   ai.retakeWatch = (ai.retakeWatch || []).filter(w => { const en = byId(w.en), t = byId(w.t); if (en && en.hp > 0) return true; if (t && t.team !== 1) (ai.retakeFail = ai.retakeFail || {})[w.t] = game.time; return false; });
   for (let i = retake.length - 1; i >= 0; i--) if (game.time - ((ai.retakeFail || {})[retake[i].id] || -999) < 180) retake.splice(i, 1);
