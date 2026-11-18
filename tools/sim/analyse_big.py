@@ -4,12 +4,14 @@
 import json, sys, glob, collections as C, statistics as S
 files = sys.argv[1:]
 R = [json.loads(l) for f in files for l in open(f)]
+MAPS = [m for m in ['classic', 'large', 'huge'] if any(r['map'] == m for r in R)]   # whatever maps and difficulties the results hold
+DIFFS = [d for d in ['easy', 'normal', 'hard'] if any(r['difficulty'] == d for r in R)]
 def pct(a, b): return f"{100*a/b:.0f}%" if b else '-'
 print(f"games {len(R)}  errors {sum(1 for r in R if r['errors'] or r['pageErrors'])}")
 # win rates per map/difficulty
 print("\n== Results (player = scripted test player, ai = computer)")
-for m in ['large', 'huge']:
-  for d in ['normal', 'hard']:
+for m in MAPS:
+  for d in DIFFS:
     rs = [r for r in R if r['map'] == m and r['difficulty'] == d]
     if not rs: continue
     w = C.Counter(r['winner'] for r in rs); fin = [r['minutes'] for r in rs if r['winner'] != 'timeout']
@@ -21,7 +23,7 @@ for s in sorted(set(r['strategy'] for r in R)):
 # unit value
 print("\n== Units: value killed per $1 spent (both sides), and split by side")
 units = ['soldier','grenadier','rocket','sniper','engineer','buggy','light','heavy','artillery','civilian']
-for scope_name, scope in [('ALL', R), ('LARGE', [r for r in R if r['map']=='large']), ('HUGE', [r for r in R if r['map']=='huge'])]:
+for scope_name, scope in [('ALL', R)] + [(m.upper(), [r for r in R if r['map']==m]) for m in MAPS]:
   spent = C.Counter(); kv = C.Counter(); made = C.Counter(); died = C.Counter()
   for r in scope:
     for t in [0, 1]:
@@ -33,7 +35,7 @@ for scope_name, scope in [('ALL', R), ('LARGE', [r for r in R if r['map']=='larg
   rows = sorted([(kv[k]/spent[k], k) for k in units if spent[k]], reverse=True)
   for ratio, k in rows: print(f"    {k:10} made {made[k]:5}  died {died[k]:5}  spent ${spent[k]:8,}  killed ${kv[k]:8,.0f}  value per $1: {ratio:.2f}")
 print("\n== High ground (fighting units, per side) [low ground, high ground]")
-for m in ['large', 'huge']:
+for m in MAPS:
   X = [r['extra'] for r in R if r['map'] == m and r.get('extra')]
   if not X: continue
   for t, name in [(0, 'player'), (1, 'computer')]:
@@ -45,7 +47,7 @@ for m in ['large', 'huge']:
           f" | deaths per fighting-minute low {per(deaths[0],secs[0])/60*60:.3f} high {per(deaths[1],secs[1]):.3f}")
 # does holding more high ground win games?
 print("\n== Games where one side spent more unit-time on high ground: who won? (decided games only)")
-for m in ['large', 'huge']:
+for m in MAPS:
   rs = [r for r in R if r['map'] == m and r['winner'] != 'timeout']
   more_hi = C.Counter()
   for r in rs:
@@ -56,8 +58,8 @@ for m in ['large', 'huge']:
   n = more_hi['won'] + more_hi['lost']
   print(f"  {m:5} side with more high-ground time won {pct(more_hi['won'], n)} of {n} games")
 print("\n== Other")
-for m in ['large', 'huge']:
-  for d in ['normal', 'hard']:
+for m in MAPS:
+  for d in DIFFS:
     rs = [r for r in R if r['map'] == m and r['difficulty'] == d]
     if not rs: continue
     X = [r['extra'] for r in rs if r.get('extra')]
