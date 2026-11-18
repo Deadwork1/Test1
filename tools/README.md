@@ -10,6 +10,7 @@ They need Python 3 with Playwright, plus Google Chrome at `/usr/bin/google-chrom
 - `analyse.py` summarises a results file: win rates, game lengths, units built.
 - **Big tests** (the 200-game runs): `make_plans.py <out folder> [games per strategy] [maps] [difficulties] [extra JS]` writes one plan per map and difficulty, each game carrying `tweak_highground.js` (it measures fighting on high vs low ground, Snipers on high ground and the computer's Medbay use). Run one batch per CPU core with `run.py`, then `analyse_big.py out/res_*.jsonl` prints win rates, unit value per $1, the high-ground figures and more. For an A/B test pass extra JS, e.g. `"DIFFICULTY.hard.hill = 0;"`.
 - `run.py` serves the game files live, so **don't edit game.js while a batch is running**: make changes in a git worktree (`git worktree add ../Test1-dev`) and run tests from there.
+- **Test sizes (your rule):** don't run simulations unless asked. When a test would help, suggest a tier and wait for a yes. Counts are games per mode (one map at one difficulty, e.g. Large Normal): **Small** 10, **Medium** 25, **Large** 50. `make_plans.py` takes games per strategy (5 strategies), so pass 2, 5 or 10.
 - Past results are written up in `results/` (for example `results/2026-11-18_big_tests.txt`).
 - `dbg.py` and `dbgwave.py` debug one game or one AI attack wave.
 

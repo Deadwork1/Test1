@@ -2,6 +2,14 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.42', date: '18 Nov 2026', title: 'A sharper Normal',
+    changes: [
+      'Normal is a little tougher. The computer earns more from each ore load (94% instead of 85%), runs up to 6 Extractors (was 4) and builds 8% slower than Hard instead of 18%.',
+      'On Normal the computer keeps training until it has 26 units (was 20), and its attack waves can be up to 16 strong (was 14).',
+      'Easy and Hard are unchanged. Normal still has one Barracks, no Heavy Tanks and gives you about 3 minutes before its first attack.',
+    ],
+  },
+  {
     version: '5.41.1', date: '18 Nov 2026', title: 'Seamless walls',
     changes: ['Wall sections no longer show a thin seam where they join.'],
   },
