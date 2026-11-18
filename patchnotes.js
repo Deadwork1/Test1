@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.27', date: '18 Nov 2026', title: 'Computer holds the map',
+    changes: [
+      'When the computer has more units at home than its next attack needs, it no longer lets them crowd its base. It sends the extras out, one at a time, to hold useful ground: bigger squads on its plateaus (up to 6), bigger guards at its Oil Derricks (up to 5), a group among the gold on its side of the middle island and another in the middle of it, and a few at its end of each river crossing.',
+      'Its attack waves still go out as before; this only uses the extra units.',
+    ],
+  },
+  {
     version: '5.26', date: '18 Nov 2026', title: 'Bridges halfway',
     changes: [
       'Huge map: the river bridge above the island and the one below now sit halfway along their stretch of river, between the island and the map edge.',
