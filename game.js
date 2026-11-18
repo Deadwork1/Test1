@@ -105,7 +105,7 @@ const INCOME = 1;                     // small trickle per second so nobody gets
 const BUILD_RADIUS = 300;             // how far from your HQ you can place buildings
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
 
-const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250, grenadier: 160, engineer: 125, turret: 125, rocket: 200, sniper: 200, light: 400, heavy: 700, artillery: 450, tech: 600, radar: 300, medbay: 400 };
+const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250, grenadier: 160, engineer: 100, turret: 125, rocket: 200, sniper: 200, light: 400, heavy: 700, artillery: 450, tech: 600, radar: 300, medbay: 400 };
 const WALL_REACH = 150;              // walls, gates and guard towers can go this much further out than other buildings
 
 const STATS = {
