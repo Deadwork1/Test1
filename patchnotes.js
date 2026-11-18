@@ -2,6 +2,16 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.37', date: '18 Nov 2026', title: 'Large map, Huge style',
+    changes: [
+      'The Large map now has the Huge map\'s terrain, scaled down to fit.',
+      'The cliff above each base runs all the way to the map edge, so each base has two ways in instead of three.',
+      'One bridge across each river arm instead of two, plus the two island bridges.',
+      'New high ground, three plateaus a side: a river lookout that juts out over the water by the island\'s bridge (shoot onto the island from up there), a plateau beside the road to that bridge that squeezes it into a pinch, and a plateau overlooking your river bridge, with a ridge across the road from it.',
+      'Your village and Oil Derrick now sit by your river bridge, guarded by that plateau. The old corner plateau is gone.',
+    ],
+  },
+  {
     version: '5.36', date: '18 Nov 2026', title: 'Villages on the Large map',
     changes: [
       'The Large map now has a village with an Oil Derrick on each side, by the outer river bridge, just below the plateau that guards the crossing (they replace the small woods that stood there). Capture one with an Engineer for $100 every 15 seconds, and the villagers join you.',

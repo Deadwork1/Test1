@@ -1,5 +1,5 @@
 # River lookout plateaus (Huge map): from the edge of the plateau by the island, units can shoot enemies standing on
-# the island's shore, and those enemies can't see up to shoot back. Usage: python3 tests/test_lookout.py <game folder> <port>
+# the island's shore, and those enemies can't see up to shoot back. Usage: python3 tests/test_lookout.py <game folder> <port> [map: huge (default) or large]
 import sys, http.server, threading, functools, json
 from playwright.sync_api import sync_playwright
 class Q(http.server.SimpleHTTPRequestHandler):
@@ -9,11 +9,11 @@ threading.Thread(target=srv.serve_forever, daemon=True).start()
 with sync_playwright() as p:
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--no-sandbox'])
     pg = b.new_page(viewport={'width': 400, 'height': 300}); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)))
-    pg.goto(f'http://127.0.0.1:{sys.argv[2]}/index.html'); pg.evaluate("localStorage.setItem('mini-rts-map','huge')")
+    pg.goto(f'http://127.0.0.1:{sys.argv[2]}/index.html'); pg.evaluate("localStorage.setItem('mini-rts-map','"+(sys.argv[3] if len(sys.argv)>3 else 'huge')+"')")
     pg.goto(f'http://127.0.0.1:{sys.argv[2]}/index.html'); pg.wait_for_timeout(2500); pg.click('#ovBtn')
     r = pg.evaluate("""(()=>{ const pinned = []; const step=(s)=>{ for(let i=0;i<s*20;i++) { update(0.05); for (const [u, x, y] of pinned) { u.x = x; u.y = y; if (u.order && u.order.type !== 'attack') u.order = null; } } };   // both hold their ground
       runAI=()=>{}; game.paused=false;
-      game.ents = game.ents.filter(e => e.type !== 'settler'); spawn('hq', 0, 300, 2700); spawn('hq', 1, 4500, 300);   // keep both sides "alive"
+      game.ents = game.ents.filter(e => e.type !== 'settler'); spawn('hq', 0, 200, H - 200); spawn('hq', 1, W - 200, 200);   // keep both sides "alive"
       // the high-ground tile on your lookout that is closest to the island
       let best = null, bd = 1e9;
       for (let rr = 0; rr < TROWS; rr++) for (let c = 0; c < TCOLS; c++) { const i = rr * TCOLS + c; if (!elev[i] || terrain[i] !== T.GRASS) continue;

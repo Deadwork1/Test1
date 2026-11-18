@@ -23,7 +23,7 @@ Example: `python3 rec/record.py .. 8801 large hard mixed 60`
 - `pic_village.py <game folder> <port> <out prefix>` renders a village close up, neutral and owned.
 - `pic_*.py` render close-up pictures of units, buildings and terrain. `pic_map.py <game folder> <port> <map> <out.jpg>` renders a whole map with the fog lifted.
 - `test_canvas_memory.py <game folder> <port> [limit MB]` simulates a phone's canvas memory cap (iPhones: about 384 MB) and checks every map loads and the map buttons work.
-- `test_lookout.py` checks the Huge map's river lookouts: shooting onto the island from the plateau edge without being seen. `test_plateau.py` now covers all three maps.
+- `test_lookout.py` checks the river lookouts (add `large` for the Large map, Huge by default): shooting onto the island from the plateau edge without being seen. `test_plateau.py` now covers all three maps.
 - `test_highground_all.py` checks every plateau on every map is an advantage point (a unit on the cliff edge sees and beats one below without being seen).
 - `test_uphill.py` checks shooting uphill does half damage (Grenadiers and Artillery full).
 - `test_radar.py` checks the Radar (tech lock, reveal over rocks, range, selling); `pic_radar.py <game folder> <port> <out prefix>` pictures it and the fog before/after.

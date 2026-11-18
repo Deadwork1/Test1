@@ -27,28 +27,34 @@ const MAPS = {
     river: { amp: 70, period: 230, half: 36 },
     bridges: [{ y: 230, hw: 62 }],                     // river bridges on your half (mirrored for theirs)
   },
-  large: {
+  large: {   // laid out like the Huge map, scaled down: base cliff to the map edge, one bridge per river arm, three plateaus a side
     label: 'Large', W: 3600, H: 2250, start: { x: 300, y: 1950 },
     fields: [
       { x: 720, y: 1800, nodes: 8, amount: 500, spread: 100 },    // home field
       { x: 330, y: 1150, nodes: 8, amount: 500, spread: 105 },    // expansion: north of your base
-      { x: 1300, y: 2070, nodes: 8, amount: 500, spread: 100 },   // expansion: along the south edge
+      { x: 1290, y: 2080, nodes: 8, amount: 500, spread: 100 },   // expansion: along the south edge
       { x: 950, y: 480, nodes: 10, amount: 600, spread: 130 },    // contested flank field
     ],
     island: { r: 380, nodes: 18, amount: 600, spread: 230 },
     ridges: [
-      [[[200, 1640], [450, 1590], [720, 1630]], 32],     // wall north of your base (gaps at both ends)
+      [[[-40, 1650], [200, 1640], [450, 1590], [720, 1630]], 32],   // wall north of your base, right to the map edge (gap only at the east end)
       [[[980, 1580], [1050, 1800], [1010, 2020]], 32],   // wall east of your base (gap at the bottom)
       [[[700, 780], [900, 900]], 30],                    // outcrop by the flank field
       [[[1350, 600], [1420, 900]], 30],                  // ridge near the river
       [[[620, 1150], [760, 1300]], 28],                  // rocks by the north expansion
+      [[[1650, 1782], [1798, 1760]], 30],                // ridge across the road from the bridge plateau (the pinch onto your bridge)
+      [[[1339, 385], [1504, 235]], 28],                  // rocks by the top bridge
     ],
     forests: [[1100, 950, 270, 200, 0.35], [200, 600, 130], [1150, 330, 120]],   // the big jungle sits on the routes between the bases
-    plateaus: [{ x: 1420, y: 1660, rx: 210, ry: 140, tilt: -0.25, ramps: [3.4, 0.2] }, { x: 560, y: 380, rx: 170, ry: 120, tilt: 0.3, ramps: [1.7] }],
+    plateaus: [
+      { x: 1480, y: 1357, rx: 200, ry: 135, tilt: 0.94, ramps: [2.51], overhang: true },   // lookout over the island, by its west bridge: juts out over the river
+      { x: 1082, y: 1268, rx: 160, ry: 110, tilt: -0.6, ramps: [2.3] },   // beside the road to the island's west bridge: with the lookout it pinches the road
+      { x: 1597, y: 2022, rx: 140, ry: 95, tilt: -0.1, ramps: [2.88] },   // overlooks your river bridge; with the ridge above it, pinches the road onto the bridge
+    ],
     river: { amp: 90, period: 320, half: 40 },
-    bridges: [{ y: 300, hw: 70 }, { y: 620, hw: 70 }],
-    // a neutral village by the outer bridge on your side (its mirror sits by the computer's), below the plateau that guards the crossing
-    villages: [{ x: 1530, y: 2060, derrick: [0, 0], houses: [[-100, -62], [-96, 58], [100, 70]], out: [210, -110] }],
+    bridges: [{ y: 370, hw: 70 }],   // one crossing above the island (and its mirror below), plus the two island bridges
+    // a neutral village by your river bridge (its mirror sits by the computer's), guarded by the bridge plateau
+    villages: [{ x: 1549, y: 1830, derrick: [0, 0], houses: [[-100, 62], [96, 58], [-84, -82]], out: [40, -230] }],
   },
   huge: {   // the base corner is laid out like Large's; the extra room is all in the ground between the bases
     label: 'Huge', W: 4800, H: 3000, start: { x: 400, y: 2600 },
@@ -3996,7 +4002,7 @@ for (const b of document.querySelectorAll('#mapRow button')) {
 }
 $('mapInfo').textContent = {
   classic: 'Classic: the original smaller map. Quicker games.',
-  large: 'Large: room to expand, extra ore fields and a village with an Oil Derrick on each side. Longer games.',
+  large: 'Large: a smaller Huge. Extra ore fields, high ground with river lookouts, one bridge each side and a village with an Oil Derrick. Longer games.',
   huge: 'Huge: lots of open ground between the bases, more ore fields and high ground. The longest games.',
 }[mapChoice];
 
