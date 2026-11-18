@@ -2,6 +2,15 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.40', date: '18 Nov 2026', title: 'Medbay',
+    changes: [
+      'New building: the Medbay ($400, needs a Barracks). A round pad your units walk onto to heal: up to 5 infantry at once (8 HP a second each) or 1 vehicle on its own (15 HP a second). First come, first served.',
+      'Select units and tap your Medbay to send them onto it. Anyone who doesn\'t fit waits beside it.',
+      'It glows green, pulsing on and off, while it is healing someone.',
+      'The computer builds one too on Normal and Hard and sends its wounded troops to it.',
+    ],
+  },
+  {
     version: '5.39', date: '18 Nov 2026', title: 'Headquarters of operations',
     changes: [
       'The Headquarters is now the biggest building in the game (140 across, was 92) and has a whole new look: a command centre with angled corners and a two-tier command tower.',

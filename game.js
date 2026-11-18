@@ -101,7 +101,7 @@ const INCOME = 1;                     // small trickle per second so nobody gets
 const BUILD_RADIUS = 300;             // how far from your HQ you can place buildings
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
 
-const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250, grenadier: 160, engineer: 75, rocket: 200, sniper: 200, light: 400, heavy: 700, artillery: 450, tech: 600, radar: 300 };
+const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250, grenadier: 160, engineer: 75, rocket: 200, sniper: 200, light: 400, heavy: 700, artillery: 450, tech: 600, radar: 300, medbay: 400 };
 const WALL_REACH = 150;              // walls, gates and guard towers can go this much further out than other buildings
 
 const STATS = {
@@ -127,7 +127,8 @@ const STATS = {
   tech:      { hp: 600, size: 70, sight: 180, buildTime: 16 },
   power:     { hp: 400, size: 60, sight: 160, buildTime: 10 },
   tower:     { hp: 700, size: 46, sight: 230, buildTime: 12, range: 170, dmg: 14, cooldown: 0.9 },
-  radar:     { hp: 400, size: 64, sight: 750, buildTime: 14, radar: true },   // sweeps a huge circle: sees over rocks and up onto plateaus (not into forests)
+  radar:     { hp: 400, size: 64, sight: 750, buildTime: 14, radar: true },
+  medbay:    { hp: 500, size: 84, sight: 180, buildTime: 10, walkOn: true, heal: 8, healVehicle: 15, slots: 5 },   // round pad units stand on to heal: up to 5 infantry or 1 vehicle at a time   // sweeps a huge circle: sees over rocks and up onto plateaus (not into forests)
   wall:      { hp: 400, size: 25, sight: 50 },
   gate:      { hp: 600, size: 50, sight: 60 },
   // neutral buildings: they start out belonging to no one (team 2) and can't be hurt while neutral
@@ -136,7 +137,7 @@ const STATS = {
 };
 const PRODUCES = { barracks: ['soldier', 'grenadier', 'rocket', 'sniper', 'engineer'], refinery: ['extractor'], factory: ['buggy', 'light', 'artillery', 'heavy'] };
 // Tech tree: what else you need (finished, and still standing) before you can build or train something
-const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['tower'], heavy: ['tech'], artillery: ['power'], radar: ['power'] };
+const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['tower'], heavy: ['tech'], artillery: ['power'], radar: ['power'], medbay: ['barracks'] };
 const hasBuilt = (team, type) => game.ents.some(b => b.team === team && b.type === type && b.built);
 const missingFor = (team, type) => (REQUIRES[type] || []).filter(t => !hasBuilt(team, t));
 const unlocked = (team, type) => missingFor(team, type).length === 0;
@@ -170,7 +171,7 @@ const POWER_BONUS = 0.25, POWER_MAX = 2;
 const powerBoost = team => Math.min(POWER_MAX, 1 + POWER_BONUS * game.ents.filter(b => b.team === team && b.type === 'power' && b.built).length);
 // how many times longer than normal this side takes to build things (difficulty slow-down ÷ power boost)
 const slowOf = e => (e.team === 1 ? diff().slow : 1) / powerBoost(e.team);
-const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', rocket: 'Rocket Soldier', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', tower: 'Guard Tower', power: 'Power Plant', radar: 'Radar', wall: 'Wall', gate: 'Gate', derrick: 'Oil Derrick', house: 'House', civilian: 'Civilian' };
+const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', rocket: 'Rocket Soldier', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', tower: 'Guard Tower', power: 'Power Plant', radar: 'Radar', medbay: 'Medbay', wall: 'Wall', gate: 'Gate', derrick: 'Oil Derrick', house: 'House', civilian: 'Civilian' };
 
 const TEAMS = [
   { name: 'You',   color: '#3b82f6', dark: '#1d3f8f', light: '#93c5fd' },
@@ -339,7 +340,7 @@ function wallTiles(b) {
 let bldList = [];   // every building and wall piece, for checking a unit's body clears them (see lineClear)
 function rebuildBuildingGrid() {
   bldGrid.fill(0); bldGridV.fill(0); wallKind.fill(0);
-  bldList = game.ents.filter(isBuilding);
+  bldList = game.ents.filter(isSolid);
   for (const b of game.ents) {
     if (isWallType(b.type)) {
       for (const [c, r] of wallTiles(b)) {
@@ -348,7 +349,7 @@ function rebuildBuildingGrid() {
       }
       continue;
     }
-    if (!isBuilding(b)) continue;
+    if (!isSolid(b)) continue;
     const h = b.size / 2;
     for (let r = Math.floor((b.y - h - CLEAR_V) / TC); r <= Math.floor((b.y + h + CLEAR_V) / TC); r++) {
       for (let c = Math.floor((b.x - h - CLEAR_V) / TC); c <= Math.floor((b.x + h + CLEAR_V) / TC); c++) {
@@ -851,13 +852,14 @@ function spawn(type, team, x, y) {
   return e;
 }
 
-function isBuildingType(t) { return t === 'derrick' || t === 'house' || t === 'hq' || t === 'barracks' || t === 'refinery' || t === 'factory' || t === 'tech' || t === 'power' || t === 'tower' || t === 'radar' || t === 'wall' || t === 'gate'; }
+function isBuildingType(t) { return t === 'derrick' || t === 'house' || t === 'hq' || t === 'barracks' || t === 'refinery' || t === 'factory' || t === 'tech' || t === 'power' || t === 'tower' || t === 'radar' || t === 'medbay' || t === 'wall' || t === 'gate'; }
 const isWallType = t => t === 'wall' || t === 'gate';
 const gateHalf = vertical => vertical ? { hx: TC / 2, hy: TC } : { hx: TC, hy: TC / 2 };
 const halfX = e => e.type === 'gate' ? gateHalf(e.vertical).hx : e.size / 2;
 const halfY = e => e.type === 'gate' ? gateHalf(e.vertical).hy : e.size / 2;
 const isBuilding = e => isBuildingType(e.type);
 const isUnit = e => !isBuilding(e);
+const isSolid = e => isBuilding(e) && !STATS[e.type].walkOn;   // the Medbay is a pad units walk onto, so it doesn't block movement
 const byId = id => game.ents.find(e => e.id === id);
 const oreById = id => game.ore.find(o => o.id === id);
 const hqOf = team => game.ents.find(e => e.team === team && e.type === 'hq');
@@ -908,7 +910,7 @@ function moveToward(e, tx, ty, dt) {
         const k = 1.1 * (1 - bp / (e.r * 2 + 14)) + 0.35;
         const sx = ux + -uy * side * k, sy = uy + ux * side * k, sl = Math.hypot(sx, sy);
         const nx = e.x + sx / sl * step, ny = e.y + sy / sl * step;
-        if (walkable(terrainAt(nx, ny), isVehicle(e)) && !wallBlocks(nx, ny, e.team) && !game.ents.some(b => isBuilding(b) && edgeDist(nx, ny, b) < e.r)) { ux = sx / sl; uy = sy / sl; }
+        if (walkable(terrainAt(nx, ny), isVehicle(e)) && !wallBlocks(nx, ny, e.team) && !game.ents.some(b => isSolid(b) && edgeDist(nx, ny, b) < e.r)) { ux = sx / sl; uy = sy / sl; }
       }
     }
   }
@@ -1195,6 +1197,34 @@ function findOre(x, y, maxDist, team, mustBeExplored) {
     if (d < bestD) { bestD = d; best = o; }
   }
   return best;
+}
+
+// Medbay: your units standing on the pad heal, up to 5 infantry at once, or 1 vehicle on its own. First come, first served.
+const MEDBAY_PAD = 40;   // how far from the centre still counts as standing on it (the pad is 42 across from the middle)
+function medbayOccupants(b) {
+  return game.ents.filter(u => u.team === b.team && isUnit(u) && u.hp > 0 && u.type !== 'settler' && !u.docked && Math.hypot(u.x - b.x, u.y - b.y) < MEDBAY_PAD);
+}
+function updateMedbay(b, dt) {
+  const s = STATS.medbay;
+  const hurt = medbayOccupants(b).filter(u => u.hp < u.maxHp);
+  for (const u of hurt) if (u.medAt === undefined || u.medPad !== b.id) { u.medAt = game.time; u.medPad = b.id; }
+  hurt.sort((p, q) => p.medAt - q.medAt);
+  let healing = [];
+  if (hurt.length) healing = isInfantry(hurt[0]) ? hurt.filter(isInfantry).slice(0, s.slots) : [hurt[0]];
+  for (const u of healing) u.hp = Math.min(u.maxHp, u.hp + (isInfantry(u) ? s.heal : s.healVehicle) * dt);
+  b.healing = healing.length;
+}
+// spots on the pad: the middle, then four round it
+function medbaySpots(b) { return [[0, 0], [-17, -14], [17, -14], [-17, 14], [17, 14]].map(([dx, dy]) => ({ x: b.x + dx, y: b.y + dy })); }
+// send units onto a Medbay: one vehicle in the middle, or up to 5 infantry; anyone else waits beside it
+function medbaySend(units, b) {
+  const vehicles = units.filter(u => !isInfantry(u)), infantry = units.filter(isInfantry), spots = medbaySpots(b);
+  let on = [];
+  if (infantry.length) on = infantry.slice(0, STATS.medbay.slots).map((u, k) => [u, spots[k]]);
+  else if (vehicles.length) on = [[vehicles[0], spots[0]]];
+  for (const [u, p] of on) u.order = { type: 'move', x: p.x, y: p.y };
+  const rest = units.filter(u => !on.some(([v]) => v === u));
+  if (rest.length) groupMove(rest, b.x, b.y + b.size / 2 + 45);
 }
 
 function nearestRefinery(e) {
@@ -1668,6 +1698,7 @@ function updateBuilding(e, dt) {
     }
     return;
   }
+  if (e.type === 'medbay') { updateMedbay(e, dt); return; }
   if (!PRODUCES[e.type] || e.queue <= 0) return;
   e.trainT += dt;
   if (e.trainT >= TRAIN_TIME[e.qTypes[0]] * slowOf(e)) {
@@ -1723,7 +1754,7 @@ function waitSpot(ref, e) {
   const d = frontDoor(ref), side = e.id % 2 ? -1 : 1;
   for (const [dx, dy] of [[side * 50, 26], [-side * 50, 26], [side * 30, 55], [0, 60]]) {
     const x = d.x + dx, y = d.y + dy;
-    if (walkable(terrainAt(x, y), true) && !game.ents.some(b => isBuilding(b) && edgeDist(x, y, b) < 28)) return { x, y };
+    if (walkable(terrainAt(x, y), true) && !game.ents.some(b => isSolid(b) && edgeDist(x, y, b) < 28)) return { x, y };
   }
   return { x: d.x, y: d.y + 40 };
 }
@@ -1752,7 +1783,7 @@ function separate() {
       }
     }
     for (const bld of game.ents) {
-      if (!isBuilding(bld)) continue;
+      if (!isSolid(bld)) continue;   // (units stand on a Medbay)
       if (a.docked && a.order && a.order.ref === bld.id) continue;
       if (bld.type === 'gate' && bld.team === a.team) continue;
       const hx = halfX(bld) + a.r, hy = halfY(bld) + a.r, dx = a.x - bld.x, dy = a.y - bld.y;
@@ -2064,6 +2095,7 @@ function runAI(dt) {
   const wantFactory = D.factory && sent >= 1 && !of('factory').length && unlocked(1, 'factory') && !aiBlocked('factory');
   const wantTech = D.heavyTanks && sent >= 2 && of('factory').some(f => f.built) && !of('tech').length && unlocked(1, 'tech') && !aiBlocked('tech');
   const wantRadar = D.walls && sent >= 1 && !of('radar').length && unlocked(1, 'radar') && !aiBlocked('radar');   // Normal and Hard
+  const wantMedbay = D.walls && sent >= 1 && !of('medbay').length && unlocked(1, 'medbay') && !aiBlocked('medbay');   // Normal and Hard: somewhere to patch up the wounded
   const extrasDone = (refineries.length >= reqRefineries || aiBlocked('refinery')) && (of('tower').length >= wantTowers || aiBlocked('tower')) && !wantFactory && !wantTech;
   const building = game.time < (ai.buildUntil || 0) && !extrasDone;
   if (refineries.length === 0) aiPlaceRefinery(hq);
@@ -2074,6 +2106,7 @@ function runAI(dt) {
   else if (barracks.length < D.barracks && cash >= 900) aiPlace(hq, 'barracks');
   else if (wantFactory && cash >= COST.factory) aiPlace(hq, 'factory');
   else if (wantTech && cash >= COST.tech) aiPlace(hq, 'tech');
+  else if (wantMedbay && cash >= COST.medbay) aiPlace(hq, 'medbay');
   else if (wantRadar && cash >= COST.radar + 150) aiPlace(hq, 'radar');
 
   // expand toward fresh ore once the ore by its refineries is running out
@@ -2246,6 +2279,7 @@ function runAI(dt) {
   if (spareNow && D.hill && game.time > D.hillAfter) aiHoldHills(army, spare, surplus ? 6 : D.hillSize);
   if (spareNow && D.garrison) aiGarrisonDerricks(army, spare, surplus ? 5 : D.garrison);
   if (surplus) aiManOutposts(army, spare);
+  aiHeal(army, of('medbay').find(b => b.built));
 
   // defend: if your units come near its base, the guards and everyone gathering (and any wave close to home) fight back
   const base = mine.filter(e => isBuilding(e) && !isWallType(e.type));
@@ -2268,7 +2302,7 @@ function runAI(dt) {
       if (Math.hypot(u.x - x, u.y - y) > 60) u.order = { type: 'move', x, y };
     });
     for (const u of army) {
-      if (u.role === 'wave' || u.role === 'scout' || u.role === 'hill' || u.role === 'garrison' || u.role === 'outpost' || u.role === 'guard' && ents.length || u.order) continue;
+      if (u.role === 'wave' || u.role === 'scout' || u.role === 'hill' || u.role === 'garrison' || u.role === 'outpost' || u.role === 'heal' || u.role === 'guard' && ents.length || u.order) continue;
       if (Math.hypot(u.x - rally.x, u.y - rally.y) > 90) u.order = { type: 'move', x: rally.x + (Math.random() - .5) * 60, y: rally.y + (Math.random() - .5) * 60 };
     }
   }
@@ -2360,6 +2394,31 @@ function aiHoldHills(army, spare, size) {
     });
   });
 }
+// wounded units at home (guards and those waiting for the next wave), and badly hurt ones posted out or on a wave not far off,
+// go and stand on the Medbay until they're patched up:
+// up to 5 infantry at a time, or one vehicle when no infantry are waiting
+function aiHeal(army, med) {
+  const healers = army.filter(u => u.role === 'heal');
+  for (const u of healers) {
+    if (!med || u.hp >= u.maxHp * 0.95) { u.role = null; if (u.order && u.order.type === 'move') u.order = null; }
+    else if (!u.order) { const p = medbaySpots(med)[healers.filter(v => v.role === 'heal').indexOf(u) % 5]; if (Math.hypot(u.x - p.x, u.y - p.y) > 12) u.order = { type: 'move', x: p.x, y: p.y }; }
+  }
+  if (!med) return;
+  const now = army.filter(u => u.role === 'heal');
+  const vehicleIn = now.some(u => !isInfantry(u));
+  const away = u => u.role === 'hill' || u.role === 'garrison' || u.role === 'outpost' || u.role === 'wave';   // posted out, or on a wave: only when badly hurt and not far off
+  const wounded = army.filter(u => !(u.order && u.order.type === 'attack') && (
+      ((!u.role || u.role === 'guard') && u.hp < u.maxHp * 0.55 && Math.hypot(u.x - med.x, u.y - med.y) < 900) ||
+      (away(u) && u.hp < u.maxHp * 0.4 && Math.hypot(u.x - med.x, u.y - med.y) < 700)))
+    .sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp);
+  const inf = wounded.filter(isInfantry), veh = wounded.filter(u => !isInfantry(u));
+  let add = [];
+  if (!vehicleIn && inf.length) add = inf.slice(0, Math.max(0, STATS.medbay.slots - now.length));
+  else if (!now.length && veh.length) add = [veh[0]];
+  const spots = medbaySpots(med);
+  for (const u of add) { u.role = 'heal'; u.passive = false; const p = spots[now.length % 5]; now.push(u); u.order = { type: 'move', x: p.x, y: p.y }; }
+}
+
 function aiGarrisonDerricks(army, spare, size) {
   for (const u of army) if (u.role === 'garrison') { const d = byId(u.post); if (!d || d.team !== 1) { u.role = null; u.post = null; } }   // lost it: back to the pool
   for (const d of game.ents) {
@@ -2512,6 +2571,7 @@ function draw() {
     else if (e.type === 'tower') drawTower(e);
     else if (e.type === 'power') drawPower(e);
     else if (e.type === 'radar') drawRadar(e);
+    else if (e.type === 'medbay') drawMedbay(e);
     else if (e.type === 'wall') drawWall(e);
     else if (e.type === 'gate') drawGate(e);
     else if (e.type === 'settler') drawSettler(e);
@@ -3559,6 +3619,39 @@ function drawRadar(e) {
   flag(x - R * 0.72, y - R * 0.62, e.team);
 }
 
+// Medbay: a round landing pad with a big cross. It glows green, on and off, while it is healing someone.
+function drawMedbay(e) {
+  if (!e.built) return drawConstruction(e);
+  const c = TEAMS[e.team], R = e.size / 2, x = e.x, y = e.y, t = performance.now() / 1000;
+  const circ = (rr, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.fill(); };
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.arc(x + 3, y + 4, R + 2, 0, Math.PI * 2); ctx.fill();
+  circ(R + 2, '#6f6b62');                       // kerb
+  circ(R, '#a7a296');                           // concrete ring
+  ctx.strokeStyle = c.color; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(x, y, R - 5, 0, Math.PI * 2); ctx.stroke();   // team ring
+  circ(R - 9, '#d9e6df');                       // the pad itself
+  ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth = 1;
+  for (let k = 0; k < 12; k++) { const a = k * Math.PI / 6; ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * (R - 22), y + Math.sin(a) * (R - 22)); ctx.lineTo(x + Math.cos(a) * (R - 9), y + Math.sin(a) * (R - 9)); ctx.stroke(); }
+  const on = e.healing > 0, pulse = on ? 0.5 + 0.5 * Math.sin(t * 5) : 0;
+  // big cross in the middle, brighter while it heals
+  const cw = 9, cl = 24;
+  ctx.fillStyle = on ? `rgb(${60 + 60 * pulse},${200 + 55 * pulse},${90 + 60 * pulse})` : '#3f9a5a';
+  ctx.beginPath();
+  for (const [px, py] of [[-cw, -cl], [cw, -cl], [cw, -cw], [cl, -cw], [cl, cw], [cw, cw], [cw, cl], [-cw, cl], [-cw, cw], [-cl, cw], [-cl, -cw], [-cw, -cw]]) ctx.lineTo(x + px, y + py);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 1.5; ctx.stroke();
+  // lamps round the rim: dim when idle, green and pulsing while healing
+  for (let k = 0; k < 8; k++) {
+    const a = k * Math.PI / 4 + Math.PI / 8, lx = x + Math.cos(a) * (R - 1.5), ly = y + Math.sin(a) * (R - 1.5);
+    ctx.fillStyle = on ? `rgba(120,255,150,${0.55 + 0.45 * pulse})` : '#5c6f60'; ctx.beginPath(); ctx.arc(lx, ly, 2.6, 0, Math.PI * 2); ctx.fill();
+  }
+  if (on) {   // the green glow, on and off
+    const g = ctx.createRadialGradient(x, y, R * 0.2, x, y, R + 14);
+    g.addColorStop(0, `rgba(110,255,140,${0.10 + 0.30 * pulse})`); g.addColorStop(0.75, `rgba(110,255,140,${0.08 + 0.22 * pulse})`); g.addColorStop(1, 'rgba(110,255,140,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, R + 14, 0, Math.PI * 2); ctx.fill();
+  }
+  flag(x - R * 0.72, y - R * 0.6, e.team);
+}
+
 function drawPower(e) {
   if (!e.built) return drawConstruction(e);
   const c = TEAMS[e.team], h = e.size / 2, x0 = e.x - h, y0 = e.y - h, t = performance.now() / 1000;
@@ -3876,6 +3969,12 @@ function handleTap(x, y) {
       game.effects.push({ kind: 'marker', x: hit.x, y: hit.y, t: 0, color: '#7dff7d' });
       return;
     }
+    // units selected + your Medbay tapped = go and stand on it to heal
+    if (hit.type === 'medbay' && hit.built && myUnits.length) {
+      medbaySend(myUnits, hit);
+      game.effects.push({ kind: 'marker', x: hit.x, y: hit.y, t: 0, color: '#7dff7d' });
+      return;
+    }
     game.selected = new Set([hit.id]);
     return;
   }
@@ -3957,7 +4056,7 @@ const selectedOfType = type => [...game.selected].map(byId).filter(e => e && e.t
 const $ = id => document.getElementById(id);
 const ui = {
   credits: $('credits'), clock: $('clock'), info: $('info'), powerChip: $('powerChip'), sell: $('btnSell'),
-  deploy: $('btnDeploy'), radar: $('btnRadar'), barracks: $('btnBarracks'), refinery: $('btnRefinery'), tower: $('btnTower'), power: $('btnPower'), factory: $('btnFactory'), tech: $('btnTech'), wall: $('btnWall'), gate: $('btnGate'), rotate: $('btnRotate'), 
+  deploy: $('btnDeploy'), radar: $('btnRadar'), medbay: $('btnMedbay'), barracks: $('btnBarracks'), refinery: $('btnRefinery'), tower: $('btnTower'), power: $('btnPower'), factory: $('btnFactory'), tech: $('btnTech'), wall: $('btnWall'), gate: $('btnGate'), rotate: $('btnRotate'), 
   harvest: $('btnHarvest'), place: $('btnPlace'), cancel: $('btnCancel'), deselect: $('btnDeselect'),
   box: $('btnBox'), all: $('btnAll'), pause: $('btnPause'), map: $('btnMap'),
   overlay: $('overlay'), ovTitle: $('ovTitle'), ovText: $('ovText'), ovBtn: $('ovBtn'),
@@ -3981,6 +4080,7 @@ ui.refinery.addEventListener('click', () => startPlacing('refinery'));
 ui.tower.addEventListener('click', () => startPlacing('tower'));
 ui.power.addEventListener('click', () => startPlacing('power'));
 ui.radar.addEventListener('click', () => startPlacing('radar'));
+ui.medbay.addEventListener('click', () => startPlacing('medbay'));
 ui.factory.addEventListener('click', () => startPlacing('factory'));
 ui.tech.addEventListener('click', () => startPlacing('tech'));
 ui.wall.addEventListener('click', () => startPlacing('wall'));
@@ -4155,6 +4255,7 @@ function updateHUD() {
   show(ui.tower, !!hq && !placing);
   show(ui.power, !!hq && !placing);
   show(ui.radar, !!hq && !placing);
+  show(ui.medbay, !!hq && !placing);
   show(ui.wall, !!hq && !placing);
   show(ui.gate, !!hq && !placing);
   syncProduceButtons(producer && !placing ? producer.type : null);
@@ -4180,7 +4281,7 @@ function updateHUD() {
   ui.powerChip.style.display = boost > 1 ? '' : 'none';
   ui.powerChip.textContent = `⚡ +${Math.round((boost - 1) * 100)}%`;
   // locked buildings say what they still need
-  for (const [btn, type] of [[ui.factory, 'factory'], [ui.tech, 'tech'], [ui.radar, 'radar']]) {
+  for (const [btn, type] of [[ui.factory, 'factory'], [ui.tech, 'tech'], [ui.radar, 'radar'], [ui.medbay, 'medbay']]) {
     const miss = missingFor(0, type);
     btn.textContent = miss.length ? `${NAMES[type]}: needs ${miss.map(t => NAMES[t]).join(' + ')}` : `${NAMES[type]} $${COST[type]}`;
     btn.disabled = miss.length > 0 || game.credits[0] < COST[type];
@@ -4219,6 +4320,7 @@ function updateHUD() {
     ? 'Oil Derrick — pays $' + STATS.derrick.pay + ' every ' + STATS.derrick.payEvery + 's (next in ' + Math.ceil(STATS.derrick.payEvery - (sel[0].payT || 0)) + 's)'
     : 'Oil Derrick — neutral. Send an Engineer to capture it: $' + STATS.derrick.pay + ' every ' + STATS.derrick.payEvery + 's';
   else if (sel.length === 1 && sel[0].type === 'house') text = 'Village house';
+  else if (sel.length === 1 && sel[0].type === 'medbay') text = sel[0].built ? 'Medbay — heals up to 5 infantry or 1 vehicle standing on it' + (sel[0].healing ? ' (healing ' + sel[0].healing + ')' : '') + '. Select units, then tap it' : 'Medbay: building…';
   else if (sel.length === 1 && sel[0].type === 'radar') text = sel[0].built ? 'Radar — reveals everything within ' + STATS.radar.sight + ', over rocks and cliffs (not hidden infantry in forests)' : 'Radar: ' + Math.floor(sel[0].progress * 100) + '% built';
   else if (sel.length === 1 && sel[0].type === 'tower') text = sel[0].built ? 'Guard Tower — fires at enemies in range' : `Guard Tower: ${Math.floor(sel[0].progress * 100)}% built`;
   else if (producer) text = producer.built ? `${NAMES[producer.type]}${producer.queue ? ' — making ×' + producer.queue : ''}` : `${NAMES[producer.type]}: ${Math.floor(producer.progress * 100)}% built`;
