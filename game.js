@@ -3222,7 +3222,14 @@ function door(e, w, hgt) {
   ctx.fillStyle = TEAMS[e.team].color; ctx.fillRect(e.x - w / 2 - 2, y - 2, w + 4, 2);
 }
 
-function drawHQ(e) {
+// the HQ art is drawn at 92 across and scaled up to the HQ's real size, so every detail grows with it
+function drawHQ(real) {
+  const k = real.size / 92;
+  ctx.save(); ctx.translate(real.x, real.y); ctx.scale(k, k); ctx.translate(-real.x, -real.y);
+  drawHQArt({ ...real, size: 92 });
+  ctx.restore();
+}
+function drawHQArt(e) {
   const c = TEAMS[e.team], h = e.size / 2, x0 = e.x - h, y0 = e.y - h, t = performance.now() / 1000;
   // concrete pad
   ctx.fillStyle = '#9a958a'; ctx.fillRect(x0 - 4, y0 - 4, e.size + 8, e.size + 8);
