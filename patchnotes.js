@@ -2,6 +2,12 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.45.3', date: '18 Nov 2026', title: 'Sell moves out of the way',
+    changes: [
+      'The Sell button has moved out of the bottom bar to its own spot on the right-hand side of the screen, well away from the build buttons, so carrying on clicking after you place a building can\'t land on it.',
+    ],
+  },
+  {
     version: '5.45.2', date: '18 Nov 2026', title: 'No accidental sales',
     changes: [
       'Fixed: clicking on after placing a building could land on Sell and sell it by accident. Sell now ignores clicks for a second after it appears, and the "tap again" confirmation has to come at least half a second after the first tap, so a double-click never sells.',
