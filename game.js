@@ -44,7 +44,7 @@ const MAPS = {
       [[[1650, 1722], [1798, 1700]], 30],                // ridge across the road from the bridge plateau (the pinch onto your bridge)
       [[[1339, 385], [1504, 235]], 28],                  // rocks by the top bridge
     ],
-    forests: [[1010, 875, 410, 270, 0.25], [200, 600, 130], [1150, 330, 120]],   // the big jungle sits on the routes between the bases, an old ruined base in its middle
+    forests: [[1010, 875, 410, 270, 0.25], [470, 820, 430, 175, -0.08], [200, 600, 130], [1150, 330, 120]],   // the big jungle sits on the routes between the bases, an old ruined base in its middle
     plateaus: [
       { x: 1480, y: 1357, rx: 200, ry: 135, tilt: 0.94, ramps: [2.51], overhang: true },   // lookout over the island, by its west bridge: juts out over the river
       { x: 1082, y: 1268, rx: 160, ry: 110, tilt: -0.6, ramps: [2.3] },   // beside the road to the island's west bridge: with the lookout it pinches the road
@@ -76,7 +76,7 @@ const MAPS = {
       [[[600, 700], [640, 1000]], 28],                    // rocks shielding the far corner
       [[[3002, 2500], [2782, 2700]], 30],                 // rocks by the south bridge, on the far side of the river (mirrored: by the north bridge on your side)
     ],
-    forests: [[1320, 1180, 540, 345, 0.25], [270, 820, 160], [1530, 420, 160], [980, 1950, 130], [1700, 1500, 110]],   // the big jungle sits on the routes between the bases, an old ruined base in its middle
+    forests: [[1320, 1180, 540, 345, 0.25], [560, 1160, 520, 210, -0.08], [270, 820, 160], [1530, 420, 160], [980, 1950, 130], [1700, 1500, 110]],   // the big jungle sits on the routes between the bases, an old ruined base in its middle
     plateaus: [
       { x: 1979, y: 1806, rx: 250, ry: 165, tilt: 0.94, ramps: [2.51], overhang: true },   // lookout over the island, close to its west bridge: juts out over the river   // lookout over the island: juts out over the river
       { x: 1450, y: 1690, rx: 190, ry: 130, tilt: -0.6, ramps: [2.3] },   // beside the main road to the island's west bridge: with the river lookout it squeezes the road into a pinch about 150 wide
