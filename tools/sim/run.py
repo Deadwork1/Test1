@@ -20,6 +20,7 @@ with sync_playwright() as p:
         t0 = time.time()
         r = pg.evaluate(f"runSim('{g['strat']}', {g.get('mins',60)})")
         r['pageErrors'] = errs[:3]; r['realSecs'] = round(time.time() - t0, 1); r['id'] = g['id']
+        if g.get('tweak'): r['extra'] = pg.evaluate('window.__extra || null')   # anything a tweak chose to measure
         with open(out, 'a') as f: f.write(json.dumps(r) + '\n')
         pg.close(); break
        except Exception as ex:
