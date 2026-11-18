@@ -45,7 +45,7 @@ const MAPS = {
       [[[1650, 1722], [1798, 1700]], 30],                // ridge across the road from the bridge plateau (the pinch onto your bridge)
       [[[1339, 385], [1504, 235]], 28],                  // rocks by the top bridge
     ],
-    forests: [[1100, 950, 270, 200, 0.35], [200, 600, 130], [1150, 330, 120]],   // the big jungle sits on the routes between the bases
+    forests: [[1090, 895, 330, 235, 0.35], [200, 600, 130], [1150, 330, 120]],   // the big jungle sits on the routes between the bases, an old ruined base in its middle
     plateaus: [
       { x: 1480, y: 1357, rx: 200, ry: 135, tilt: 0.94, ramps: [2.51], overhang: true },   // lookout over the island, by its west bridge: juts out over the river
       { x: 1082, y: 1268, rx: 160, ry: 110, tilt: -0.6, ramps: [2.3] },   // beside the road to the island's west bridge: with the lookout it pinches the road
@@ -55,6 +55,8 @@ const MAPS = {
     bridges: [{ y: 370, hw: 70 }],   // one crossing above the island (and its mirror below), plus the two island bridges
     // a neutral village by your river bridge (its mirror sits by the computer's), guarded by the bridge plateau
     villages: [{ x: 1480, y: 1795, derrick: [0, 0], houses: [[-100, 62], [96, 58], [-84, -82]], out: [40, -230] }],
+    // an old ruined base in a clearing in the middle of the big jungle on your side (its mirror is on the computer's)
+    ruins: [{ x: 1090, y: 895, clearing: [118, 100], buildings: [['barracks', -44, -24], ['power', 50, -28], ['radar', 4, 50]] }],
   },
   huge: {   // the base corner is laid out like Large's; the extra room is all in the ground between the bases
     label: 'Huge', W: 4800, H: 3000, start: { x: 400, y: 2600 },
@@ -76,7 +78,7 @@ const MAPS = {
       [[[600, 700], [640, 1000]], 28],                    // rocks shielding the far corner
       [[[3002, 2500], [2782, 2700]], 30],                 // rocks by the south bridge, on the far side of the river (mirrored: by the north bridge on your side)
     ],
-    forests: [[1470, 1250, 360, 250, 0.35], [270, 820, 160], [1530, 420, 160], [980, 1950, 130], [1700, 1500, 110]],   // the big jungle sits on the routes between the bases
+    forests: [[1470, 1230, 420, 290, 0.35], [270, 820, 160], [1530, 420, 160], [980, 1950, 130], [1700, 1500, 110]],   // the big jungle sits on the routes between the bases, an old ruined base in its middle
     plateaus: [
       { x: 1979, y: 1806, rx: 250, ry: 165, tilt: 0.94, ramps: [2.51], overhang: true },   // lookout over the island, close to its west bridge: juts out over the river   // lookout over the island: juts out over the river
       { x: 1450, y: 1690, rx: 190, ry: 130, tilt: -0.6, ramps: [2.3] },   // beside the main road to the island's west bridge: with the river lookout it squeezes the road into a pinch about 150 wide
@@ -86,6 +88,7 @@ const MAPS = {
     bridges: [{ y: 480, hw: 74 }],   // one crossing above the island (and its mirror below), plus the two island bridges
     // neutral villages: an Oil Derrick and a few houses, each on the far side of a river bridge from one base.
     villages: [{ x: 2747, y: 560, derrick: [0, 0], houses: [[100, -62], [-96, -58], [84, 82]], out: [-40, 230] }],   // on the far side of the top bridge (its mirror is on your side of the bottom bridge)
+    ruins: [{ x: 1470, y: 1230, clearing: [118, 100], buildings: [['barracks', -44, -24], ['power', 50, -28], ['radar', 4, 50]] }],   // old ruined base in the middle of the big jungle
   },
 };
 let mapChoice = 'large';
@@ -179,6 +182,11 @@ const TEAMS = [
   { name: 'Neutral', color: '#b8b2a6', dark: '#5f5a52', light: '#e7e5e4' },
 ];
 const NEUTRAL = 2;
+// Old ruined bases (Large and Huge maps): neutral, battered buildings an Engineer can capture. They start at RUIN_HP
+// of full health and don't work until repaired to RUIN_WORKS of full health.
+const RUIN_HP = 0.2, RUIN_WORKS = 0.5;
+const ruinWorks = e => !e.ruin || (e.team !== NEUTRAL && e.hp >= e.maxHp * RUIN_WORKS);
+const animT = e => ruinWorks(e) ? performance.now() / 1000 : 0;   // a ruin that isn't working stands still: no spinning dish, no glow
 const isNeutralType = t => t === 'derrick' || t === 'house';
 const START = [{ x: MAP.start.x, y: MAP.start.y }, { x: W - MAP.start.x, y: H - MAP.start.y }];
 
@@ -254,6 +262,8 @@ function segDist(px, py, ax, ay, bx, by) {
     const g = f.length === 3 ? [f[0], f[1], f[2], f[2], 0] : f;
     forests.push(g); const [x, y] = mirror(g); forests.push([x, y, g[2], g[3], g[4]]);
   }
+  const clearings = [];
+  for (const ru of MAP.ruins || []) { clearings.push([ru.x, ru.y, ...ru.clearing]); clearings.push([...mirror([ru.x, ru.y]), ...ru.clearing]); }
   for (let r = 0; r < TROWS; r++) {
     for (let c = 0; c < TCOLS; c++) {
       const x = c * TC + TC / 2, y = r * TC + TC / 2;
@@ -264,6 +274,10 @@ function segDist(px, py, ax, ay, bx, by) {
         const u = (dx * co + dy * si) / rx, v = (-dx * si + dy * co) / ry, a = Math.atan2(v, u);
         const edge = 0.86 + 0.09 * Math.sin(a * 5 + x0) + 0.05 * Math.sin(a * 11 + y0);   // ragged edge
         if (Math.hypot(u, v) < edge) t = T.FOREST;
+      }
+      for (const [cx, cy, crx, cry] of clearings) {   // the clearing round an old ruined base, its edge ragged like the jungle's
+        const u = (x - cx) / crx, v = (y - cy) / cry, a = Math.atan2(v, u);
+        if (Math.hypot(u, v) < 1 + 0.08 * Math.sin(a * 6 + cx) && t === T.FOREST) t = T.GRASS;
       }
       // high ground: inside the oval is raised; its rim is a sheer cliff except where a ramp leads up
       for (const pl of plateaus) {
@@ -864,6 +878,10 @@ function newGame() {
     spawn('derrick', NEUTRAL, vx + v.derrick[0] * k, vy + v.derrick[1] * k);
     v.houses.forEach(([dx, dy], i) => { spawn('house', NEUTRAL, vx + dx * k, vy + dy * k).look = i % 3; });
   }
+  for (const ru of MAP.ruins || []) for (const [rx, ry] of [[ru.x, ru.y], mirror([ru.x, ru.y])]) {
+    const k = rx === ru.x ? 1 : -1;   // the mirrored ruin is turned round too
+    for (const [type, dx, dy] of ru.buildings) { const b = spawn(type, NEUTRAL, rx + dx * k, ry + dy * k); b.ruin = true; b.hp = b.maxHp * RUIN_HP; }
+  }
   spawn('settler', 0, START[0].x, START[0].y);
   spawn('settler', 1, START[1].x, START[1].y);
   cam.x = START[0].x; cam.y = START[0].y; setZoom(1); clampCam();
@@ -880,7 +898,7 @@ function spawn(type, team, x, y) {
   if (isBuildingType(type)) {
     bldDirty = true;
     e.size = s.size;
-    if (type === 'hq' || isWallType(type) || isNeutralType(type)) { e.built = true; e.progress = 1; }   // walls go up instantly
+    if (type === 'hq' || isWallType(type) || isNeutralType(type) || team === NEUTRAL) { e.built = true; e.progress = 1; }   // walls go up instantly; neutral ruins are already standing
     else { e.built = false; e.progress = 0; e.hp = s.hp * 0.1; }
     e.queue = 0; e.trainT = 0; e.qTypes = [];
   } else {
@@ -1440,7 +1458,7 @@ function update(dt) {
   separate();
 
   for (const e of game.ents) {
-    if (e.team === NEUTRAL) { e.hp = e.maxHp; continue; }
+    if (e.team === NEUTRAL) { e.hp = e.maxHp * (e.ruin ? RUIN_HP : 1); continue; }   // neutral buildings can't be hurt (ruins stay as battered as they are)
     if (e.type === 'derrick' && e.hp <= 0) {
       game.effects.push({ kind: 'boom', x: e.x, y: e.y, t: 0, big: true });
       game.effects.push({ kind: 'text', x: e.x, y: e.y - 34, text: 'Derrick knocked out', t: 0, color: '#e7e5e4' });
@@ -2679,6 +2697,7 @@ function draw() {
     else if (e.type === 'derrick') drawDerrick(e);
     else if (e.type === 'house') drawHouse(e);
     else drawSoldier(e);
+    if (e.ruin && !ruinWorks(e)) drawRuin(e);
   }
   for (const e of ents) if ((sel.has(e.id) || e.hp < e.maxHp) && e.type !== 'house') drawHealth(e);
   for (const e of ents) if (sel.has(e.id) && isBuilding(e)) drawNameTag(e);
@@ -3497,6 +3516,43 @@ function drawHQArt(e) {
   else hqHeli(pad[0], pad[1], -0.4, 0, t);
 }
 
+// an old ruined building: dusty and faded, cracked, scorched, with rubble round it and the jungle creeping over it
+function drawRuin(e) {
+  const h = e.size / 2, round = e.type === 'radar';
+  let seed = e.id * 7919 % 2147483647 || 1;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  ctx.save();
+  ctx.beginPath(); if (round) ctx.arc(e.x, e.y, h + 3, 0, Math.PI * 2); else ctx.rect(e.x - h - 3, e.y - h - 3, e.size + 6, e.size + 6); ctx.clip();
+  ctx.fillStyle = 'rgba(70,64,52,0.45)'; ctx.fillRect(e.x - h - 4, e.y - h - 4, e.size + 8, e.size + 8);   // faded and grimy
+  for (let i = 0; i < 2; i++) {   // scorch marks
+    const sx = e.x + (rnd() - 0.5) * e.size * 0.7, sy = e.y + (rnd() - 0.5) * e.size * 0.7, sr = 9 + rnd() * 9;
+    const g = ctx.createRadialGradient(sx, sy, 1, sx, sy, sr); g.addColorStop(0, 'rgba(20,16,12,0.75)'); g.addColorStop(1, 'rgba(20,16,12,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.strokeStyle = 'rgba(25,22,18,0.8)'; ctx.lineWidth = 1.3; ctx.lineJoin = 'round';
+  for (let i = 0; i < 4; i++) {   // cracks
+    let x = e.x + (rnd() - 0.5) * e.size * 0.8, y = e.y + (rnd() - 0.5) * e.size * 0.8, a = rnd() * Math.PI * 2;
+    ctx.beginPath(); ctx.moveTo(x, y);
+    for (let k = 0; k < 4; k++) { a += (rnd() - 0.5) * 1.4; x += Math.cos(a) * (5 + rnd() * 6); y += Math.sin(a) * (5 + rnd() * 6); ctx.lineTo(x, y); }
+    ctx.stroke();
+  }
+  ctx.restore();
+  for (let i = 0; i < 9; i++) {   // rubble round the edges
+    const a = rnd() * Math.PI * 2, d = h * (0.85 + rnd() * 0.35), x = e.x + Math.cos(a) * d, y = e.y + Math.sin(a) * d, s = 2.5 + rnd() * 4;
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(x - s / 2 + 1.5, y - s / 2 + 1.5, s, s);
+    ctx.fillStyle = rnd() < 0.5 ? '#8a8476' : '#6d685d'; ctx.fillRect(x - s / 2, y - s / 2, s, s * 0.8);
+  }
+  for (let i = 0; i < 4; i++) {   // vines and leaves creeping in from the edges
+    const a = rnd() * Math.PI * 2;
+    let x = e.x + Math.cos(a) * h * 1.05, y = e.y + Math.sin(a) * h * 1.05, dir = a + Math.PI + (rnd() - 0.5);
+    ctx.strokeStyle = '#2f5a22'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, y);
+    const leaves = [];
+    for (let k = 0; k < 5; k++) { dir += (rnd() - 0.5) * 1.2; x += Math.cos(dir) * 5; y += Math.sin(dir) * 5; ctx.lineTo(x, y); leaves.push([x, y]); }
+    ctx.stroke();
+    for (const [lx, ly] of leaves) { ctx.fillStyle = rnd() < 0.5 ? '#3f7a2c' : '#2c5e20'; ctx.beginPath(); ctx.arc(lx + (rnd() - 0.5) * 4, ly + (rnd() - 0.5) * 4, 2.2 + rnd() * 1.6, 0, Math.PI * 2); ctx.fill(); }
+  }
+}
+
 function drawBarracks(e) {
   if (!e.built) return drawConstruction(e);
   const c = TEAMS[e.team], h = e.size / 2, x0 = e.x - h, y0 = e.y - h;
@@ -3676,7 +3732,7 @@ function drawGate(e) {
 // and on top a pedestal carrying a wide dish that sweeps slowly round
 function drawRadar(e) {
   if (!e.built) return drawConstruction(e);
-  const c = TEAMS[e.team], R = e.size / 2, t = performance.now() / 1000, x = e.x, y = e.y;
+  const c = TEAMS[e.team], R = e.size / 2, t = animT(e), x = e.x, y = e.y;
   // round pad with a darker kerb and spokes in the concrete
   ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.arc(x + 4, y + 5, R + 3, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#7d786c'; ctx.beginPath(); ctx.arc(x, y, R + 3, 0, Math.PI * 2); ctx.fill();
@@ -3747,7 +3803,7 @@ function drawMedbay(e) {
 
 function drawPower(e) {
   if (!e.built) return drawConstruction(e);
-  const c = TEAMS[e.team], h = e.size / 2, x0 = e.x - h, y0 = e.y - h, t = performance.now() / 1000;
+  const c = TEAMS[e.team], h = e.size / 2, x0 = e.x - h, y0 = e.y - h, t = animT(e);
   // concrete pad with panel lines
   ctx.fillStyle = '#8f8a7e'; ctx.fillRect(x0 - 3, y0 - 3, e.size + 6, e.size + 6);
   ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth = 1;
