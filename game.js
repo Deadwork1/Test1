@@ -40,11 +40,10 @@ const MAPS = {
       [[[-40, 1650], [200, 1640], [450, 1590], [720, 1630]], 32],   // wall north of your base, right to the map edge (gap only at the east end)
       [[[980, 1580], [1050, 1800], [1010, 2020]], 32],   // wall east of your base (gap at the bottom)
       [[[1350, 600], [1420, 900]], 30],                  // ridge near the river
-      [[[620, 1150], [760, 1300]], 28],                  // rocks by the north expansion
       [[[1650, 1722], [1798, 1700]], 30],                // ridge across the road from the bridge plateau (the pinch onto your bridge)
       [[[1339, 385], [1504, 235]], 28],                  // rocks by the top bridge
     ],
-    forests: [[1010, 875, 410, 270, 0.25], [470, 820, 430, 175, -0.08], [200, 600, 130], [1150, 330, 120]],   // the big jungle sits on the routes between the bases, an old ruined base in its middle
+    forests: [[1010, 875, 410, 270, 0.25], [470, 820, 430, 175, -0.08], [440, 560, 330, 230, 0], [700, 1110, 190, 150, 0.3], [200, 600, 130], [1150, 330, 120]],   // the big jungle sits on the routes between the bases, an old ruined base in its middle
     plateaus: [
       { x: 1480, y: 1357, rx: 200, ry: 135, tilt: 0.94, ramps: [2.51], overhang: true },   // lookout over the island, by its west bridge: juts out over the river
       { x: 1082, y: 1268, rx: 160, ry: 110, tilt: -0.6, ramps: [2.3] },   // beside the road to the island's west bridge: with the lookout it pinches the road
@@ -55,7 +54,7 @@ const MAPS = {
     // a neutral village by your river bridge (its mirror sits by the computer's), guarded by the bridge plateau
     villages: [{ x: 1480, y: 1795, derrick: [0, 0], houses: [[-100, 62], [96, 58], [-84, -82]], out: [40, -230] }],
     // an old ruined base in a clearing in the middle of the big jungle on your side (its mirror is on the computer's)
-    ruins: [{ x: 1030, y: 880, clearing: [118, 100], buildings: [['barracks', -44, -24], ['power', 50, -28], ['radar', 4, 50]] }],
+    ruins: [{ x: 430, y: 640, clearing: [118, 100], buildings: [['barracks', -44, -24], ['power', 50, -28], ['radar', 4, 50]] }],
   },
   huge: {   // the base corner is laid out like Large's; the extra room is all in the ground between the bases
     label: 'Huge', W: 4800, H: 3000, start: { x: 400, y: 2600 },
@@ -72,11 +71,9 @@ const MAPS = {
       [[[-40, 2300], [300, 2290], [550, 2240], [820, 2280]], 32],   // wall north of your base, right to the map edge (gap only at the east end)
       [[[1080, 2230], [1150, 2450], [1110, 2720]], 32],   // wall east of your base (gap at the bottom)
       [[[2612, 610], [2415, 640]], 30],                   // ridge across the road from the bridge plateau (the pinch onto the bridge), across the river from your side
-      [[[780, 1520], [940, 1700]], 28],                   // rocks by the north expansion
-      [[[600, 700], [640, 1000]], 28],                    // rocks shielding the far corner
       [[[3002, 2500], [2782, 2700]], 30],                 // rocks by the south bridge, on the far side of the river (mirrored: by the north bridge on your side)
     ],
-    forests: [[1320, 1180, 540, 345, 0.25], [560, 1160, 520, 210, -0.08], [270, 820, 160], [1530, 420, 160], [980, 1950, 130], [1700, 1500, 110]],   // the big jungle sits on the routes between the bases, an old ruined base in its middle
+    forests: [[1320, 1180, 540, 345, 0.25], [560, 1160, 520, 210, -0.08], [600, 860, 420, 270, 0], [840, 1460, 240, 180, 0.3], [270, 820, 160], [1530, 420, 160], [980, 1950, 130], [1700, 1500, 110]],   // the big jungle sits on the routes between the bases, an old ruined base in its middle
     plateaus: [
       { x: 1979, y: 1806, rx: 250, ry: 165, tilt: 0.94, ramps: [2.51], overhang: true },   // lookout over the island, close to its west bridge: juts out over the river   // lookout over the island: juts out over the river
       { x: 1450, y: 1690, rx: 190, ry: 130, tilt: -0.6, ramps: [2.3] },   // beside the main road to the island's west bridge: with the river lookout it squeezes the road into a pinch about 150 wide
@@ -86,7 +83,7 @@ const MAPS = {
     bridges: [{ y: 480, hw: 74 }],   // one crossing above the island (and its mirror below), plus the two island bridges
     // neutral villages: an Oil Derrick and a few houses, each on the far side of a river bridge from one base.
     villages: [{ x: 2747, y: 560, derrick: [0, 0], houses: [[100, -62], [-96, -58], [84, 82]], out: [-40, 230] }],   // on the far side of the top bridge (its mirror is on your side of the bottom bridge)
-    ruins: [{ x: 1340, y: 1180, clearing: [118, 100], buildings: [['barracks', -44, -24], ['power', 50, -28], ['radar', 4, 50]] }],   // old ruined base in the middle of the big jungle
+    ruins: [{ x: 470, y: 900, clearing: [118, 100], buildings: [['barracks', -44, -24], ['power', 50, -28], ['radar', 4, 50]] }],   // old ruined base in the middle of the big jungle
   },
 };
 let mapChoice = 'large';
