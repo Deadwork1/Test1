@@ -360,6 +360,18 @@ function rebuildBuildingGrid() {
       }
     }
   }
+  // a gate's end tiles sit right against the wall (or rock) beside them, too tight for a vehicle's body: vehicles plan
+  // their route through the middle of the gate, which leaves room for two to pass each other
+  for (const b of game.ents) {
+    if (b.type !== 'gate') continue;
+    const tiles = wallTiles(b);
+    for (const [c, r] of [tiles[0], tiles[tiles.length - 1]]) {
+      if (!tiles.length || c < 0 || r < 0 || c >= TCOLS || r >= TROWS) continue;
+      const [dc, dr] = b.vertical ? [0, r === tiles[0][1] ? -1 : 1] : [c === tiles[0][0] ? -1 : 1, 0];   // the neighbour beyond this end
+      const nc = c + dc, nr = r + dr, out = nc < 0 || nr < 0 || nc >= TCOLS || nr >= TROWS;
+      if (out || wallKind[nr * TCOLS + nc] === 1 || !walkable(terrain[nr * TCOLS + nc], true)) bldGridV[r * TCOLS + c] = 1;
+    }
+  }
   bldDirty = false;
   for (const e of game.ents) e.nav = null;   // routes may have changed
 }
@@ -909,9 +921,12 @@ function moveToward(e, tx, ty, dt) {
         if (e.swerve && e.swerve.id === block.id && e.swerve.until > game.time) side = e.swerve.side;
         e.swerve = { id: block.id, side, until: game.time + 1.5 };
         const k = 1.1 * (1 - bp / (e.r * 2 + 14)) + 0.35;
-        const sx = ux + -uy * side * k, sy = uy + ux * side * k, sl = Math.hypot(sx, sy);
-        const nx = e.x + sx / sl * step, ny = e.y + sy / sl * step;
-        if (walkable(terrainAt(nx, ny), isVehicle(e)) && !wallBlocks(nx, ny, e.team) && !game.ents.some(b => isSolid(b) && edgeDist(nx, ny, b) < e.r)) { ux = sx / sl; uy = sy / sl; }
+        // room to swerve? (your own gate is open, so it doesn't count as in the way; if one side is walled off, try the other)
+        const roomAt = (x, y) => walkable(terrainAt(x, y), isVehicle(e)) && !wallBlocks(x, y, e.team) && !bldList.some(b => b.hp > 0 && !(b.type === 'gate' && b.team === e.team) && edgeDist(x, y, b) < e.r);
+        for (const sd of [side, -side]) {
+          const sx = ux + -uy * sd * k, sy = uy + ux * sd * k, sl = Math.hypot(sx, sy);
+          if (roomAt(e.x + sx / sl * step * 3, e.y + sy / sl * step * 3)) { ux = sx / sl; uy = sy / sl; e.swerve.side = sd; break; }
+        }
       }
     }
   }

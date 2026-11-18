@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.42.1', date: '18 Nov 2026', title: 'Clear the gate',
+    changes: [
+      'Fixed Extractors getting stuck at your gate and not getting back into the base. They drove through the gate\'s outer edge, too close to the wall, and two meeting head-on never made way for each other.',
+      'Vehicles now drive through the middle of a gate, and units passing each other in a gateway can swerve round each other again.',
+    ],
+  },
+  {
     version: '5.42', date: '18 Nov 2026', title: 'A sharper Normal',
     changes: [
       'Normal is a little tougher. The computer earns more from each ore load (94% instead of 85%), runs up to 6 Extractors (was 4) and builds 8% slower than Hard instead of 18%.',
