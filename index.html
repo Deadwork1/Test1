@@ -30,6 +30,8 @@
     padding: 7px 10px; font-weight: 600; font-size: 14px; }
   #credits { color: #ffd86b; font-variant-numeric: tabular-nums; min-width: 70px; text-align: center; }
   /* money sits on its own just above the bottom bar, so it stays put while the bar slides */
+  #sellBox { position: fixed; right: max(8px, env(safe-area-inset-right)); top: 50%; transform: translateY(-50%); pointer-events: none; z-index: 5; }
+  #sellBox button { pointer-events: auto; box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
   #money { position: fixed; left: max(8px, env(safe-area-inset-left)); bottom: calc(58px + env(safe-area-inset-bottom)); pointer-events: none; }
   #info { font-weight: 500; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
   .spacer { flex: 1 1 auto !important; pointer-events: none; }
@@ -91,10 +93,11 @@
 </div>
 
 <div id="money"><span id="credits" class="chip">$0</span></div>
+<!-- Sell sits on its own on the right, well away from the build buttons, so carrying on clicking after you build can't hit it -->
+<div id="sellBox"><button id="btnSell" class="ghost">Sell</button></div>
 
 <div id="panel" class="bar">
   <span id="info" class="chip">Tap your settler to begin</span>
-  <button id="btnSell" class="ghost">Sell</button>
   <button id="btnDeploy">Deploy HQ</button>
   <button id="btnBarracks">Barracks $300</button>
   <button id="btnRefinery">Refinery $400</button>
