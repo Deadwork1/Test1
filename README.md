@@ -13,7 +13,7 @@ A small real-time strategy game inspired by classic 90s RTS games, built step by
 - The first time a village's Derrick is captured, two **Civilians** (handguns, weaker than Soldiers, can't be trained) come out of each house and join that side.
 - **Sell** any of your buildings (except the HQ) for half its price: select it, tap Sell, tap again to confirm.
 - A **game clock** at the top shows how long the game has run.
-- On the Huge map, two neutral **villages** each hold an **Oil Derrick**: one on each side's half of the river, the other across a bridge guarded by a plateau. Capture one with an Engineer and it pays $100 every 15 seconds. Neutral Derricks can't be damaged; an owned one knocked down to nothing goes back to neutral. The computer goes for them too (Normal and Hard).
+- On the Large and Huge maps, two neutral **villages** each hold an **Oil Derrick**: one on each side's half of the river, the other across a bridge guarded by a plateau. Capture one with an Engineer and it pays $100 every 15 seconds. Neutral Derricks can't be damaged; an owned one knocked down to nothing goes back to neutral. The computer goes for them too (Normal and Hard).
 
 ## Terrain
 - **Rocks & cliffs** block everything. Each base has a cliff wall with a gap.

@@ -1,6 +1,6 @@
-# Oil Derrick checks on the Huge map: neutral can't be hurt, an engineer captures it, it pays $100 every 15s,
+# Oil Derrick checks on the Huge or Large map: neutral can't be hurt, an engineer captures it, it pays $100 every 15s,
 # knocking it out returns it to neutral, the win check ignores it, and the computer goes and takes one.
-# Usage: python3 tests/test_derrick.py <game folder> <port>
+# Usage: python3 tests/test_derrick.py <game folder> <port> [map: huge (default) or large]
 import sys, http.server, threading, functools, json
 from playwright.sync_api import sync_playwright
 class Q(http.server.SimpleHTTPRequestHandler):
@@ -10,7 +10,7 @@ threading.Thread(target=srv.serve_forever, daemon=True).start()
 with sync_playwright() as p:
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--no-sandbox'])
     pg = b.new_page(viewport={'width': 400, 'height': 300}); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)))
-    pg.goto(f'http://127.0.0.1:{sys.argv[2]}/index.html'); pg.evaluate("localStorage.setItem('mini-rts-map','huge'); localStorage.setItem('mini-rts-difficulty','normal')")
+    pg.goto(f'http://127.0.0.1:{sys.argv[2]}/index.html'); pg.evaluate("localStorage.setItem('mini-rts-map','"+(sys.argv[3] if len(sys.argv)>3 else 'huge')+"'); localStorage.setItem('mini-rts-difficulty','normal')")
     pg.goto(f'http://127.0.0.1:{sys.argv[2]}/index.html'); pg.wait_for_timeout(2500); pg.click('#ovBtn')
     r = pg.evaluate("""(()=>{ const out={}; const step=(s)=>{ for(let i=0;i<s*20;i++) update(0.05); };
       const realAI = runAI; runAI=()=>{}; game.paused=false;

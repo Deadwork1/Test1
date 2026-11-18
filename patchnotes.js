@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.36', date: '18 Nov 2026', title: 'Villages on the Large map',
+    changes: [
+      'The Large map now has a village with an Oil Derrick on each side, by the outer river bridge, just below the plateau that guards the crossing (they replace the small woods that stood there). Capture one with an Engineer for $100 every 15 seconds, and the villagers join you.',
+      'The other side\'s village is across its bridge, so taking it means a push over the river. The computer goes for them too.',
+    ],
+  },
+  {
     version: '5.35.1', date: '18 Nov 2026', title: 'Exit Game',
     changes: ['The pause menu\'s Back to Menu button is now called Exit Game (still tap it twice).'],
   },

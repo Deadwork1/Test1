@@ -43,10 +43,12 @@ const MAPS = {
       [[[1350, 600], [1420, 900]], 30],                  // ridge near the river
       [[[620, 1150], [760, 1300]], 28],                  // rocks by the north expansion
     ],
-    forests: [[1100, 950, 270, 200, 0.35], [200, 600, 130], [1500, 1900, 120], [1150, 330, 120]],   // the big jungle sits on the routes between the bases
+    forests: [[1100, 950, 270, 200, 0.35], [200, 600, 130], [1150, 330, 120]],   // the big jungle sits on the routes between the bases
     plateaus: [{ x: 1420, y: 1660, rx: 210, ry: 140, tilt: -0.25, ramps: [3.4, 0.2] }, { x: 560, y: 380, rx: 170, ry: 120, tilt: 0.3, ramps: [1.7] }],
     river: { amp: 90, period: 320, half: 40 },
     bridges: [{ y: 300, hw: 70 }, { y: 620, hw: 70 }],
+    // a neutral village by the outer bridge on your side (its mirror sits by the computer's), below the plateau that guards the crossing
+    villages: [{ x: 1530, y: 2060, derrick: [0, 0], houses: [[-100, -62], [-96, 58], [100, 70]], out: [210, -110] }],
   },
   huge: {   // the base corner is laid out like Large's; the extra room is all in the ground between the bases
     label: 'Huge', W: 4800, H: 3000, start: { x: 400, y: 2600 },
@@ -77,7 +79,7 @@ const MAPS = {
     river: { amp: 110, period: 420, half: 44 },
     bridges: [{ y: 480, hw: 74 }],   // one crossing above the island (and its mirror below), plus the two island bridges
     // neutral villages: an Oil Derrick and a few houses, each on the far side of a river bridge from one base.
-    villages: [{ x: 2747, y: 560, derrick: [0, 0], houses: [[100, -62], [-96, -58], [84, 82]] }],   // on the far side of the top bridge (its mirror is on your side of the bottom bridge)
+    villages: [{ x: 2747, y: 560, derrick: [0, 0], houses: [[100, -62], [-96, -58], [84, 82]], out: [-40, 230] }],   // on the far side of the top bridge (its mirror is on your side of the bottom bridge)
   },
 };
 let mapChoice = 'large';
@@ -743,7 +745,8 @@ const bg = document.createElement('canvas');
     };
     b.fillStyle = 'rgba(120,102,68,0.45)'; b.beginPath(); b.ellipse(dx0, dy0 + 6, 70, 56, 0, 0, Math.PI * 2); b.fill();   // trodden square
     for (const [hx, hy] of v.houses) track(vx + hx * k, vy + hy * k + 18 * k, dx0, dy0, 10);
-    track(dx0, dy0, dx0 - 40 * k, dy0 + 230 * k, 12);
+    const [ox, oy] = v.out || [0, 230];   // the track leading out of the village
+    track(dx0, dy0, dx0 + ox * k, dy0 + oy * k, 12);
   }
   b.strokeStyle = 'rgba(0,0,0,0.5)'; b.lineWidth = 6; b.strokeRect(3, 3, W - 6, H - 6);
   for (const m of allMasks) free(m);
@@ -3993,7 +3996,7 @@ for (const b of document.querySelectorAll('#mapRow button')) {
 }
 $('mapInfo').textContent = {
   classic: 'Classic: the original smaller map. Quicker games.',
-  large: 'Large: room to expand, extra ore fields on each side. Longer games.',
+  large: 'Large: room to expand, extra ore fields and a village with an Oil Derrick on each side. Longer games.',
   huge: 'Huge: lots of open ground between the bases, more ore fields and high ground. The longest games.',
 }[mapChoice];
 
