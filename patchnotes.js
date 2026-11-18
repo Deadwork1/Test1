@@ -2,6 +2,17 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.46', date: '18 Nov 2026', title: 'Cheaper Engineers, steadier enemy',
+    changes: [
+      'Engineers now cost $100 (was $125). Turrets still cost $125 to build.',
+      'The computer is less wasteful with Engineers: it keeps at most 2 / 3 / 4 at once (Easy / Normal / Hard), waits longer between capture attempts, leaves a target alone for 3 minutes after losing an Engineer to it, and sends one repairer to a broken ruin instead of two.',
+      'It builds fewer Turrets: 1 / 1 / 2 at a time and 2 / 3 / 4 in a whole game, and waits 3 minutes before replacing one it lost. It digs them in at an entrance, at the pinch between its river lookout and road plateau, or by one of its Oil Derricks, each about equally likely.',
+      'The computer only fights over the ruined base on its own half and leaves yours alone. After losing an Oil Derrick it waits a minute before going back for it.',
+      'Fixed: tanks and other units gave up attacking a building they couldn\'t drive right up to (for example one boxed in by other buildings). They now shoot it from the nearest spot they can reach in range. This caused some never-ending games on Classic.',
+      'Fixed: the computer\'s Extractors could get stuck exploring a tight pocket of rock at the edge of the map.',
+    ],
+  },
+  {
     version: '5.45.3', date: '18 Nov 2026', title: 'Sell moves out of the way',
     changes: [
       'The Sell button has moved out of the bottom bar to its own spot on the right-hand side of the screen, well away from the build buttons, so carrying on clicking after you place a building can\'t land on it.',

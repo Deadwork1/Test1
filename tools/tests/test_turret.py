@@ -1,4 +1,4 @@
-# Turrets: an Engineer builds an empty one ($125, the Engineer is used up); empty it holds fire; infantry climb in to man it and it fires;
+# Turrets: an Engineer builds an empty one ($125, the Engineer is used up; Engineers cost $100 since v5.46); empty it holds fire; infantry climb in to man it and it fires;
 # Unload lets the gunner out; an enemy can take over an empty Turret; a destroyed manned Turret counts its gunner as lost; no selling or capture.
 # Usage: python3 test_turret.py <game folder> <port> [maps, default large]
 import sys, http.server, threading, functools, json
