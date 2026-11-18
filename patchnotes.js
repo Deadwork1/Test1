@@ -2,6 +2,12 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.25', date: '18 Nov 2026', title: 'Fewer bridges',
+    changes: [
+      'Huge map: one river bridge removed above the island and one below (the ones nearest the map edges). Each half of the river now has a single crossing, plus the two bridges onto the island.',
+    ],
+  },
+  {
     version: '5.24', date: '18 Nov 2026', title: 'Rich island, two ways in',
     changes: [
       'Huge map: much more gold on the middle island: 40 patches instead of 22. A band still runs along the shore by the river lookouts, and the rest is spread across the whole island. Still mirrored, so both sides get exactly the same.',
