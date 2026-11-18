@@ -2,6 +2,10 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.35.1', date: '18 Nov 2026', title: 'Exit Game',
+    changes: ['The pause menu\'s Back to Menu button is now called Exit Game (still tap it twice).'],
+  },
+  {
     version: '5.35', date: '18 Nov 2026', title: 'Villages across the river',
     changes: [
       'Huge map: each village, with its Oil Derrick, has moved across the river, along with the plateau and rocks that guard its bridge. Each side now has a village on its own side of the river, and the other one sits beyond a bridge watched from high ground.',

@@ -3954,7 +3954,7 @@ function setPaused(on) {
   ui.pause.textContent = on ? '▶' : '❚❚';
   pm.menu.style.display = on ? 'flex' : 'none';
   restartArmed = false; pm.restart.textContent = 'Restart'; pm.restart.classList.remove('danger');
-  menuArmed = false; pm.toMenu.textContent = 'Back to Menu'; pm.toMenu.classList.remove('danger');
+  menuArmed = false; pm.toMenu.textContent = 'Exit Game'; pm.toMenu.classList.remove('danger');
 }
 ui.pause.addEventListener('click', () => { if (!game.over) setPaused(!game.paused); });
 pm.resume.addEventListener('click', () => setPaused(false));
@@ -3967,7 +3967,7 @@ pm.restart.addEventListener('click', () => {
 });
 pm.toMenu.addEventListener('click', () => {
   if (!menuArmed) {   // ask once more: leaving ends this game
-    menuArmed = true; pm.toMenu.textContent = 'Tap again to leave this game'; pm.toMenu.classList.add('danger');
+    menuArmed = true; pm.toMenu.textContent = 'Tap again to exit'; pm.toMenu.classList.add('danger');
     return;
   }
   setPaused(false); showMenu();
@@ -4173,7 +4173,7 @@ function frame(now) {
 
 window.addEventListener('resize', resize);
 resize();
-// the start screen: a fresh game waits behind it (also where the pause menu's Back to Menu goes)
+// the start screen: a fresh game waits behind it (also where the pause menu's Exit Game goes)
 function showMenu() {
   newGame();
   game.paused = true;

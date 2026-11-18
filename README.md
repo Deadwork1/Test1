@@ -26,7 +26,7 @@ A small real-time strategy game inspired by classic 90s RTS games, built step by
 
 ## Controls (touch or mouse)
 - Drag to scroll, pinch (or mouse wheel) to zoom, tap the minimap to jump.
-- Your money is shown just above the bottom bar. The pause menu has Resume, Restart, **Back to Menu** (both tap twice) and the patch notes.
+- Your money is shown just above the bottom bar. The pause menu has Resume, Restart, **Exit Game** (both tap twice) and the patch notes.
 - Tap a unit or building to select it. **Box select**, then drag, to select several units.
 - Tap ground to move (groups move in formation), an enemy to attack, ore to harvest (extractors). With engineers selected, tap your damaged building to repair it or an enemy building or Oil Derrick to capture it.
 

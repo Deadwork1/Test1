@@ -1,4 +1,4 @@
-# Pause menu: Back to Menu takes two taps, returns to the start screen with a fresh game, and Start plays again.
+# Pause menu: Exit Game takes two taps, returns to the start screen with a fresh game, and Start plays again.
 # Usage: python3 tests/test_back_to_menu.py <game folder> <port> [picture.png]
 import sys, http.server, threading, functools, json
 from playwright.sync_api import sync_playwright
