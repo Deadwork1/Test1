@@ -20,12 +20,12 @@ const MAPS = {
     ridges: [
       [[[110, 900], [300, 860], [470, 885]], 30],      // wall north of your base
       [[[880, 1050], [935, 1210], [905, 1385]], 30],   // wall east of your base (gap at the bottom)
-      [[[620, 610], [770, 700]], 28],                  // outcrop by the flank field
     ],
-    forests: [[520, 560, 240, 135, -0.15], [1010, 1270, 85], [800, 230, 90]],   // [x, y, r] or a jungle [x, y, rx, ry, tilt]
+    forests: [[505, 635, 255, 160, -0.15], [1010, 1270, 85], [800, 230, 90]],   // [x, y, r] or a jungle [x, y, rx, ry, tilt]; the jungle hides a small ruined base
     plateaus: [{ x: 930, y: 470, rx: 175, ry: 130, tilt: 0.2, ramps: [3.0, 1.5] }],   // high ground: cliff all round except the ramps
     river: { amp: 70, period: 230, half: 36 },
     bridges: [{ y: 230, hw: 62 }],                     // river bridges on your half (mirrored for theirs)
+    ruins: [{ x: 495, y: 630, clearing: [80, 72], buildings: [['power', 0, 0]] }],   // the small map's ruined base: just a Power Plant
   },
   large: {   // laid out like the Huge map, scaled down: base cliff to the map edge, one bridge per river arm, three plateaus a side
     label: 'Large', W: 3600, H: 2250, start: { x: 300, y: 1950 },
