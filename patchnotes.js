@@ -2,6 +2,16 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.45', date: '18 Nov 2026', title: 'Dig in',
+    changes: [
+      'New: Engineers can dig in. Select one and tap "Dig in: Turret" and he builds a Turret where he stands (25, 3 seconds). He mans it from then on: he leaves your army, and if the Turret is destroyed, he goes with it.',
+      'Turret: a machine gun behind sandbags. 300 health, range 140 (more on high ground), 10 damage a second, half damage to tanks like rifles. Needs open grass clear of buildings and ore. It can\'t be sold or captured, and you can\'t build around it.',
+      'Engineers now cost $125 (was $75).',
+      'The computer digs in Turrets too: just inside its entrances, then by its Oil Derricks. Up to 1 / 2 / 3 on Easy / Normal / Hard, from 5 minutes in.',
+      'Fixed: a captured ruined base let you build out past the jungle. Its build area now only covers its own clearing.',
+    ],
+  },
+  {
     version: '5.44', date: '18 Nov 2026', title: 'Taken by nature',
     changes: [
       'New: old ruined bases. Each side has one, hidden in a clearing deep in a big jungle in the north-west (the computer\'s is the mirror). On Large and Huge it is a ruined Barracks, Power Plant and Radar; on Classic a Barracks and a Radar.',

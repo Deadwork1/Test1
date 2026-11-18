@@ -105,7 +105,7 @@ const INCOME = 1;                     // small trickle per second so nobody gets
 const BUILD_RADIUS = 300;             // how far from your HQ you can place buildings
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
 
-const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250, grenadier: 160, engineer: 75, rocket: 200, sniper: 200, light: 400, heavy: 700, artillery: 450, tech: 600, radar: 300, medbay: 400 };
+const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250, grenadier: 160, engineer: 125, turret: 125, rocket: 200, sniper: 200, light: 400, heavy: 700, artillery: 450, tech: 600, radar: 300, medbay: 400 };
 const WALL_REACH = 150;              // walls, gates and guard towers can go this much further out than other buildings
 
 const STATS = {
@@ -131,6 +131,7 @@ const STATS = {
   tech:      { hp: 600, size: 70, sight: 180, buildTime: 16 },
   power:     { hp: 400, size: 60, sight: 160, buildTime: 10 },
   tower:     { hp: 700, size: 46, sight: 230, buildTime: 12, range: 170, dmg: 14, cooldown: 0.9 },
+  turret:    { hp: 300, size: 30, sight: 170, buildTime: 3, range: 140, dmg: 5, cooldown: 0.5 },   // an Engineer dug in behind a machine gun (he's inside it: if it falls, so does he)
   radar:     { hp: 400, size: 64, sight: 750, buildTime: 14, radar: true },
   medbay:    { hp: 500, size: 84, sight: 180, buildTime: 10, walkOn: true, heal: 8, healVehicle: 15, slots: 5 },   // round pad units stand on to heal: up to 5 infantry or 1 vehicle at a time   // sweeps a huge circle: sees over rocks and up onto plateaus (not into forests)
   wall:      { hp: 400, size: 25, sight: 50 },
@@ -159,13 +160,13 @@ const SHORT = { buggy: 'Buggy', rocket: 'Rocket', sniper: 'Sniper', light: 'Ligh
 const DIFFICULTY = {
   easy:   { label: 'Easy',   think: 2.5, slow: 1.5,  income: 0.7,  attackAt: 5, attackAfter: 300, barracks: 1, maxArmy: 11, towers: 0, buggies: false, plants: 0,
             guard: 1, maxWave: 6, extractors: 2, refineries: 1, walls: false, grenadiers: false, engineers: 0, rockets: false, snipers: 0, factory: false, tanks: 0, heavyTanks: false, artillery: 0, raidEvery: 0, waveEvery: 240, minWave: 3, focus: 'nearest',
-            derricks: true, derrickAfter: 480, ruinAfter: 540, escort: 2, garrison: 1, hill: 0, hillSize: 0, hillAfter: 0 },
+            derricks: true, derrickAfter: 480, ruinAfter: 540, turrets: 1, escort: 2, garrison: 1, hill: 0, hillSize: 0, hillAfter: 0 },
   normal: { label: 'Normal', think: 1.5, slow: 1.08, income: 0.94, attackAt: 7, attackAfter: 180, barracks: 1, maxArmy: 26, towers: 2, buggies: true, plants: 1,
             guard: 3, maxWave: 16, extractors: 6, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 1, factory: true, tanks: 0.25, heavyTanks: false, artillery: 1, raidEvery: 480, hqGuard: 2, waveEvery: 180, minWave: 4, focus: 'economy',
-            derricks: true, derrickAfter: 360, ruinAfter: 420, escort: 3, garrison: 2, hill: 1, hillSize: 3, hillAfter: 420 },
+            derricks: true, derrickAfter: 360, ruinAfter: 420, turrets: 2, escort: 3, garrison: 2, hill: 1, hillSize: 3, hillAfter: 420 },
   hard:   { label: 'Hard',   think: 1,   slow: 1,    income: 1,    attackAt: 6, attackAfter: 0,   barracks: 2, maxArmy: Infinity, towers: 3, buggies: true, plants: 2,
             guard: 4, maxWave: 30, extractors: 8, refineries: 3, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true, artillery: 2, raidEvery: 360, hqGuard: 3, earlyRefinery: true, expandAt: 1500, waveEvery: 120, minWave: 5, focus: 'defences',
-            derricks: true, derrickAfter: 300, ruinAfter: 360, escort: 3, garrison: 3, hill: 2, hillSize: 3, hillAfter: 360 },
+            derricks: true, derrickAfter: 300, ruinAfter: 360, turrets: 3, escort: 3, garrison: 3, hill: 2, hillSize: 3, hillAfter: 360 },
 };
 let difficulty = 'normal';
 try { if (DIFFICULTY[localStorage.getItem('mini-rts-difficulty')]) difficulty = localStorage.getItem('mini-rts-difficulty'); } catch (err) {}
@@ -175,7 +176,7 @@ const POWER_BONUS = 0.25, POWER_MAX = 2;
 const powerBoost = team => Math.min(POWER_MAX, 1 + POWER_BONUS * game.ents.filter(b => b.team === team && b.type === 'power' && b.built && ruinWorks(b)).length);
 // how many times longer than normal this side takes to build things (difficulty slow-down ÷ power boost)
 const slowOf = e => (e.team === 1 ? diff().slow : 1) / powerBoost(e.team);
-const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', rocket: 'Rocket Soldier', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', tower: 'Guard Tower', power: 'Power Plant', radar: 'Radar', medbay: 'Medbay', wall: 'Wall', gate: 'Gate', derrick: 'Oil Derrick', house: 'House', civilian: 'Civilian' };
+const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', rocket: 'Rocket Soldier', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', tower: 'Guard Tower', turret: 'Turret', power: 'Power Plant', radar: 'Radar', medbay: 'Medbay', wall: 'Wall', gate: 'Gate', derrick: 'Oil Derrick', house: 'House', civilian: 'Civilian' };
 
 const TEAMS = [
   { name: 'You',   color: '#3b82f6', dark: '#1d3f8f', light: '#93c5fd' },
@@ -185,7 +186,7 @@ const TEAMS = [
 const NEUTRAL = 2;
 // Old ruined bases (Large and Huge maps): neutral, battered buildings an Engineer can capture. They start at RUIN_HP
 // of full health and don't work until repaired to RUIN_WORKS of full health.
-const RUIN_HP = 0.2, RUIN_WORKS = 0.5, RUIN_SIGHT = 160, RUIN_REPAIR = 1 / 3;   // RUIN_REPAIR: Engineers fix ruins at a third of the usual speed   // (a broken Radar only sees as far as an ordinary building)
+const RUIN_HP = 0.2, RUIN_WORKS = 0.5, RUIN_SIGHT = 160, RUIN_REPAIR = 1 / 3, RUIN_BUILD = 60;   // RUIN_REPAIR: Engineers fix ruins at a third of the usual speed   // (a broken Radar only sees as far as an ordinary building)
 const ruinWorks = e => !e.ruin || (e.team !== NEUTRAL && e.hp >= e.maxHp * RUIN_WORKS);
 const animT = e => ruinWorks(e) ? performance.now() / 1000 : 0;   // a ruin that isn't working stands still: no spinning dish, no glow
 const isNeutralType = t => t === 'derrick' || t === 'house';
@@ -910,7 +911,7 @@ function spawn(type, team, x, y) {
   return e;
 }
 
-function isBuildingType(t) { return t === 'derrick' || t === 'house' || t === 'hq' || t === 'barracks' || t === 'refinery' || t === 'factory' || t === 'tech' || t === 'power' || t === 'tower' || t === 'radar' || t === 'medbay' || t === 'wall' || t === 'gate'; }
+function isBuildingType(t) { return t === 'derrick' || t === 'house' || t === 'hq' || t === 'barracks' || t === 'refinery' || t === 'factory' || t === 'tech' || t === 'power' || t === 'tower' || t === 'turret' || t === 'radar' || t === 'medbay' || t === 'wall' || t === 'gate'; }
 const isWallType = t => t === 'wall' || t === 'gate';
 const GATE_HALF = TC * 1.5;   // a gate is 3 tiles long
 const gateHalf = vertical => vertical ? { hx: TC / 2, hy: GATE_HALF } : { hx: GATE_HALF, hy: TC / 2 };
@@ -1134,8 +1135,8 @@ function deploy(settler) {
 // Your build area: a circle round the HQ plus one round every other finished building (walls and gates don't count),
 // so it grows as your base spreads out.
 function buildAreaSources(team) {
-  return game.ents.filter(b => b.team === team && isBuilding(b) && b.built && !isWallType(b.type) && !isNeutralType(b.type))
-    .map(b => ({ x: b.x, y: b.y, r: b.size / 2 + (b.type === 'hq' ? BUILD_RADIUS : BUILD_RADIUS_OTHER), b }));
+  return game.ents.filter(b => b.team === team && isBuilding(b) && b.built && !isWallType(b.type) && !isNeutralType(b.type) && b.type !== 'turret')
+    .map(b => ({ x: b.x, y: b.y, r: b.size / 2 + (b.type === 'hq' ? BUILD_RADIUS : b.ruin ? RUIN_BUILD : BUILD_RADIUS_OTHER), b }));   // (a captured ruin only reaches across its own clearing)
 }
 function inBuildArea(team, x, y, extra = 0) {
   if (!hqOf(team)) return false;   // the HQ does the building
@@ -1451,7 +1452,7 @@ function update(dt) {
     else if (isCombat(e)) updateSoldier(e, dt);
     else if (e.type === 'engineer') updateEngineer(e, dt);
     else if (e.type === 'extractor') updateExtractor(e, dt);
-    else if (e.type === 'tower') updateTower(e, dt);
+    else if (e.type === 'tower' || e.type === 'turret') updateTower(e, dt);
     else if (e.type === 'derrick') updateDerrick(e, dt);
     else if (isBuilding(e)) updateBuilding(e, dt);
   }
@@ -1565,7 +1566,7 @@ function findEnemyNear(e, radius) {
 
 // Armour: rifles (soldiers, buggy machine gun, guard towers) only do half damage to tanks;
 // tank shells do half damage to infantry (but splash a little onto anyone standing next to the target). Rockets, grenades and snipers have their own rules.
-const RIFLES = { soldier: 1, buggy: 1, tower: 1, civilian: 1 };   // (handguns count as rifles: half damage to tanks)
+const RIFLES = { soldier: 1, buggy: 1, tower: 1, turret: 1, civilian: 1 };   // (handguns count as rifles: half damage to tanks)
 const armour = (attacker, t) => (isTank(t) && RIFLES[attacker] ? 0.5 : 1) * ((attacker === 'light' || attacker === 'heavy') && isInfantry(t) ? 0.5 : 1);
 // tanks run over enemy infantry they drive into
 function crush(e) {
@@ -1591,7 +1592,7 @@ function findSiegeTarget(e, radius) {
     if (!visibleAt(o.x, o.y, e.team)) continue;
     const d = edgeDist(e.x, e.y, o);
     if (d > radius || (isUnit(o) && d < min)) continue;
-    const score = d + (o.type === 'tower' ? 0 : isBuilding(o) ? 300 : 600);
+    const score = d + (o.type === 'tower' || o.type === 'turret' ? 0 : isBuilding(o) ? 300 : 600);
     if (score < bestScore) { bestScore = score; best = o; }
   }
   return best;
@@ -1720,7 +1721,7 @@ function updateSoldier(e, dt) {   // soldiers and buggies
 }
 
 // Engineers: walk to a building, then either repair it (yours) or capture it (theirs). They're very fragile, so escort them.
-const canCapture = b => isBuilding(b) && !isWallType(b.type) && b.type !== 'tower' && b.type !== 'house' && b.built;   // any finished building except walls, gates and guard towers. Capturing the enemy HQ wins the game, the same as destroying it
+const canCapture = b => isBuilding(b) && !isWallType(b.type) && b.type !== 'tower' && b.type !== 'turret' && b.type !== 'house' && b.built;   // any finished building except walls, gates and guard towers. Capturing the enemy HQ wins the game, the same as destroying it
 function updateEngineer(e, dt) {
   const o = e.order;
   e.working = false;
@@ -1745,6 +1746,23 @@ function updateEngineer(e, dt) {
     captureBuilding(b, e.team);
     e.hp = 0; e.deployed = true;   // the engineer goes inside and takes it over
   }
+}
+
+// An Engineer digs in where he stands and becomes a Turret (he mans it: he's gone from your army, and if the Turret falls so does he).
+// Needs open grass, clear of buildings and ore, and the Turret's price.
+const turretSpotOk = (x, y) => terrainAt(x, y) === T.GRASS && siteIsFree(x, y, STATS.turret.size);
+function digIn(en) {
+  if (!en || en.type !== 'engineer' || en.hp <= 0) return 'gone';
+  if (game.credits[en.team] < COST.turret) return 'money';
+  if (!turretSpotOk(en.x, en.y)) return 'spot';
+  spend(en.team, COST.turret);
+  const t = spawn('turret', en.team, en.x, en.y);
+  if (game.stats[en.team]) game.stats[en.team].buildings++;
+  game.effects.push({ kind: 'dust', x: en.x, y: en.y, t: 0 });
+  en.hp = 0; en.deployed = true;   // he's inside now
+  game.selected.delete(en.id);
+  bldDirty = true;
+  return t;
 }
 
 function captureBuilding(b, team) {
@@ -1808,7 +1826,7 @@ function updateBuilding(e, dt) {
 // guard towers shoot the nearest enemy in range on their own
 function updateTower(e, dt) {
   if (!e.built) return updateBuilding(e, dt);
-  const s = STATS.tower;
+  const s = STATS[e.type];   // (Guard Towers and Turrets)
   e.cooldown -= dt;
   let t = e.target && byId(e.target);
   if (!t || hiddenFrom(t, e.team) || !visibleAt(t.x, t.y, e.team) || edgeDist(e.x, e.y, t) > rangeOf(e) || !canShoot(e, t)) { t = findEnemyNear(e, rangeOf(e)); e.target = t ? t.id : null; }
@@ -1816,9 +1834,10 @@ function updateTower(e, dt) {
   e.aim = Math.atan2(t.y - e.y, t.x - e.x);
   if (e.cooldown <= 0) {
     e.cooldown = s.cooldown;
-    t.hp -= s.dmg * armour('tower', t) * uphill(e.x, e.y, t);
-    game.effects.push({ kind: 'shot', x: e.x + Math.cos(e.aim) * 20, y: e.y + Math.sin(e.aim) * 20 - 6,
-                        x2: t.x, y2: t.y, team: e.team, t: 0, heavy: true });
+    t.hp -= s.dmg * armour(e.type, t) * uphill(e.x, e.y, t);
+    const muzzle = e.type === 'turret' ? 16 : 20;
+    game.effects.push({ kind: 'shot', x: e.x + Math.cos(e.aim) * muzzle, y: e.y + Math.sin(e.aim) * muzzle - (e.type === 'turret' ? 2 : 6),
+                        x2: t.x, y2: t.y, team: e.team, t: 0, heavy: e.type === 'tower' });
     if (isCombat(t) && !t.order) t.order = { type: 'attack', target: e.id };   // units charge the tower
   }
 }
@@ -2286,7 +2305,12 @@ function runAI(dt) {
   if (game.time > (D.ruinAfter || Infinity)) for (const r of game.ents) if (r.ruin && r.team !== 1 && canCapture(r) && !retake.includes(r)) retake.push(r);   // the old ruined bases, one building at a time, without rushing   // it knows where the villages are, like a player who knows the map   // and Oil Derricks it has found
   const retaking = of('engineer').some(en => en.retake) || ai.retakePending;
   const retakeDue = (D.engineers > 0 || D.derricks) && retake.length && !retaking && game.time - (ai.lastRetake || -99) > 25;
-  const wantEngineer = ((D.engineers > 0 || brokenRuin) && needsFix && repairers < D.engineers + (brokenRuin ? 2 : 0)) || raidDue || retakeDue;
+  // turrets: now and then an Engineer digs in at an entrance (then by its Oil Derricks), up to 1 / 2 / 3 on Easy / Normal / Hard
+  const turretsPlanned = of('turret').length + of('engineer').filter(en => en.turretAt).length + (ai.turretPending ? 1 : 0);
+  const turretDue = D.turrets && game.time > 300 && turretsPlanned < D.turrets && game.time - (ai.lastTurret || -99) > 60 && game.credits[1] >= COST.engineer + COST.turret;
+  const idleEng = of('engineer').find(en => !en.raid && !en.retake && !en.turretAt && (!en.order || en.order.type === 'move'));
+  if (turretDue && idleEng) { const spot = aiTurretSpot(hq); if (spot) { idleEng.turretAt = spot; idleEng.order = null; ai.lastTurret = game.time; } }
+  const wantEngineer = ((D.engineers > 0 || brokenRuin) && needsFix && repairers < D.engineers + (brokenRuin ? 2 : 0)) || raidDue || retakeDue || (turretDue && !idleEng);
   // War Factory first: buggies (about one per two soldiers) and tanks (a share of its army; heavies once it has a Tech Centre).
   // While it wants a vehicle, the barracks hold back so the money can build up.
   const qF = t => of('factory').reduce((n, f) => n + f.qTypes.filter(q => q === t).length, 0);
@@ -2307,7 +2331,7 @@ function runAI(dt) {
   for (const b of barracks) {
     if (b.queue >= 2) continue;
     if (wantEngineer && game.credits[1] >= COST.engineer && produce(b, 'engineer')) {
-      if (retakeDue) { ai.retakePending = true; ai.lastRetake = game.time; } else if (raidDue) { ai.raidPending = true; ai.lastRaid = game.time; }
+      if (retakeDue) { ai.retakePending = true; ai.lastRetake = game.time; } else if (raidDue) { ai.raidPending = true; ai.lastRaid = game.time; } else if (turretDue && !idleEng) { ai.turretPending = true; ai.lastTurret = game.time; }
       continue;
     }
     if (army.length + queued >= D.maxArmy) continue;
@@ -2319,11 +2343,11 @@ function runAI(dt) {
   // engineers fix its most damaged building, and otherwise wait safely by the HQ
   // an engineer already standing about at home takes the job straight away
   if ((D.engineers > 0 || D.derricks) && retake.length && !of('engineer').some(en => en.retake)) {
-    const spare = of('engineer').find(en => !en.raid && (!en.order || en.order.type === 'move'));
+    const spare = of('engineer').find(en => !en.raid && !en.turretAt && (!en.order || en.order.type === 'move'));
     if (spare) { spare.retake = true; spare.order = null; ai.retakePending = false; }
   }
   for (const en of of('engineer')) {
-    if (ai.retakePending && !en.raid && !en.retake && !en.order && retake.length) { en.retake = true; ai.retakePending = false; }
+    if (ai.retakePending && !en.raid && !en.retake && !en.turretAt && !en.order && retake.length) { en.retake = true; ai.retakePending = false; }
     if (en.retake) {
       const t = retake.sort((a, b) => Math.hypot(a.x - en.x, a.y - en.y) - Math.hypot(b.x - en.x, b.y - en.y))[0];
       if (!t) { en.retake = false; continue; }
@@ -2332,6 +2356,15 @@ function runAI(dt) {
       // escort: up to four home units clear the way just ahead of it
       const escort = army.filter(u => u.role === 'guard' || !u.role).sort((a, b) => Math.hypot(a.x - en.x, a.y - en.y) - Math.hypot(b.x - en.x, b.y - en.y)).slice(0, D.escort || 4);
       for (const u of escort) if (!u.order || u.order.type === 'move') { u.order = { type: 'attackmove', x: en.x + (t.x - en.x) * 0.5, y: en.y + (t.y - en.y) * 0.5 }; u.passive = false; }
+      continue;
+    }
+    if (ai.turretPending && !en.raid && !en.retake && !en.turretAt && !en.order) { const spot = aiTurretSpot(hq); ai.turretPending = false; if (spot) en.turretAt = spot; }
+    if (en.turretAt) {   // walk to the spot and dig in (pick another spot if this one has been taken)
+      const s = en.turretAt;
+      if (Math.hypot(en.x - s.x, en.y - s.y) > 10) { if (!en.order || en.order.type !== 'move') en.order = { type: 'move', x: s.x, y: s.y }; continue; }
+      en.order = null;
+      const r = digIn(en);
+      if (r === 'spot') { en.turretAt = aiTurretSpot(hq); if (!en.turretAt) en.turretAt = null; }
       continue;
     }
     if (ai.raidPending && !en.raid && !en.order) { en.raid = aiRaidPlan(en); ai.raidPending = false; }
@@ -2645,6 +2678,23 @@ function aiPlaceRefinery(hq) {
   return aiPlace(hq, 'refinery');
 }
 
+// where the computer digs in its next Turret: just inside each way into its base (clear of its planned walls), then by its Oil Derricks
+function aiTurretSpot(hq) {
+  const turrets = game.ents.filter(e => e.team === 1 && (e.type === 'turret' || (e.type === 'engineer' && e.turretAt)));
+  const taken = (x, y) => turrets.some(t => { const p = t.type === 'turret' ? t : t.turretAt; return Math.hypot(p.x - x, p.y - y) < 90; });
+  const onPlan = (x, y) => (game.ai.wallPlans || []).some(pl => [...pl.tiles, pl.gate].some(t => Math.abs(t.x - x) < 45 && Math.abs(t.y - y) < 45));
+  const near = [...findEntrances(1).map(ch => ({ x: ch.x, y: ch.y, pull: 80 })),
+                ...game.ents.filter(d => d.type === 'derrick' && d.team === 1).map(d => ({ x: d.x, y: d.y, pull: 70 }))];
+  for (const p of near) {
+    const a = Math.atan2(hq.y - p.y, hq.x - p.x);
+    for (const [da, dd] of [[0, 0], [0.5, 0], [-0.5, 0], [0, 30], [0.8, 20], [-0.8, 20]]) {
+      const x = p.x + Math.cos(a + da) * (p.pull + dd), y = p.y + Math.sin(a + da) * (p.pull + dd);
+      if (!taken(x, y) && !onPlan(x, y) && turretSpotOk(x, y)) return { x, y };
+    }
+  }
+  return null;
+}
+
 // towers go near its gate (if it has one) or toward the middle from the HQ
 function aiPlaceTower(hq) {
   // first choice: just inside the choke point, so it covers where attackers come in
@@ -2692,6 +2742,7 @@ function draw() {
     else if (e.type === 'barracks') drawBarracks(e);
     else if (e.type === 'refinery') drawRefinery(e);
     else if (e.type === 'tower') drawTower(e);
+    else if (e.type === 'turret') drawTurret(e);
     else if (e.type === 'power') drawPower(e);
     else if (e.type === 'radar') drawRadar(e);
     else if (e.type === 'medbay') drawMedbay(e);
@@ -2713,7 +2764,7 @@ function draw() {
   }
   for (const e of ents) if ((sel.has(e.id) || e.hp < e.maxHp) && e.type !== 'house') drawHealth(e);
   for (const e of ents) if (sel.has(e.id) && isBuilding(e)) drawNameTag(e);
-  for (const e of ents) if (sel.has(e.id) && e.type === 'tower') drawRange(e.x, e.y, STATS.tower.range);
+  for (const e of ents) if (sel.has(e.id) && (e.type === 'tower' || e.type === 'turret')) drawRange(e.x, e.y, rangeOf(e));
   for (const e of ents) if (sel.has(e.id) && e.type === 'artillery' && e.team === 0) drawRange(e.x, e.y, rangeOf(e));
 
   for (const fx of game.effects) {
@@ -3672,6 +3723,31 @@ function drawTower(e) {
   ctx.restore();
 }
 
+// a Turret: a sandbag ring round a dug-in machine gun, with the Engineer crouched behind it
+function drawTurret(e) {
+  const c = TEAMS[e.team], h = e.size / 2;
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.arc(e.x + 3, e.y + 4, h, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#6b5b3e'; ctx.beginPath(); ctx.arc(e.x, e.y, h - 4, 0, Math.PI * 2); ctx.fill();   // the dug-out pit
+  if (!e.built) {   // still digging in: a half-built ring of sandbags
+    const n = Math.max(1, Math.round(10 * e.progress));
+    ctx.fillStyle = '#c2ad7c'; ctx.strokeStyle = '#7d6c45'; ctx.lineWidth = 1;
+    for (let i = 0; i < n; i++) { const a = i / 10 * Math.PI * 2 - Math.PI / 2; ctx.beginPath(); ctx.ellipse(e.x + Math.cos(a) * (h - 3), e.y + Math.sin(a) * (h - 3), 5, 3.5, a + Math.PI / 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+    ctx.fillStyle = '#e8d9a8'; ctx.beginPath(); ctx.arc(e.x, e.y, 4, 0, Math.PI * 2); ctx.fill();   // the Engineer's hard hat, busy digging
+    return;
+  }
+  ctx.fillStyle = '#c2ad7c'; ctx.strokeStyle = '#7d6c45'; ctx.lineWidth = 1;
+  for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; ctx.beginPath(); ctx.ellipse(e.x + Math.cos(a) * (h - 3), e.y + Math.sin(a) * (h - 3), 5, 3.5, a + Math.PI / 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+  const a = e.aim !== undefined ? e.aim : (e.team === 0 ? -Math.PI / 2 : Math.PI / 2);
+  ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(a);
+  ctx.fillStyle = '#2a2a2a'; ctx.fillRect(2, -1.5, 15, 3);   // gun barrel
+  ctx.fillStyle = '#3a3a3a'; ctx.fillRect(-2, -3.5, 7, 7);   // gun body
+  if (e.cooldown > STATS.turret.cooldown - 0.06) { ctx.fillStyle = '#ffe9a0'; ctx.beginPath(); ctx.arc(18, 0, 3, 0, Math.PI * 2); ctx.fill(); }
+  ctx.fillStyle = c.dark; ctx.beginPath(); ctx.arc(-6, 0, 5.5, 0, Math.PI * 2); ctx.fill();   // the gunner, in his team's colours
+  ctx.fillStyle = c.color; ctx.beginPath(); ctx.arc(-6, 0, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#f2f2f2'; ctx.beginPath(); ctx.arc(-6, 0, 2.6, 0, Math.PI * 2); ctx.fill();   // white hard hat
+  ctx.restore();
+}
+
 // wall pieces join up with neighbouring walls/gates of the same side
 function drawWall(e) {
   const c0 = Math.floor(e.x / TC), r0 = Math.floor(e.y / TC);
@@ -4218,7 +4294,7 @@ const $ = id => document.getElementById(id);
 const ui = {
   credits: $('credits'), clock: $('clock'), info: $('info'), powerChip: $('powerChip'), sell: $('btnSell'),
   deploy: $('btnDeploy'), radar: $('btnRadar'), medbay: $('btnMedbay'), barracks: $('btnBarracks'), refinery: $('btnRefinery'), tower: $('btnTower'), power: $('btnPower'), factory: $('btnFactory'), tech: $('btnTech'), wall: $('btnWall'), gate: $('btnGate'), rotate: $('btnRotate'), 
-  harvest: $('btnHarvest'), place: $('btnPlace'), cancel: $('btnCancel'), deselect: $('btnDeselect'),
+  harvest: $('btnHarvest'), turret: $('btnTurret'), place: $('btnPlace'), cancel: $('btnCancel'), deselect: $('btnDeselect'),
   box: $('btnBox'), all: $('btnAll'), pause: $('btnPause'), map: $('btnMap'),
   overlay: $('overlay'), ovTitle: $('ovTitle'), ovText: $('ovText'), ovBtn: $('ovBtn'),
 };
@@ -4239,6 +4315,12 @@ ui.deploy.addEventListener('click', () => {
 ui.barracks.addEventListener('click', () => startPlacing('barracks'));
 ui.refinery.addEventListener('click', () => startPlacing('refinery'));
 ui.tower.addEventListener('click', () => startPlacing('tower'));
+ui.turret.addEventListener('click', () => {   // every selected Engineer digs in where he stands
+  const engs = [...game.selected].map(byId).filter(e => e && e.team === 0 && e.type === 'engineer');
+  let made = 0, why = null;
+  for (const en of engs) { const r = digIn(en); if (typeof r === 'object') made++; else why = why || r; }
+  if (!made && why) flash = { t: performance.now(), text: why === 'money' ? 'Not enough money for a Turret ($' + COST.turret + ')' : 'Can\'t dig in here: move to open grass, away from buildings and ore' };
+});
 ui.power.addEventListener('click', () => startPlacing('power'));
 ui.radar.addEventListener('click', () => startPlacing('radar'));
 ui.medbay.addEventListener('click', () => startPlacing('medbay'));
@@ -4274,7 +4356,7 @@ ui.harvest.addEventListener('click', () => {
 });
 ui.deselect.addEventListener('click', () => { game.selected.clear(); game.placing = null; });
 // Selling: tap Sell, then tap again to confirm. You get half the building's price back (plus anything still queued in it).
-const sellable = b => b && b.team === 0 && isBuilding(b) && COST[b.type] > 0 && !b.ruin;   // captured ruins can't be sold
+const sellable = b => b && b.team === 0 && isBuilding(b) && COST[b.type] > 0 && !b.ruin && b.type !== 'turret';   // captured ruins and Turrets (an Engineer is inside) can't be sold
 const sellValue = b => Math.floor(COST[b.type] / 2) + (b.qTypes || []).reduce((s, t) => s + COST[t], 0);
 let sellArmed = null;
 function sellBuilding(b) {
@@ -4421,6 +4503,7 @@ function updateHUD() {
   show(ui.gate, !!hq && !placing);
   syncProduceButtons(producer && !placing ? producer.type : null);
   show(ui.harvest, extractors.length > 0 && !placing);
+  show(ui.turret, sel.some(e => e.type === 'engineer' && e.team === 0) && !placing);
   show(ui.place, !!(placing && (placing.ghost || (placing.type === 'wall' && placing.anchor))));
   show(ui.cancel, !!placing);
   show(ui.rotate, !!(placing && placing.type === 'gate'));
@@ -4487,11 +4570,12 @@ function updateHUD() {
   else if (sel.length === 1 && sel[0].type === 'medbay') text = sel[0].built ? 'Medbay — heals up to 5 infantry or 1 vehicle standing on it' + (sel[0].healing ? ' (healing ' + sel[0].healing + ')' : '') + '. Select units, then tap it' : 'Medbay: building…';
   else if (sel.length === 1 && sel[0].type === 'radar') text = sel[0].built ? 'Radar — reveals everything within ' + STATS.radar.sight + ', over rocks and cliffs (not hidden infantry in forests)' : 'Radar: ' + Math.floor(sel[0].progress * 100) + '% built';
   else if (sel.length === 1 && sel[0].type === 'tower') text = sel[0].built ? 'Guard Tower — fires at enemies in range' : `Guard Tower: ${Math.floor(sel[0].progress * 100)}% built`;
+  else if (sel.length === 1 && sel[0].type === 'turret') text = sel[0].built ? 'Turret — an Engineer on a machine gun: strong against infantry, half damage to tanks' : `Turret: digging in (${Math.floor(sel[0].progress * 100)}%)`;
   else if (producer) text = producer.built ? `${NAMES[producer.type]}${producer.queue ? ' — making ×' + producer.queue : ''}` : `${NAMES[producer.type]}: ${Math.floor(producer.progress * 100)}% built`;
   else if (extractors.length === 1 && sel.length === 1) text = extractorStatus(extractors[0]);
   else if (sel.length === 1 && sel[0].type === 'engineer') {
     const o = sel[0].order;
-    text = o && o.type === 'repair' ? 'Engineer: repairing' : o && o.type === 'capture' ? 'Engineer: going in to capture' : 'Engineer — tap your damaged building to repair, or an enemy building or Oil Derrick to capture';
+    text = o && o.type === 'repair' ? 'Engineer: repairing' : o && o.type === 'capture' ? 'Engineer: going in to capture' : 'Engineer — tap your damaged building to repair, an enemy building or Oil Derrick to capture, or Dig in to make a Turret here';
   } else if (sel.length) {
     const counts = {};
     for (const e of sel) counts[e.type] = (counts[e.type] || 0) + 1;
