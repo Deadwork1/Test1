@@ -75,7 +75,7 @@ const MAPS = {
       { x: 1450, y: 820, rx: 160, ry: 110, tilt: 0.4, ramps: [2.4] },     // north of the jungle, over the way to the north village
     ],
     river: { amp: 110, period: 420, half: 44 },
-    bridges: [{ y: 820, hw: 74 }],   // one crossing above the island (and its mirror below), plus the two island bridges
+    bridges: [{ y: 480, hw: 74 }],   // one crossing above the island (and its mirror below), plus the two island bridges
     // neutral villages: an Oil Derrick and a few houses. This one (and its mirror) is about as far from both bases.
     villages: [{ x: 1880, y: 560, derrick: [0, 0], houses: [[-100, -62], [96, -58], [-84, 82]] }],
   },

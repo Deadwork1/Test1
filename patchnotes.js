@@ -2,6 +2,12 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.26', date: '18 Nov 2026', title: 'Bridges halfway',
+    changes: [
+      'Huge map: the river bridge above the island and the one below now sit halfway along their stretch of river, between the island and the map edge.',
+    ],
+  },
+  {
     version: '5.25', date: '18 Nov 2026', title: 'Fewer bridges',
     changes: [
       'Huge map: one river bridge removed above the island and one below (the ones nearest the map edges). Each half of the river now has a single crossing, plus the two bridges onto the island.',
