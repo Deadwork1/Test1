@@ -4467,6 +4467,10 @@ ui.deselect.addEventListener('click', () => { game.selected.clear(); game.placin
 const sellable = b => b && b.team === 0 && isBuilding(b) && COST[b.type] > 0 && !b.ruin && b.type !== 'turret';   // captured ruins and Turrets (an Engineer is inside) can't be sold
 const sellValue = b => Math.floor(COST[b.type] / 2) + (b.qTypes || []).reduce((s, t) => s + COST[t], 0);
 let sellArmed = null;
+// guard against selling by accident (clicking on after placing a building lands on Sell, which sits where the build buttons were):
+// Sell ignores clicks for a second after it appears for a building, and the confirming tap must come at least half a second after the first
+const SELL_SETTLE = 1000, SELL_CONFIRM_GAP = 500;
+let sellFor = null, sellShownAt = 0, sellArmedAt = 0;
 function sellBuilding(b) {
   if (!sellable(b)) return false;
   const value = sellValue(b);
@@ -4480,7 +4484,10 @@ function sellBuilding(b) {
 ui.sell.addEventListener('click', () => {
   const sel = [...game.selected].map(byId).filter(Boolean), b = sel.length === 1 && sel[0];
   if (!sellable(b)) return;
-  if (sellArmed !== b.id) { sellArmed = b.id; return; }
+  const now = performance.now();
+  if (now - sellShownAt < SELL_SETTLE) return;   // it only just appeared: this click was meant for whatever was here before
+  if (sellArmed !== b.id) { sellArmed = b.id; sellArmedAt = now; return; }
+  if (now - sellArmedAt < SELL_CONFIRM_GAP) return;   // a double-click doesn't sell: the second tap has to be deliberate
   sellBuilding(b); sellArmed = null;
 });
 // build buttons show the real price from COST, so labels can never drift from what you're charged
@@ -4618,6 +4625,7 @@ function updateHUD() {
   show(ui.rotate, !!(placing && placing.type === 'gate'));
   show(ui.deselect, sel.length > 0 && !placing);
   const toSell = sel.length === 1 && sellable(sel[0]) && !placing ? sel[0] : null;
+  if ((toSell ? toSell.id : null) !== sellFor) { sellFor = toSell ? toSell.id : null; sellShownAt = performance.now(); }
   show(ui.sell, !!toSell);
   if (!toSell || sellArmed !== toSell.id) sellArmed = null;
   if (toSell) {
