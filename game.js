@@ -21,7 +21,7 @@ const MAPS = {
       [[[-30, 1100], [135, 1092], [300, 1060], [480, 1087]], 28],   // wall north of your base, right to the map edge (as on Large, scaled down)
       [[[655, 1053], [700, 1200], [673, 1347]], 28],   // wall east of your base (gap at the bottom): two ways in, like the bigger maps
     ],
-    forests: [[380, 625, 180, 140, -0.15], [345, 455, 165, 175, 0], [560, 575, 130, 65, 0.05], [800, 230, 90]],   // [x, y, r] or a jungle [x, y, rx, ry, tilt]; the jungle hides a small ruined base
+    forests: [[380, 625, 180, 140, -0.15], [385, 455, 195, 180, 0], [535, 525, 85, 70, 0], [560, 575, 130, 65, 0.05], [800, 230, 90]],   // [x, y, r] or a jungle [x, y, rx, ry, tilt]; the jungle hides a small ruined base
     plateaus: [
       { x: 930, y: 470, rx: 175, ry: 130, tilt: 0.2, ramps: [3.0, 1.5] },   // high ground: cliff all round except the ramps
       { x: 985, y: 935, rx: 168, ry: 118, tilt: 0.94, ramps: [2.51], overhang: true, rim: 27 },
@@ -30,8 +30,8 @@ const MAPS = {
     ],
     river: { amp: 70, period: 230, half: 36 },
     bridges: [{ y: 230, hw: 62 }],                     // river bridges on your half (mirrored for theirs)
-    ruins: [{ x: 350, y: 470, clearing: [68, 62], buildings: [['power', 0, 0]] }],   // the small map's ruined base: just a Power Plant
-    villages: [{ x: 1060, y: 1175, derrick: [0, 0], houses: [[-72, 44], [68, 40]], out: [-60, -150] }],   // a small village by your river bridge: an Oil Derrick and two houses
+    ruins: [{ x: 410, y: 475, clearing: [110, 78], buildings: [['barracks', -48, -6], ['radar', 50, 6]] }],   // the small map's ruined base: a Barracks and a Radar
+    villages: [{ x: 1060, y: 1175, derrick: [0, 0], houses: [[-72, 44], [68, 40]], out: [-240, -60] }],   // a small village by your river bridge: an Oil Derrick and two houses
   },
   large: {   // laid out like the Huge map, scaled down: base cliff to the map edge, one bridge per river arm, three plateaus a side
     label: 'Large', W: 3600, H: 2250, start: { x: 300, y: 1950 },
