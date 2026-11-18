@@ -15,6 +15,7 @@ with sync_playwright() as p:
         pg.on('pageerror', lambda e: errs.append(str(e)))
         pg.goto(f'http://127.0.0.1:{port}/index.html'); pg.evaluate(f"localStorage.setItem('mini-rts-map','{g['map']}'); localStorage.setItem('mini-rts-difficulty','{g['diff']}')")
         pg.goto(f'http://127.0.0.1:{port}/index.html'); pg.wait_for_timeout(3000); pg.click('#ovBtn')
+        if g.get('tweak'): pg.evaluate(g['tweak'])   # optional JS run before the game, e.g. to switch a feature off for an A/B test
         pg.evaluate(bot)
         t0 = time.time()
         r = pg.evaluate(f"runSim('{g['strat']}', {g.get('mins',60)})")
