@@ -21,7 +21,7 @@ const MAPS = {
       [[[-30, 1100], [135, 1092], [300, 1060], [480, 1087]], 28],   // wall north of your base, right to the map edge (as on Large, scaled down)
       [[[655, 1053], [700, 1200], [673, 1347]], 28],   // wall east of your base (gap at the bottom): two ways in, like the bigger maps
     ],
-    forests: [[380, 625, 180, 140, -0.15], [345, 455, 165, 175, 0], [800, 230, 90]],   // [x, y, r] or a jungle [x, y, rx, ry, tilt]; the jungle hides a small ruined base
+    forests: [[380, 625, 180, 140, -0.15], [345, 455, 165, 175, 0], [560, 575, 130, 65, 0.05], [800, 230, 90]],   // [x, y, r] or a jungle [x, y, rx, ry, tilt]; the jungle hides a small ruined base
     plateaus: [
       { x: 930, y: 470, rx: 175, ry: 130, tilt: 0.2, ramps: [3.0, 1.5] },   // high ground: cliff all round except the ramps
       { x: 985, y: 935, rx: 168, ry: 118, tilt: 0.94, ramps: [2.51], overhang: true, rim: 27 },
