@@ -32,7 +32,7 @@ Example: `python3 rec/record.py .. 8801 large hard mixed 60`
 - `test_uphill.py` checks shooting uphill does half damage (Grenadiers and Artillery full).
 - `test_radar.py` checks the Radar (tech lock, reveal over rocks, range, selling); `pic_radar.py <game folder> <port> <out prefix>` pictures it and the fog before/after.
 - `dbg_traffic.py <game folder> <port> <map> <out.png> [games]` plays a few seeded games and draws a heat map of where units walk (with the plateaus circled), to see which ground is contested.
-- `test_extractor_runover.py` checks the computer's Extractors run down infantry that shoot them (not into forests), then go back to mining, and that yours don't chase.
+- `test_extractor_runover.py` checks the computer's Extractors run down infantry that are attacking them (not into forests), stop as soon as the shooter walks away or switches target, then go back to work, and that yours don't chase.
 - `test_extractor_crush.py` checks Extractors (and tanks) run over enemy infantry but not vehicles or their own side.
 - `test_rock_fire.py` checks direct fire can't pass through rock (lobbed grenades can).
 - `test_building_edges.py` checks an Extractor leaving its Refinery and a tank attacking past its own buildings don't snag on building edges.

@@ -1293,23 +1293,28 @@ function autoHarvest(e) {
   return false;
 }
 
-// The computer's Extractors fight back: shot by infantry they can reach, they drive at the shooter to run it over,
-// then go back to work. They give up when it dies, hides in a forest, slips out of sight, or after 8 s / 220 of chasing.
+// The computer's Extractors fight back, but only against infantry that are trying to kill them: shot by infantry they
+// can reach, they drive at the shooter to run it over, and stop as soon as it stops attacking them (switches target, or
+// hasn't fired at them for 1.5 s, e.g. it walked off), then go back to work. Also stops if it dies, hides in a forest,
+// slips out of sight, or after 8 s / 220 of chasing.
+const isAttacking = (t, e) => t.order && t.order.type === 'attack' && t.order.target === e.id;
 function runOverShooter(e, dt) {
   const o = e.order;
   if (o && o.type === 'runover') {
     const t = byId(o.target);
-    if (!t || t.hp <= 0 || game.time > o.until || Math.hypot(e.x - o.fromX, e.y - o.fromY) > 220 || !visibleAt(t.x, t.y, e.team) || !walkable(terrainAt(t.x, t.y), true)) {
-      e.order = o.resume || null; e.nav = null; return false;
+    if (t && e.hitBy === t.id && e.hitAt > o.lastHit) o.lastHit = e.hitAt;
+    const stillAttacking = t && isAttacking(t, e) && game.time - o.lastHit < 1.5;
+    if (!t || t.hp <= 0 || !stillAttacking || game.time > o.until || Math.hypot(e.x - o.fromX, e.y - o.fromY) > 220 || !visibleAt(t.x, t.y, e.team) || !walkable(terrainAt(t.x, t.y), true)) {
+      e.order = o.resume || null; e.nav = null; e.hitAt = -9; return false;
     }
-    if (navigate(e, t.x, t.y, dt) === 'fail') { e.order = o.resume || null; e.nav = null; }
+    if (navigate(e, t.x, t.y, dt) === 'fail') { e.order = o.resume || null; e.nav = null; e.hitAt = -9; }
     return true;
   }
   if (e.docked || game.time - (e.hitAt || -9) > 1) return false;
   const t = byId(e.hitBy);
-  if (!t || t.hp <= 0 || t.team === e.team || t.team === NEUTRAL || !isInfantry(t) || Math.hypot(t.x - e.x, t.y - e.y) > 200 || !walkable(terrainAt(t.x, t.y), true)) return false;
-  e.order = { type: 'runover', target: t.id, resume: o && o.type === 'harvest' ? o : null, until: game.time + 8, fromX: e.x, fromY: e.y };
-  e.nav = null; e.hitAt = -9;
+  if (!t || t.hp <= 0 || t.team === e.team || t.team === NEUTRAL || !isInfantry(t) || !isAttacking(t, e) || Math.hypot(t.x - e.x, t.y - e.y) > 200 || !walkable(terrainAt(t.x, t.y), true)) return false;
+  e.order = { type: 'runover', target: t.id, resume: o && o.type === 'harvest' ? o : null, until: game.time + 8, fromX: e.x, fromY: e.y, lastHit: e.hitAt };
+  e.nav = null;
   return true;
 }
 

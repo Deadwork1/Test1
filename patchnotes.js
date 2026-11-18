@@ -2,6 +2,12 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.43.1', date: '18 Nov 2026', title: 'Only when provoked',
+    changes: [
+      'The computer\'s Extractors only go after infantry that are attacking them. If the shooter stops (walks away or picks another target), the Extractor gives up at once and goes back to work.',
+    ],
+  },
+  {
     version: '5.43', date: '18 Nov 2026', title: 'Watch your feet',
     changes: [
       'The computer\'s Extractors fight back: shot by infantry they can reach, they drive straight at the shooter to run them over, then go back to work.',
