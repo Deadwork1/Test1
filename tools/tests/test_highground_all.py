@@ -32,7 +32,7 @@ with sync_playwright() as p:
               for (let d = 10; d < 200; d += 4) { const x = top.x + Math.cos(a) * d, y = top.y + Math.sin(a) * d;
                 if (!elevAt(x, y) && terrainAt(x, y) === T.GRASS) { low = { x: x + Math.cos(a) * 30, y: y + Math.sin(a) * 30 }; break; }
                 if (terrainAt(x, y) === T.WATER) break; }
-              if (low && !elevAt(low.x, low.y) && terrainAt(low.x, low.y) === T.GRASS && Math.hypot(low.x - top.x, low.y - top.y) < 110) best = { top, low };
+              if (low && !elevAt(low.x, low.y) && terrainAt(low.x, low.y) === T.GRASS && Math.hypot(low.x - top.x, low.y - top.y) < 110) { const gp = Math.hypot(low.x - top.x, low.y - top.y); if (gp < 75) { low.x = top.x + Math.cos(a) * 75; low.y = top.y + Math.sin(a) * 75; } if (!elevAt(low.x, low.y) && terrainAt(low.x, low.y) === T.GRASS) best = { top, low }; }   // at least 75 out: right at the cliff foot you may see up, by design
             }
             if (!best) { out.push({ at: [pl.x, pl.y], skipped: true }); continue; }
             const me = spawn('rocket', 0, best.top.x, best.top.y), foe = spawn('soldier', 1, best.low.x, best.low.y);

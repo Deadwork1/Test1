@@ -29,6 +29,7 @@ Example: `python3 rec/record.py .. 8801 large hard mixed 60`
 - `test_radar.py` checks the Radar (tech lock, reveal over rocks, range, selling); `pic_radar.py <game folder> <port> <out prefix>` pictures it and the fog before/after.
 - `dbg_traffic.py <game folder> <port> <map> <out.png> [games]` plays a few seeded games and draws a heat map of where units walk (with the plateaus circled), to see which ground is contested.
 - `test_extractor_crush.py` checks Extractors (and tanks) run over enemy infantry but not vehicles or their own side.
+- `test_rock_fire.py` checks direct fire can't pass through rock (lobbed grenades can).
 - `dbg_*.py` are one-off debugging scripts. `dbg_inbuilding.py <game folder> <port> <map> <difficulty> <strategy> [minutes] [seed]` plays a seeded game and reports units stuck walking into buildings (total stuck-seconds), for comparing two versions of the game.
 - `pic_forest_sight.py <game folder> <port> <out.png>` shows a soldier's view inside a forest next to one on grass.
 

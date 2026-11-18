@@ -63,7 +63,7 @@ const MAPS = {
       [[[-40, 2300], [300, 2290], [550, 2240], [820, 2280]], 32],   // wall north of your base, right to the map edge (gap only at the east end)
       [[[1080, 2230], [1150, 2450], [1110, 2720]], 32],   // wall east of your base (gap at the bottom)
       [[[930, 1040], [1200, 1200]], 30],                  // outcrop by the flank field
-      [[[1800, 800], [1890, 1200]], 30],                  // ridge near the river
+      [[[2000, 610], [2190, 640]], 30],                   // ridge across the road from the bridge plateau (the pinch onto the bridge)
       [[[780, 1520], [940, 1700]], 28],                   // rocks by the north expansion
       [[[600, 700], [640, 1000]], 28],                    // rocks shielding the far corner
       [[[1950, 2500], [2080, 2700]], 30],                 // rocks by the south bridge
@@ -72,7 +72,7 @@ const MAPS = {
     plateaus: [
       { x: 1979, y: 1806, rx: 250, ry: 165, tilt: 0.94, ramps: [2.51], overhang: true },   // lookout over the island, close to its west bridge: juts out over the river   // lookout over the island: juts out over the river
       { x: 1450, y: 1690, rx: 190, ry: 130, tilt: -0.6, ramps: [2.3] },   // beside the main road to the island's west bridge: with the river lookout it squeezes the road into a pinch about 150 wide
-      { x: 1450, y: 820, rx: 160, ry: 110, tilt: 0.4, ramps: [2.4] },     // north of the jungle, over the way to the north village
+      { x: 2060, y: 290, rx: 160, ry: 110, tilt: 0.1, ramps: [3.4] },     // overlooks the river bridge above the island; with the ridge below it, pinches the road onto the bridge
     ],
     river: { amp: 110, period: 420, half: 44 },
     bridges: [{ y: 480, hw: 74 }],   // one crossing above the island (and its mirror below), plus the two island bridges
@@ -1388,11 +1388,24 @@ function update(dt) {
 // a building one of your engineers is on its way to take back: don't shoot it
 // (for the first minute after it's taken, everyone holds fire while an engineer gets there)
 const beingRetaken = (o, team) => isBuilding(o) && ((o.takenAt !== undefined && o.team !== team && game.time - o.takenAt < 60 && game.lost[team].includes(o.id)) || game.ents.some(en => en.team === team && en.type === 'engineer' && en.order && en.order.type === 'capture' && en.order.target === o.id));
+const lobs = e => !!(STATS[e.type].splash || STATS[e.type].siege);   // grenadiers and artillery arc their shots
+function clearShot(x0, y0, x1, y1) {
+  const d = Math.hypot(x1 - x0, y1 - y0), n = Math.ceil(d / 8);
+  for (let k = 1; k < n; k++) {
+    const t = k / n, along = t * d;
+    if (along < 14 || d - along < 14) continue;
+    if (terrainAt(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t) === T.ROCK) return false;
+  }
+  return true;
+}
+const canShoot = (e, t) => lobs(e) || clearShot(e.x, e.y, t.x, t.y);
+
 function findEnemyNear(e, radius) {
   let best = null, bestD = radius;
   for (const o of game.ents) {
     if (o.team === e.team || o.team === NEUTRAL || hiddenFrom(o, e.team) || isWallType(o.type) || beingRetaken(o, e.team)) continue;
     if (!visibleAt(o.x, o.y, e.team)) continue;   // can't pick a target it can't see (behind rocks or in the fog)
+    if (!canShoot(e, o)) continue;   // no clear line of fire (rock in the way)
     const d = edgeDist(e.x, e.y, o);
     if (d < bestD) { bestD = d; best = o; }
   }
@@ -1436,7 +1449,7 @@ function findSiegeTarget(e, radius) {
 function findInfantryNear(e, radius) {   // nearest enemy infantry in view (not hidden in a forest)
   let best = null, bestD = radius;
   for (const o of game.ents) {
-    if (o.team === e.team || o.team === NEUTRAL || !isInfantry(o) || hiddenFrom(o, e.team) || !visibleAt(o.x, o.y, e.team)) continue;
+    if (o.team === e.team || o.team === NEUTRAL || !isInfantry(o) || hiddenFrom(o, e.team) || !visibleAt(o.x, o.y, e.team) || !canShoot(e, o)) continue;
     const d = edgeDist(e.x, e.y, o);
     if (d < bestD) { bestD = d; best = o; }
   }
@@ -1446,7 +1459,7 @@ function findInfantryNear(e, radius) {   // nearest enemy infantry in view (not 
 function findVehicleNear(e, radius) {   // nearest enemy vehicle (buggy, extractor, settler) in view
   let best = null, bestD = radius;
   for (const o of game.ents) {
-    if (o.team === e.team || o.team === NEUTRAL || !isUnit(o) || isInfantry(o) || !visibleAt(o.x, o.y, e.team)) continue;
+    if (o.team === e.team || o.team === NEUTRAL || !isUnit(o) || isInfantry(o) || !visibleAt(o.x, o.y, e.team) || !canShoot(e, o)) continue;
     const d = edgeDist(e.x, e.y, o);
     if (d < bestD) { bestD = d; best = o; }
   }
@@ -1515,7 +1528,7 @@ function updateSoldier(e, dt) {   // soldiers and buggies
     }
     // artillery may shell a building it has seen before even if nobody is looking at it right now (buildings don't move)
     const seen = visibleAt(t.x, t.y, e.team) || (s.siege && isBuilding(t) && exploredAt(t.x, t.y, e.team));
-    if (edgeDist(e.x, e.y, t) > rangeOf(e) || !seen) {   // out of range, or out of sight (e.g. up on a cliff): close in
+    if (edgeDist(e.x, e.y, t) > rangeOf(e) || !seen || !canShoot(e, t)) {   // out of range, out of sight (e.g. up on a cliff) or rock in the way: close in
       if (navigate(e, t.x, t.y, dt) === 'fail') e.order = o.resume || null;
     } else {
       if (s.tank || s.siege) e.turret = Math.atan2(t.y - e.y, t.x - e.x);   // tanks swing the turret, not the hull
@@ -1640,7 +1653,7 @@ function updateTower(e, dt) {
   const s = STATS.tower;
   e.cooldown -= dt;
   let t = e.target && byId(e.target);
-  if (!t || hiddenFrom(t, e.team) || !visibleAt(t.x, t.y, e.team) || edgeDist(e.x, e.y, t) > rangeOf(e)) { t = findEnemyNear(e, rangeOf(e)); e.target = t ? t.id : null; }
+  if (!t || hiddenFrom(t, e.team) || !visibleAt(t.x, t.y, e.team) || edgeDist(e.x, e.y, t) > rangeOf(e) || !canShoot(e, t)) { t = findEnemyNear(e, rangeOf(e)); e.target = t ? t.id : null; }
   if (!t) return;
   e.aim = Math.atan2(t.y - e.y, t.x - e.x);
   if (e.cooldown <= 0) {

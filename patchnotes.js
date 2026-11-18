@@ -2,6 +2,14 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.30', date: '18 Nov 2026', title: 'Bridge pinches, no shooting through rock',
+    changes: [
+      'Huge map: the river bridges now have high ground over them too. A plateau stands beside the bridge above the island, its cliff overlooking the bridge, and a rock ridge across the road from it squeezes the way onto the bridge. The bridge below the island gets the same on the enemy\'s side.',
+      'Fixed: units could shoot straight through rock (for example a Sniper behind the rock wall at a base, firing at an enemy a friend could see on the other side). Direct fire (rifles, rockets, sniper rounds, tank shells, Guard Towers) now needs a clear line; units walk round to get one or pick another target. Grenadiers and Artillery still lob their shots over rock.',
+      'Your money is now shown at the bottom left of the screen, at the start of the bottom bar.',
+    ],
+  },
+  {
     version: '5.29', date: '18 Nov 2026', title: 'The pinch',
     changes: [
       'Huge map: the plateau beside the road to the island has moved closer to the river lookout. The road to the island bridge now squeezes through a gap about 150 wide between the two cliffs, overlooked from both sides. Armies still fit through, and the route is no longer than before.',

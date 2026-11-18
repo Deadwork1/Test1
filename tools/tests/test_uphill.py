@@ -16,7 +16,7 @@ with sync_playwright() as p:
     r = pg.evaluate("""(()=>{ runAI=()=>{}; game.paused=false; game.ents = game.ents.filter(e => e.type !== 'settler');
       spawn('hq', 0, 60, H - 60); spawn('hq', 1, W - 60, 60);
       // the corner plateau at (760, 470): a high spot on its cliff edge and a low spot straight out from it
-      const pl = MAP.plateaus.find(q => q.x === 760);
+      const pl = MAP.plateaus.find(q => !q.overhang);   // any plateau that isn't a river lookout
       let top = null, low = null;
       for (let k = 0; k < 72 && !low; k++) {
         const a = k * Math.PI / 36; if (pl.ramps.some(ra => Math.abs(Math.atan2(Math.sin(a - ra), Math.cos(a - ra))) < 0.8)) continue;
