@@ -2759,17 +2759,19 @@ function pinchSpots() {
   return pinchCache;
 }
 
-// where the computer digs in its next Turret: just inside each way into its base (clear of its planned walls), the pinch on its side
-// of the river (it goes for that first about half the time, while it's free), then by its Oil Derricks
+// where the computer digs in its next Turret: just inside a way into its base (clear of its planned walls), at the pinch on its side of
+// the river, or by one of its Oil Derricks - each about equally likely to be its first choice
 function aiTurretSpot(hq) {
   const turrets = game.ents.filter(e => e.team === 1 && (e.type === 'turret' || (e.type === 'engineer' && e.turretAt)));
   const taken = (x, y) => turrets.some(t => { const p = t.type === 'turret' ? t : t.turretAt; return Math.hypot(p.x - x, p.y - y) < 90; });
   const onPlan = (x, y) => (game.ai.wallPlans || []).some(pl => [...pl.tiles, pl.gate].some(t => Math.abs(t.x - x) < 45 && Math.abs(t.y - y) < 45));
   const mySide = p => (p.x - W / 2) * (hq.x - W / 2) > 0;   // on the computer's half of the map
   const pinches = pinchSpots().filter(mySide).map(p => ({ x: p.x, y: p.y, pull: 0, lowGround: true }));
-  const near = [...findEntrances(1).map(ch => ({ x: ch.x, y: ch.y, pull: 80 })),
-                ...game.ents.filter(d => d.type === 'derrick' && d.team === 1).map(d => ({ x: d.x, y: d.y, pull: 70 }))];
-  near.splice(Math.random() < 0.5 ? 0 : Math.min(1, near.length), 0, ...pinches);   // the pinch first about half the time, otherwise right after the first entrance
+  const entrances = findEntrances(1).map(ch => ({ x: ch.x, y: ch.y, pull: 80 }));
+  const derricks = game.ents.filter(d => d.type === 'derrick' && d.team === 1).map(d => ({ x: d.x, y: d.y, pull: 70 }));
+  // first choice at random, equal odds, among the kinds of spot it has: an entrance, the pinch, or one of its Oil Derricks; then the rest in that order
+  const kinds = [entrances, pinches, derricks].filter(k => k.length), first = kinds.splice(Math.floor(Math.random() * kinds.length), 1)[0] || [];
+  const near = [...first, ...kinds.flat()];
   for (const p of near) {
     const a = Math.atan2(hq.y - p.y, hq.x - p.x);
     for (const [da, dd] of [[0, 0], [0.5, 0], [-0.5, 0], [0, 30], [0.8, 20], [-0.8, 20]]) {
