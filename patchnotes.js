@@ -2,6 +2,10 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.38.1', date: '18 Nov 2026', title: 'No HQ raids',
+    changes: ['The computer\'s Engineer raids no longer set out to steal your Headquarters. Any Engineer can still capture an HQ, which wins the game.'],
+  },
+  {
     version: '5.38', date: '18 Nov 2026', title: 'Steal the Headquarters',
     changes: [
       'Engineers can capture a Headquarters again. Take the enemy HQ with an Engineer and you win, the same as destroying it. Lose yours to an enemy Engineer and you lose.',

@@ -1941,7 +1941,7 @@ function aiWallPlan(hq) {
   return { tiles, gate: { ...gateAt, vertical } };
 }
 
-// Engineer raid: pick one of your buildings it knows about, then sneak round the edge of the map to it and capture it
+// Engineer raid: pick one of your buildings it knows about (not the HQ), then sneak round the edge of the map to it and capture it
 // what an attack wave heads for
 function aiWaveTarget(from, targets, focus) {
   const pref = focus === 'defences' ? ['tower', 'gate', 'refinery', 'extractor'] : focus === 'economy' ? ['refinery', 'extractor', 'power'] : [];
@@ -1956,11 +1956,11 @@ function aiWaveTarget(from, targets, focus) {
 }
 
 function aiRaidPlan(en) {
-  const prize = { refinery: 5, factory: 5, tech: 6, power: 3, barracks: 4, tower: 2, hq: 4 };   // taking your HQ would win it the game, but it's usually deep in your base
+  const prize = { refinery: 5, factory: 5, tech: 6, power: 3, barracks: 4, tower: 2 };
   let best = null, bestS = -1;
   for (const [id] of game.ai.known) {
     const b = byId(id);
-    if (!b || b.team !== 0 || !canCapture(b)) continue;
+    if (!b || b.team !== 0 || !canCapture(b) || b.type === 'hq') continue;   // HQs can be captured, but raids don't set out to steal one
     const sc = (prize[b.type] || 1) + Math.random() * 2;
     if (sc > bestS) { bestS = sc; best = b; }
   }
@@ -2148,7 +2148,7 @@ function runAI(dt) {
   // engineers: a repairer only when something is badly damaged, and now and then a raider sent the long way round to steal a building
   const repairers = of('engineer').filter(en => !en.raid).length + qOf('engineer') - (ai.raidPending ? 1 : 0);
   const needsFix = mine.some(b => isBuilding(b) && !isWallType(b.type) && b.built && b.hp < b.maxHp * 0.6);
-  const raidDue = D.raidEvery && game.time > 360 && game.time - (ai.lastRaid || 0) > D.raidEvery && !ai.raidPending && [...ai.known.keys()].some(id => { const b = byId(id); return b && b.team === 0 && canCapture(b); });
+  const raidDue = D.raidEvery && game.time > 360 && game.time - (ai.lastRaid || 0) > D.raidEvery && !ai.raidPending && [...ai.known.keys()].some(id => { const b = byId(id); return b && b.team === 0 && b.type !== 'hq' && canCapture(b); });
   // win back buildings your engineers took: send an engineer with an escort (try again if it's killed)
   const retake = D.engineers > 0 ? game.lost[1].map(byId).filter(b => b && b.team === 0 && canCapture(b)) : [];
   if (D.derricks && game.time > D.derrickAfter) for (const d of game.ents) if (d.type === 'derrick' && d.team !== 1 && !retake.includes(d)) retake.push(d);   // it knows where the villages are, like a player who knows the map   // and Oil Derricks it has found
