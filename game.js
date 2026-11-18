@@ -39,7 +39,6 @@ const MAPS = {
     ridges: [
       [[[-40, 1650], [200, 1640], [450, 1590], [720, 1630]], 32],   // wall north of your base, right to the map edge (gap only at the east end)
       [[[980, 1580], [1050, 1800], [1010, 2020]], 32],   // wall east of your base (gap at the bottom)
-      [[[700, 780], [900, 900]], 30],                    // outcrop by the flank field
       [[[1350, 600], [1420, 900]], 30],                  // ridge near the river
       [[[620, 1150], [760, 1300]], 28],                  // rocks by the north expansion
       [[[1650, 1722], [1798, 1700]], 30],                // ridge across the road from the bridge plateau (the pinch onto your bridge)
@@ -72,7 +71,6 @@ const MAPS = {
     ridges: [
       [[[-40, 2300], [300, 2290], [550, 2240], [820, 2280]], 32],   // wall north of your base, right to the map edge (gap only at the east end)
       [[[1080, 2230], [1150, 2450], [1110, 2720]], 32],   // wall east of your base (gap at the bottom)
-      [[[930, 1040], [1200, 1200]], 30],                  // outcrop by the flank field
       [[[2612, 610], [2415, 640]], 30],                   // ridge across the road from the bridge plateau (the pinch onto the bridge), across the river from your side
       [[[780, 1520], [940, 1700]], 28],                   // rocks by the north expansion
       [[[600, 700], [640, 1000]], 28],                    // rocks shielding the far corner
