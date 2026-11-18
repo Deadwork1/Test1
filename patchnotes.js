@@ -2,6 +2,17 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.41', date: '18 Nov 2026', title: 'A tougher opponent',
+    changes: [
+      'Gates are wider: 3 tiles long instead of 2, so two units fit through side by side and Extractors stop jamming in the doorway.',
+      'Scout Buggy damage 5 to 4 (16 damage a second instead of 20). It was the best value unit in the game by a distance.',
+      'The computer sends Engineer raids half as often (every 8 minutes on Normal, 6 on Hard) and spends the money on troops instead.',
+      'The computer now keeps a guard right by its Headquarters (2 on Normal, 3 on Hard) as well as at its entrances, and if its HQ is attacked, attack waves nearby turn back to defend it.',
+      'The computer\'s wounded troops, left idle after a fight, now go to its Medbay to heal. (Yours only go when you send them.)',
+      'The computer sends its Snipers up to the plateaus first and keeps them off attack waves.',
+    ],
+  },
+  {
     version: '5.40', date: '18 Nov 2026', title: 'Medbay',
     changes: [
       'New building: the Medbay ($400, needs a Barracks). A round pad your units walk onto to heal: up to 5 infantry at once (8 HP a second each) or 1 vehicle on its own (15 HP a second). First come, first served.',

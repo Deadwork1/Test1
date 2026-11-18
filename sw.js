@@ -1,6 +1,6 @@
 // Offline support. When online, always fetch the newest files first (so updates show straight away);
 // fall back to the saved copy only when there's no connection.
-const VERSION = 'mini-rts-v89';
+const VERSION = 'mini-rts-v90';
 const FILES = ['./', 'index.html', 'patchnotes.js', 'game.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {

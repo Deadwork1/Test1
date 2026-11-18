@@ -5,8 +5,8 @@ These tools test and record the game. They are not part of the game and are not 
 They need Python 3 with Playwright, plus Google Chrome at `/usr/bin/google-chrome`. Run everything from inside this `tools/` folder. Pictures and other output go to `out/` (create it first: `mkdir -p out`).
 
 ## sim/ — the game simulator
-- `bot.js` is a scripted player (Blue) that plays real games against the computer (Red). It has several strategies: rush, mixed, tech, turtle and more.
-- `run.py <game folder> <port> <results.jsonl> '<plan json>'` plays a batch of headless games at high speed and writes one JSON line per game. See `plan0.json`–`plan3.json` for example plans (map, difficulty, strategy, minutes). Each game stops at its minute limit (default 60 game minutes) and counts as a "timeout"; the real game has no time limit.
+- `bot.js` is a scripted player (Blue) that plays real games against the computer (Red). It has several strategies: infantry, tanks, buggy, mixed, turtle and more. Its Snipers sit on the high ground on its side of the map (since v5.41).
+- `run.py <game folder> <port> <results.jsonl> '<plan json>'` plays a batch of headless games at high speed and writes one JSON line per game. A game in the plan can carry a `tweak` (JavaScript run before it starts, e.g. to switch a feature off for an A/B test); anything the tweak puts in `window.__extra` is saved with that game's results. See `plan0.json`–`plan3.json` for example plans (map, difficulty, strategy, minutes). Each game stops at its minute limit (default 60 game minutes) and counts as a "timeout"; the real game has no time limit.
 - `analyse.py` summarises a results file: win rates, game lengths, units built.
 - `dbg.py` and `dbgwave.py` debug one game or one AI attack wave.
 
@@ -32,7 +32,9 @@ Example: `python3 rec/record.py .. 8801 large hard mixed 60`
 - `test_rock_fire.py` checks direct fire can't pass through rock (lobbed grenades can).
 - `test_building_edges.py` checks an Extractor leaving its Refinery and a tank attacking past its own buildings don't snag on building edges.
 - `test_back_to_menu.py` checks the pause menu's Exit Game button (two taps, fresh game on the start screen, Start plays again).
+- `test_gatefit.py` checks every unit type gets through a gate (3 tiles wide) both ways.
 - `test_medbay.py` checks the Medbay: tech lock, healing up to 5 infantry or 1 vehicle (first come, first served), units walking across it, tap-to-send and the computer healing its wounded.
+- `test_autoheal.py` checks the computer's wounded idle units go to its Medbay (yours don't go by themselves) and that it keeps an HQ guard.
 - `test_hq_fits.py` checks the Headquarters (140 across) fits where each side's Settler starts, on every map.
 - `test_hq_capture.py` checks an Engineer capturing a Headquarters wins (or loses) the game and that the computer's raids don't target your HQ.
 - `test_hold_ground.py` checks idle Snipers and units on high ground shoot what comes in range but don't chase it off.
