@@ -43,10 +43,22 @@
   #pauseMenu .col { display: flex; flex-direction: column; gap: 10px; min-width: 220px; }
   button.danger { background: #6b2020; border-color: #e06060; }
   #clock { font-variant-numeric: tabular-nums; color: #d8e4cf; }
+  #results { background: rgba(10,16,8,.85); border: 1px solid rgba(255,255,255,.14); border-radius: 12px; padding: 10px 14px; font-size: 14px; }
+  #results .resTime { text-align: center; margin-bottom: 6px; opacity: .9; }
+  #results table { border-collapse: collapse; margin: 0 auto; }
+  #results td, #results th { padding: 3px 12px; text-align: right; font-variant-numeric: tabular-nums; }
+  #results td:first-child { text-align: left; opacity: .85; }
+  #results tr + tr td { border-top: 1px solid rgba(255,255,255,.07); }
+  #results th.you { color: #7fb1ff; } #results th.foe { color: #ff8a8a; }
   #overlay p { margin: 0; max-width: 520px; line-height: 1.45; opacity: .9; font-size: 15px; }
   #version { font-size: 13px; opacity: .6; margin-top: -8px; }
   #diffInfo, .sub { font-size: 13px; opacity: .75; margin-top: -6px; max-width: 460px; }
-  #overlay { overflow-y: auto; }
+  #overlay { overflow-y: auto; justify-content: flex-start; }
+  #overlay > :first-child { margin-top: auto; } #overlay > :last-child { margin-bottom: auto; }   /* centred, but scrolls from the top when it doesn't fit */
+  @media (max-height: 520px) {
+    #overlay { gap: 9px; padding: 12px 16px; } #overlay h1 { font-size: 26px; }
+    #results { padding: 6px 10px; font-size: 12.5px; } #results td, #results th { padding: 1px 10px; }
+  }
   #overlay > * { flex-shrink: 0; }
   .row { display: flex; gap: 10px; }
   #notes { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
@@ -103,6 +115,7 @@
   <h1 id="ovTitle">Mini RTS</h1>
   <div id="version"></div>
   <p id="ovText"></p>
+  <div id="results" style="display:none"></div>
   <div id="mapRow" class="row">
     <button class="ghost" data-m="classic">Classic map</button>
     <button class="ghost" data-m="large">Large map</button>

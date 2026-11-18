@@ -763,6 +763,7 @@ function newGame() {
   game = {
     ents: [], ore: [], nextId: 1, time: 0, grenades: [], rockets: [],
     lost: [[], []],          // ids of each side's buildings that enemy engineers have taken (to win back)
+    stats: [0, 1].map(() => ({ units: 0, buildings: 0, walls: 0, kills: 0, destroyed: 0, unitsLost: 0, buildingsLost: 0, earned: 0, spent: 0, captured: 0 })),
     credits: [START_CREDITS, START_CREDITS],
     selected: new Set(),
     placing: null,           // { type, ghost:{x,y} } while choosing where to build
@@ -771,6 +772,7 @@ function newGame() {
     ai: { timer: 0, attacking: false, known: new Map(), scout: null, exploreTarget: null },
   };
   for (const f of fog) { f.vis.fill(0); f.exp.fill(0); }
+  { const box = document.getElementById('results'); if (box) box.style.display = 'none'; }
   bldDirty = true;
   let seed = 99;
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -818,6 +820,9 @@ function newGame() {
   cam.x = START[0].x; cam.y = START[0].y; setZoom(1); clampCam();
   updateFog();
 }
+
+const spend = (team, n) => { game.credits[team] -= n; if (game.stats[team]) game.stats[team].spent += n; };
+const earn = (team, n) => { game.credits[team] += n; if (game.stats[team]) game.stats[team].earned += n; };
 
 function spawn(type, team, x, y) {
   const s = STATS[type];
@@ -1144,7 +1149,7 @@ function buildWallLine(team, tiles) {
   for (const t of tiles) {
     if (game.credits[team] < COST.wall) break;
     if (!canPlaceWallPiece(team, 'wall', t.x, t.y)) continue;
-    game.credits[team] -= COST.wall; spawn('wall', team, t.x, t.y); built++;
+    spend(team, COST.wall); spawn('wall', team, t.x, t.y); built++; game.stats[team].walls++;
   }
   return built;
 }
@@ -1153,12 +1158,12 @@ function placeBuilding(team, type, x, y, vertical) {
   if (type === 'gate') {
     const g = snapGate(x, y, !!vertical);
     if (game.credits[team] < COST.gate || !canPlaceWallPiece(team, 'gate', g.x, g.y, g.vertical)) return false;
-    game.credits[team] -= COST.gate;
+    spend(team, COST.gate); game.stats[team].walls++;
     const e = spawn('gate', team, g.x, g.y); e.vertical = g.vertical; bldDirty = true;
     return true;
   }
   if (game.credits[team] < COST[type] || !canPlace(team, type, x, y)) return false;
-  game.credits[team] -= COST[type];
+  spend(team, COST[type]); if (!isWallType(type)) game.stats[team].buildings++;
   spawn(type, team, x, y);
   return true;
 }
@@ -1166,7 +1171,7 @@ function placeBuilding(team, type, x, y, vertical) {
 function produce(b, unit) {
   unit = unit || (PRODUCES[b.type] || [])[0];
   if (!unit || !PRODUCES[b.type].includes(unit) || !unlocked(b.team, unit) || !b.built || b.queue >= STATS[b.type].maxQueue || game.credits[b.team] < COST[unit]) return false;
-  game.credits[b.team] -= COST[unit];
+  spend(b.team, COST[unit]);
   b.queue++; b.qTypes.push(unit);
   return true;
 }
@@ -1285,7 +1290,7 @@ function updateExtractor(e, dt) {
     o.t += dt;
     if (o.t >= s.unloadTime) {
       const amount = Math.round(e.cargo);
-      game.credits[e.team] += e.team === 1 ? Math.round(amount * diff().income) : amount; e.cargo = 0;
+      earn(e.team, e.team === 1 ? Math.round(amount * diff().income) : amount); e.cargo = 0;
       if (e.team === 0) game.effects.push({ kind: 'text', x: e.x, y: e.y - 20, text: '+$' + amount, t: 0 });
       o.phase = 'undocking';
     }
@@ -1336,6 +1341,10 @@ function update(dt) {
       continue;
     }
     if (e.hp <= 0) {
+      if (!e.deployed && !e.sold && (e.team === 0 || e.team === 1) && !isWallType(e.type)) {
+        const mine = game.stats[e.team], theirs = game.stats[1 - e.team];
+        if (isBuilding(e)) { mine.buildingsLost++; theirs.destroyed++; } else { mine.unitsLost++; theirs.kills++; }
+      }
       game.selected.delete(e.id);
       if (isBuilding(e)) bldDirty = true;
       if (!e.deployed) game.effects.push({ kind: 'boom', x: e.x, y: e.y, t: 0, big: e.type !== 'soldier' && e.type !== 'buggy' });
@@ -1383,8 +1392,8 @@ function update(dt) {
   runAI(dt);
   updateFog();
 
-  // a side is beaten once all its buildings are gone (walls and gates don't count) and it has no Settler left to start again
-  const alive = [0, 1].map(t => game.ents.some(e => e.team === t && ((isBuilding(e) && !isWallType(e.type) && !isNeutralType(e.type)) || e.type === 'settler')));
+  // a side is beaten once its HQ is gone (before it has deployed, its Settler)
+  const alive = [0, 1].map(t => game.ents.some(e => e.team === t && (e.type === 'hq' || e.type === 'settler')));
   if (!alive[1]) endGame(true);
   else if (!alive[0]) endGame(false);
 }
@@ -1569,7 +1578,7 @@ function updateSoldier(e, dt) {   // soldiers and buggies
 }
 
 // Engineers: walk to a building, then either repair it (yours) or capture it (theirs). They're very fragile, so escort them.
-const canCapture = b => isBuilding(b) && !isWallType(b.type) && b.type !== 'tower' && b.type !== 'house' && b.built;   // any finished building except walls, gates and guard towers
+const canCapture = b => isBuilding(b) && !isWallType(b.type) && b.type !== 'tower' && b.type !== 'house' && b.type !== 'hq' && b.built;   // HQs can't be captured: losing it loses the game   // any finished building except walls, gates and guard towers
 function updateEngineer(e, dt) {
   const o = e.order;
   e.working = false;
@@ -1601,6 +1610,7 @@ function captureBuilding(b, team) {
   b.team = team;
   b.takenAt = game.time;
   if (game.lost && was !== NEUTRAL) { game.lost[team] = game.lost[team].filter(id => id !== b.id); if (!game.lost[was].includes(b.id)) game.lost[was].push(b.id); }
+  if (team === 0 || team === 1) game.stats[team].captured++;
   if (b.type === 'derrick') { b.payT = 0; if (!b.villageOut) { b.villageOut = true; villagersJoin(b, team); } }
   b.queue = 0; b.qTypes = []; b.trainT = 0; b.dockedBy = null; b.target = null;
   if (game.selected.has(b.id) && team !== 0) game.selected.delete(b.id);
@@ -1617,7 +1627,7 @@ function updateDerrick(e, dt) {
   e.payT = (e.payT || 0) + dt;
   if (e.payT < s.payEvery) return;
   e.payT -= s.payEvery;
-  game.credits[e.team] += e.team === 1 ? Math.round(s.pay * diff().income) : s.pay;
+  earn(e.team, e.team === 1 ? Math.round(s.pay * diff().income) : s.pay);
   if (e.team === 0) game.effects.push({ kind: 'text', x: e.x, y: e.y - 30, text: '+$' + s.pay, t: 0 });
 }
 
@@ -1676,6 +1686,7 @@ const frontDoor = b => ({ x: b.x, y: b.y + b.size / 2 + 30 });
 function releaseUnit(b, type) {
   const d = frontDoor(b);
   const u = spawn(type || PRODUCES[b.type][0], b.team, d.x, d.y - 10);
+  if (game.stats[b.team]) game.stats[b.team].units++;
   u.facing = Math.PI / 2;
   u.order = { type: 'move', x: d.x + (Math.random() - .5) * 70, y: d.y + 28 };
   return u;
@@ -2070,7 +2081,7 @@ function runAI(dt) {
       for (const t of plan.tiles) {
         if (n >= 3 || game.credits[1] < COST.wall + 150) break;
         if (game.ents.some(w => w.type === 'wall' && w.team === 1 && Math.abs(w.x - t.x) < 1 && Math.abs(w.y - t.y) < 1)) continue;
-        if (canPlaceWallPiece(1, 'wall', t.x, t.y)) { game.credits[1] -= COST.wall; spawn('wall', 1, t.x, t.y); n++; }
+        if (canPlaceWallPiece(1, 'wall', t.x, t.y)) { spend(1, COST.wall); spawn('wall', 1, t.x, t.y); n++; game.stats[1].walls++; }
       }
       if (n >= 3) break;
     }
@@ -3901,7 +3912,7 @@ let sellArmed = null;
 function sellBuilding(b) {
   if (!sellable(b)) return false;
   const value = sellValue(b);
-  game.credits[b.team] += value;
+  earn(b.team, value);
   game.effects.push({ kind: 'text', x: b.x, y: b.y - 20, text: 'Sold +$' + value, t: 0, color: '#ffd86b' });
   game.effects.push({ kind: 'dust', x: b.x, y: b.y, t: 0 });
   b.hp = 0; b.deployed = true; b.sold = true;   // removed this frame, without an explosion
@@ -4113,10 +4124,26 @@ function updateHUD() {
 function endGame(won) {
   game.over = won ? 'win' : 'lose';
   game.selected.clear(); game.placing = null;
-  ui.ovTitle.textContent = won ? 'Victory!' : 'Defeat';
-  ui.ovText.textContent = won ? 'You destroyed every enemy building.' : 'All your buildings have been destroyed.';
+  ui.ovTitle.textContent = won ? 'You win!' : 'You lost';
+  ui.ovText.textContent = won ? 'You destroyed the enemy Headquarters.' : 'Your Headquarters was destroyed.';
+  showResults();
   ui.ovBtn.textContent = 'Play again';
   ui.overlay.style.display = 'flex';
+}
+// the results table: you and the enemy side by side
+function showResults() {
+  const box = document.getElementById('results'); if (!box) return;
+  const s = game.stats, t = Math.floor(game.time), mins = Math.floor(t / 60), secs = String(t % 60).padStart(2, '0');
+  const n = v => Math.round(v).toLocaleString('en-GB'), money = v => '$' + n(v);
+  const rows = [
+    ['Troops made', s[0].units, s[1].units, n], ['Buildings made', s[0].buildings, s[1].buildings, n], ['Walls and gates built', s[0].walls, s[1].walls, n],
+    ['Enemy troops killed', s[0].kills, s[1].kills, n], ['Enemy buildings destroyed', s[0].destroyed, s[1].destroyed, n],
+    ['Troops lost', s[0].unitsLost, s[1].unitsLost, n], ['Buildings lost', s[0].buildingsLost, s[1].buildingsLost, n],
+    ['Buildings captured', s[0].captured, s[1].captured, n], ['Money earned', s[0].earned, s[1].earned, money], ['Money spent', s[0].spent, s[1].spent, money],
+  ];
+  box.innerHTML = '<div class="resTime">Time played <b>' + mins + ':' + secs + '</b></div><table><tr><th></th><th class="you">You</th><th class="foe">Enemy</th></tr>' +
+    rows.map(([label, a, b, f]) => '<tr><td>' + label + '</td><td>' + f(a) + '</td><td>' + f(b) + '</td></tr>').join('') + '</table>';
+  box.style.display = 'block';
 }
 
 // ---------- Main loop ----------
