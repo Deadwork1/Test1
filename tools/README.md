@@ -8,6 +8,9 @@ They need Python 3 with Playwright, plus Google Chrome at `/usr/bin/google-chrom
 - `bot.js` is a scripted player (Blue) that plays real games against the computer (Red). It has several strategies: infantry, tanks, buggy, mixed, turtle and more. Its Snipers sit on the high ground on its side of the map (since v5.41).
 - `run.py <game folder> <port> <results.jsonl> '<plan json>'` plays a batch of headless games at high speed and writes one JSON line per game. A game in the plan can carry a `tweak` (JavaScript run before it starts, e.g. to switch a feature off for an A/B test); anything the tweak puts in `window.__extra` is saved with that game's results. See `plan0.json`–`plan3.json` for example plans (map, difficulty, strategy, minutes). Each game stops at its minute limit (default 60 game minutes) and counts as a "timeout"; the real game has no time limit.
 - `analyse.py` summarises a results file: win rates, game lengths, units built.
+- **Big tests** (the 200-game runs): `make_plans.py <out folder> [games per strategy] [maps] [difficulties] [extra JS]` writes one plan per map and difficulty, each game carrying `tweak_highground.js` (it measures fighting on high vs low ground, Snipers on high ground and the computer's Medbay use). Run one batch per CPU core with `run.py`, then `analyse_big.py out/res_*.jsonl` prints win rates, unit value per $1, the high-ground figures and more. For an A/B test pass extra JS, e.g. `"DIFFICULTY.hard.hill = 0;"`.
+- `run.py` serves the game files live, so **don't edit game.js while a batch is running**: make changes in a git worktree (`git worktree add ../Test1-dev`) and run tests from there.
+- Past results are written up in `results/` (for example `results/2026-11-18_big_tests.txt`).
 - `dbg.py` and `dbgwave.py` debug one game or one AI attack wave.
 
 Example: `python3 sim/run.py .. 8800 out/results.jsonl "$(cat sim/plan0.json)"`
