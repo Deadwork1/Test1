@@ -537,8 +537,8 @@ function navigate(e, tx, ty, dt) {
       if (w && w.team !== e.team) { e.order = { type: 'attack', target: w.id, resume: e.order }; e.nav = null; return false; }
     }
   }
-  if (e.type === 'extractor' && gateYield(e, nav)) { e.yieldT = (e.yieldT || 0) + dt; return false; }   // let one leaving the base come out first
-  e.yieldT = 0;
+  if (e.type === 'extractor' && gateYield(e, nav)) { e.yieldT = (e.yieldT || 0) + dt; e.yieldAt = game.time; return false; }   // let one leaving the base come out first
+  if (game.time - (e.yieldAt || -9) > 1) e.yieldT = 0;   // (the wait only counts as over once it has moved on for a second)
   if (moveToward(e, p.x, p.y, dt)) { nav.i++; if (nav.i >= nav.path.length) return true; }
   return false;
 }
