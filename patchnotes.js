@@ -2,6 +2,15 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.31', date: '18 Nov 2026', title: 'Fewer snags on buildings, tighter base alarm',
+    changes: [
+      'Fixed: an Extractor sent to ore behind its own Refinery could drive into the Refinery\'s corner and get stuck. It now goes round its own Refinery like any other building (it only drives into the bay to unload).',
+      'Fixed: units could cut a corner on their way round a building and snag on its edge.',
+      'Tanks and other big vehicles now plan routes with more room round buildings, so they don\'t try to squeeze through gaps only a soldier fits through.',
+      'The base alarm reaches less far: when your base is attacked, idle units come from up to 500 away (was 1,000) and busy units from up to 300 (was 450). The same goes for the computer.',
+    ],
+  },
+  {
     version: '5.30', date: '18 Nov 2026', title: 'Bridge pinches, no shooting through rock',
     changes: [
       'Huge map: the river bridges now have high ground over them too. A plateau stands beside the bridge above the island, its cliff overlooking the bridge, and a rock ridge across the road from it squeezes the way onto the bridge. The bridge below the island gets the same on the enemy\'s side.',

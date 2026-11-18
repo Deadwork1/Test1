@@ -314,8 +314,9 @@ const isVehicle = e => e.type === 'settler' || e.type === 'extractor' || e.type 
 const walkable = (t, vehicle) => t === T.GRASS || t === T.BRIDGE || (t === T.FOREST && !vehicle);
 
 // ---------- Pathfinding (A* on the tile grid) ----------
-const bldGrid = new Uint8Array(TCOLS * TROWS);   // tiles covered by buildings (plus a clearance gap)
-const CLEAR = 12;                                 // keep routes this far from building walls
+const bldGrid = new Uint8Array(TCOLS * TROWS);
+const bldGridV = new Uint8Array(TCOLS * TROWS);   // the same for vehicles: a wider gap round each building, so tanks don't plan routes through gaps only a soldier fits   // tiles covered by buildings (plus a clearance gap)
+const CLEAR = 12, CLEAR_V = 20;                                 // keep routes this far from building walls
 let bldDirty = true;
 const wallKind = new Uint8Array(TCOLS * TROWS);  // 0 none, 1 wall, 2 gate
 const wallTeam = new Int8Array(TCOLS * TROWS);
@@ -329,7 +330,7 @@ function wallTiles(b) {
 }
 let bldList = [];   // every building and wall piece, for checking a unit's body clears them (see lineClear)
 function rebuildBuildingGrid() {
-  bldGrid.fill(0); wallKind.fill(0);
+  bldGrid.fill(0); bldGridV.fill(0); wallKind.fill(0);
   bldList = game.ents.filter(isBuilding);
   for (const b of game.ents) {
     if (isWallType(b.type)) {
@@ -341,11 +342,12 @@ function rebuildBuildingGrid() {
     }
     if (!isBuilding(b)) continue;
     const h = b.size / 2;
-    for (let r = Math.floor((b.y - h - CLEAR) / TC); r <= Math.floor((b.y + h + CLEAR) / TC); r++) {
-      for (let c = Math.floor((b.x - h - CLEAR) / TC); c <= Math.floor((b.x + h + CLEAR) / TC); c++) {
+    for (let r = Math.floor((b.y - h - CLEAR_V) / TC); r <= Math.floor((b.y + h + CLEAR_V) / TC); r++) {
+      for (let c = Math.floor((b.x - h - CLEAR_V) / TC); c <= Math.floor((b.x + h + CLEAR_V) / TC); c++) {
         if (c < 0 || r < 0 || c >= TCOLS || r >= TROWS) continue;
         const cx = c * TC + TC / 2, cy = r * TC + TC / 2;
         if (Math.abs(cx - b.x) < h + CLEAR && Math.abs(cy - b.y) < h + CLEAR) bldGrid[r * TCOLS + c] = 1;
+        if (Math.abs(cx - b.x) < h + CLEAR_V && Math.abs(cy - b.y) < h + CLEAR_V) bldGridV[r * TCOLS + c] = 1;
       }
     }
   }
@@ -359,7 +361,7 @@ function passable(c, r, vehicle) {
   if (c < 0 || r < 0 || c >= TCOLS || r >= TROWS) return false;
   const i = r * TCOLS + c;
   if (P.block && P.block.has(i)) return false;
-  if (bldGrid[i] || !walkable(terrain[i], vehicle)) return false;
+  if ((vehicle ? bldGridV[i] : bldGrid[i]) || !walkable(terrain[i], vehicle)) return false;
   const k = wallKind[i];
   if (!k) return true;
   if (wallTeam[i] === P.team) return k === 2;   // own gate: open; own wall: closed
@@ -501,7 +503,9 @@ function navigate(e, tx, ty, dt) {
   }
   // a route point only has to be passed, not stood on: big vehicles can't always reach the exact spot (it may sit
   // closer to a building than their body allows), so once it's within the unit's radius, head for the next one
-  while (nav.i < nav.path.length - 1 && Math.hypot(nav.path[nav.i].x - e.x, nav.path[nav.i].y - e.y) < e.r + 4) nav.i++;
+  // (...but only when the straight line on to the next point leaves room for its body, or it would cut a corner)
+  while (nav.i < nav.path.length - 1 && Math.hypot(nav.path[nav.i].x - e.x, nav.path[nav.i].y - e.y) < e.r + 4 &&
+         lineClear(e.x, e.y, nav.path[nav.i + 1].x, nav.path[nav.i + 1].y, isVehicle(e), e.r)) nav.i++;
   const p = nav.path[nav.i];
   // the destination itself is too close to a building for this unit's body: as close as it can get counts as there
   if (nav.i === nav.path.length - 1 && Math.hypot(p.x - e.x, p.y - e.y) < e.r + 4 && bldList.some(b => b.hp > 0 && edgeDist(p.x, p.y, b) < e.r)) { nav.i++; return true; }
@@ -897,7 +901,7 @@ function moveToward(e, tx, ty, dt) {
   // don't walk into buildings or walls: if this step would push the body into one, slide along its side instead
   // (an extractor docking at its own refinery is meant to drive in)
   if (!e.docked) {
-    const nx = e.x + ux * step, ny = e.y + uy * step, dockRef = e.order && e.order.ref;
+    const nx = e.x + ux * step, ny = e.y + uy * step, dockRef = e.order && ['docking', 'unloading', 'undocking'].includes(e.order.phase) ? e.order.ref : null;   // only while actually using the bay
     for (const b of bldList) {
       if (b.hp <= 0 || b.id === dockRef || (b.type === 'gate' && b.team === e.team)) continue;
       if (Math.abs(b.x - nx) > halfX(b) + e.r + 2 || Math.abs(b.y - ny) > halfY(b) + e.r + 2) continue;
@@ -1987,9 +1991,9 @@ function defendBuildings() {
   }
   for (const { b, foe } of alarms) {
     for (const u of game.ents) {
-      // anyone within 450 comes; units standing idle (guards at another entrance, say) come from right across the base
+      // anyone busy within 300 comes; units standing idle within 500
       const d = Math.hypot(u.x - b.x, u.y - b.y);
-      if (u.team !== b.team || !isCombat(u) || d > (u.order || u.role === 'wave' ? 450 : 1000)) continue;
+      if (u.team !== b.team || !isCombat(u) || d > (u.order || u.role === 'wave' ? 300 : 500)) continue;   // (was 450 / 1000: units ran too far to help)
       if ((u.role === 'hill' || u.role === 'garrison' || u.role === 'outpost') && d > 300) continue;   // they hold their post unless the fight is right there
       const o = u.order;
       if (o && o.type === 'attack' && byId(o.target) && byId(o.target).hp > 0 && !isBuilding(byId(o.target))) continue;   // already fighting a unit
