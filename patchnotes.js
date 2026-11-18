@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.39', date: '18 Nov 2026', title: 'Headquarters of operations',
+    changes: [
+      'The Headquarters is now the biggest building in the game (140 across, was 92) and has a whole new look: a command centre with angled corners and a two-tier command tower.',
+      'It comes alive: a helicopter takes off from its helipad every so often, circles the base and lands again; the radar sweeps with a green scan; the helipad lights chase round; steam rises from a vent; floodlights sweep the entrance; windows flicker and the satellite dish turns.',
+    ],
+  },
+  {
     version: '5.38.1', date: '18 Nov 2026', title: 'No HQ raids',
     changes: ['The computer\'s Engineer raids no longer set out to steal your Headquarters. Any Engineer can still capture an HQ, which wins the game.'],
   },

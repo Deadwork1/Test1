@@ -120,7 +120,7 @@ const STATS = {
   grenadier: { hp: 55,  speed: 48, r: 9,  sight: 170, range: 95,  dmg: 16, cooldown: 2.0, splash: 38, flight: 0.55, vsVehicle: 0.5 },   // lobbed grenades: area damage, half vs vehicles
   engineer:  { hp: 20,  speed: 48, r: 9,  sight: 150, repair: 30 },
   civilian:  { hp: 40,  speed: 50, r: 8,  sight: 150, range: 75, dmg: 4, cooldown: 0.9 },   // villagers with handguns: weaker than a soldier, can't be bought   // no weapon, very fragile: repairs (hp per second) and captures
-  hq:        { hp: 900, size: 92, sight: 280 },
+  hq:        { hp: 900, size: 140, sight: 280 },   // the biggest building in the game
   barracks:  { hp: 500, size: 74, sight: 200, buildTime: 10, trainTime: 4, maxQueue: 5 },
   refinery:  { hp: 600, size: 84, sight: 200, buildTime: 12, trainTime: 6, maxQueue: 3 },
   factory:   { hp: 800, size: 90, sight: 200, buildTime: 14, trainTime: 7, maxQueue: 3 },
@@ -3222,42 +3222,126 @@ function door(e, w, hgt) {
   ctx.fillStyle = TEAMS[e.team].color; ctx.fillRect(e.x - w / 2 - 2, y - 2, w + 4, 2);
 }
 
-// the HQ art is drawn at 92 across and scaled up to the HQ's real size, so every detail grows with it
+// Headquarters: the command centre, drawn in a 140 x 140 box and scaled to the HQ's real size.
+// A helicopter takes off from its pad every so often and circles the building; the radar sweeps, lights chase and blink.
 function drawHQ(real) {
-  const k = real.size / 92;
-  ctx.save(); ctx.translate(real.x, real.y); ctx.scale(k, k); ctx.translate(-real.x, -real.y);
-  drawHQArt({ ...real, size: 92 });
+  const k = real.size / 140;
+  ctx.save(); ctx.translate(real.x - real.size / 2, real.y - real.size / 2); ctx.scale(k, k);
+  drawHQArt(real);
+  ctx.restore();
+}
+function hqHeli(x, y, ang, alt, t) {   // a small team helicopter seen from above; alt 0 = parked
+  const s = 1 + alt * 0.25;
+  ctx.fillStyle = 'rgba(0,0,0,' + (0.35 - alt * 0.15) + ')';
+  ctx.beginPath(); ctx.ellipse(x + 3 + alt * 14, y + 4 + alt * 18, 9, 4.5, ang, 0, Math.PI * 2); ctx.fill();   // shadow drifts off as it climbs
+  ctx.save(); ctx.translate(x, y - alt * 6); ctx.rotate(ang); ctx.scale(s, s);
+  ctx.fillStyle = '#4c5a3c'; ctx.fillRect(-15, -1.5, 11, 3);                // tail boom
+  ctx.fillRect(-16, -4, 2.5, 8);                                             // tail fin
+  ctx.fillStyle = '#5f7049'; ctx.beginPath(); ctx.ellipse(0, 0, 8, 4.8, 0, 0, Math.PI * 2); ctx.fill();   // body
+  ctx.fillStyle = '#9fd6ff'; ctx.beginPath(); ctx.ellipse(4.5, 0, 3, 3, 0, 0, Math.PI * 2); ctx.fill();   // cockpit glass
+  ctx.strokeStyle = 'rgba(30,30,30,0.85)'; ctx.lineWidth = 1.6;
+  const spin = t * (alt > 0 ? 40 : 6);
+  for (let k = 0; k < 2; k++) { const a = spin + k * Math.PI / 2; ctx.beginPath(); ctx.moveTo(-Math.cos(a) * 13, -Math.sin(a) * 13); ctx.lineTo(Math.cos(a) * 13, Math.sin(a) * 13); ctx.stroke(); }
+  if (alt > 0) { ctx.fillStyle = 'rgba(40,40,40,0.18)'; ctx.beginPath(); ctx.arc(0, 0, 13, 0, Math.PI * 2); ctx.fill(); }   // rotor blur
   ctx.restore();
 }
 function drawHQArt(e) {
-  const c = TEAMS[e.team], h = e.size / 2, x0 = e.x - h, y0 = e.y - h, t = performance.now() / 1000;
-  // concrete pad
-  ctx.fillStyle = '#9a958a'; ctx.fillRect(x0 - 4, y0 - 4, e.size + 8, e.size + 8);
-  // main command building
-  block(x0 + 6, y0 + 10, e.size - 12, e.size - 18, '#7d786c', '#4e4a42', 16);
-  ctx.fillStyle = c.color; ctx.fillRect(x0 + 6, y0 + 10, e.size - 12, 7);             // team roof trim
-  // windows along the front wall
-  ctx.fillStyle = '#a9d4ff';
-  for (const i of [0, 1, 3, 4]) ctx.fillRect(x0 + 14 + i * 14, y0 + e.size - 20, 8, 5);
-  frontApron(e, 30);
-  ctx.fillStyle = '#2a2824'; ctx.fillRect(e.x - 8, y0 + e.size - 22, 16, 14);
-  ctx.fillStyle = c.color; ctx.fillRect(e.x - 10, y0 + e.size - 24, 20, 2);
-  // dome with a star
-  emblemPlate(e.x - 6, e.y - 4, 17, e.team);
-  star(e.x - 6, e.y - 4, 11, '#fff');
-  // rotating radar dish
-  const rx = x0 + e.size - 20, ry = y0 + 24;
-  ctx.fillStyle = '#555'; ctx.beginPath(); ctx.arc(rx, ry, 4, 0, Math.PI * 2); ctx.fill();
-  ctx.save(); ctx.translate(rx, ry); ctx.rotate(t * 1.5);
-  ctx.strokeStyle = '#e6e6e6'; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.arc(0, 0, 10, -0.9, 0.9); ctx.stroke();
-  ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(10, 0); ctx.stroke();
+  const c = TEAMS[e.team], t = performance.now() / 1000 + (e.id || 0) * 3.7;
+  const R = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(x, y, w, h); };
+  const circ = (x, y, r, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); };
+  const poly = (pts, col) => { ctx.fillStyle = col; ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); ctx.fill(); };
+  // pad
+  R(6, 8, 140, 140, 'rgba(0,0,0,0.3)');
+  R(-4, -4, 148, 148, '#7f7a6f'); R(0, 0, 140, 140, '#a29d91');
+  ctx.strokeStyle = 'rgba(0,0,0,0.10)'; ctx.lineWidth = 1;
+  for (let k = 35; k < 140; k += 35) { ctx.beginPath(); ctx.moveTo(k, 0); ctx.lineTo(k, 140); ctx.moveTo(0, k); ctx.lineTo(140, k); ctx.stroke(); }
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 133, 140, 7); ctx.clip();
+  R(0, 133, 140, 7, '#e2b33a'); ctx.fillStyle = '#26231f';
+  for (let k = -10; k < 150; k += 12) { ctx.beginPath(); ctx.moveTo(k, 140); ctx.lineTo(k + 6, 140); ctx.lineTo(k + 13, 133); ctx.lineTo(k + 7, 133); ctx.fill(); }
   ctx.restore();
-  // antenna with blinking light
-  ctx.strokeStyle = '#ccc'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(x0 + e.size - 20, y0 + 52); ctx.lineTo(x0 + e.size - 20, y0 + 38); ctx.stroke();
-  if (Math.floor(t * 2) % 2) { ctx.fillStyle = '#ff5a5a'; ctx.beginPath(); ctx.arc(x0 + e.size - 20, y0 + 37, 2.5, 0, Math.PI * 2); ctx.fill(); }
-  flag(x0 + 4, y0 + 4, e.team);
+  // helipad with landing lights chasing round it
+  circ(22, 118, 15, '#5d5a54'); ctx.strokeStyle = '#f2efe6'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(22, 118, 12, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = '#f2efe6'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('H', 22, 119);
+  for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, on = Math.floor(t * 8) % 8 === k; circ(22 + Math.cos(a) * 15, 118 + Math.sin(a) * 15, on ? 2 : 1.2, on ? '#ffe36b' : '#8a7d4a'); }
+  // main building: angled corners
+  poly([[22, 14], [130, 14], [134, 18], [134, 116], [14, 116], [14, 22]], 'rgba(0,0,0,0.35)');
+  poly([[10, 92], [130, 92], [130, 110], [10, 110]], '#4f4b43');
+  poly([[18, 8], [122, 8], [130, 16], [130, 94], [10, 94], [10, 16]], '#6f6a5f');
+  poly([[20, 11], [120, 11], [127, 18], [127, 91], [13, 91], [13, 18]], '#837d71');
+  poly([[18, 8], [122, 8], [126, 12], [14, 12]], c.color);
+  poly([[10, 16], [18, 8], [18, 14], [16, 16], [16, 94], [10, 94]], c.dark); poly([[130, 16], [122, 8], [122, 14], [124, 16], [124, 94], [130, 94]], c.dark);
+  for (let row = 0; row < 2; row++) for (let i = 0; i < 10; i++) {
+    const wx = 15 + i * 11 + (i >= 5 ? 14 : 0); if (wx > 122) continue;
+    const flick = Math.sin(t * 0.7 + i * 2.3 + row * 5) > 0.75;
+    R(wx, 95 + row * 7, 7, 4, flick ? '#fff6c8' : '#a9d8ff');
+  }
+  // entrance
+  R(56, 110, 28, 8, '#b8b3a7'); R(58, 116, 24, 5, '#cbc6ba');
+  R(60, 96, 20, 14, '#1f2a33'); R(62, 98, 7, 12, '#5f8fae'); R(71, 98, 7, 12, '#5f8fae');
+  R(56, 92, 28, 4, c.color); R(56, 96, 28, 1.5, 'rgba(0,0,0,0.4)');
+  // roof machinery: fans and steam vents
+  for (const [ax, ay] of [[20, 20], [20, 44]]) {
+    R(ax + 2, ay + 3, 22, 18, 'rgba(0,0,0,0.3)'); R(ax, ay, 22, 18, '#b4b0a6'); R(ax, ay + 15, 22, 3, '#8d897f');
+    circ(ax + 11, ay + 8, 6.5, '#55524c');
+    ctx.save(); ctx.translate(ax + 11, ay + 8); ctx.rotate(t * 6); ctx.strokeStyle = '#d6d2c8'; ctx.lineWidth = 1.6;
+    for (let k = 0; k < 3; k++) { ctx.rotate(Math.PI * 2 / 3); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(5.5, 0); ctx.stroke(); }
+    ctx.restore();
+  }
+  R(20, 68, 22, 18, '#5b7f98'); ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1;
+  for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.moveTo(20 + k * 5.5, 68); ctx.lineTo(20 + k * 5.5, 86); ctx.stroke(); }
+  // command tower: two tiers, the upper one set back, with a control-room band that glows
+  R(54, 22, 46, 54, 'rgba(0,0,0,0.4)');
+  R(48, 62, 44, 10, '#58544b'); R(48, 16, 44, 48, '#948e82'); R(48, 16, 44, 4, c.light);
+  const glow = 0.6 + 0.4 * Math.sin(t * 2);
+  for (let i = 0; i < 6; i++) R(50 + i * 7, 64, 5, 6, `rgba(127,208,255,${0.55 + 0.45 * glow})`);
+  R(58, 26, 30, 32, 'rgba(0,0,0,0.35)'); R(55, 50, 30, 6, '#6c675d'); R(55, 22, 30, 30, '#aaa498');
+  emblemPlate(70, 37, 14, e.team); star(70, 37, 10, '#fff');
+  // steam puffs from a vent on the tower roof
+  for (let k = 0; k < 3; k++) {
+    const ph = (t * 0.6 + k / 3) % 1;
+    ctx.fillStyle = `rgba(235,235,235,${0.45 * (1 - ph)})`; ctx.beginPath(); ctx.arc(88 + ph * 6, 20 - ph * 16, 2.5 + ph * 5, 0, Math.PI * 2); ctx.fill();
+  }
+  R(85, 19, 6, 5, '#5a564e');
+  // radar with a green scan sweep
+  const ra = t * 1.4;
+  ctx.save(); ctx.translate(110, 30);
+  const sweep = ctx.createRadialGradient(0, 0, 2, 0, 0, 26);
+  sweep.addColorStop(0, 'rgba(120,255,140,0.35)'); sweep.addColorStop(1, 'rgba(120,255,140,0)');
+  ctx.fillStyle = sweep; ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, 26, ra - 0.7, ra); ctx.closePath(); ctx.fill();
+  circ(0, 0, 5, '#555'); ctx.rotate(ra);
+  ctx.strokeStyle = '#ececec'; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.arc(0, 0, 13, -0.95, 0.95); ctx.stroke();
+  ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(13, 0); ctx.stroke(); ctx.restore();
+  // satellite dish that slowly tracks back and forth
+  ctx.save(); ctx.translate(110, 66); ctx.rotate(-0.6 + 0.35 * Math.sin(t * 0.4));
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(3, 3, 11, 7, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#e4e7ea'; ctx.strokeStyle = '#8c9399'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(0, 0, 11, 7, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = '#8c9399'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -9); ctx.stroke(); circ(0, -9, 1.8, c.color);
+  ctx.restore();
+  ctx.strokeStyle = '#cfcfcf'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(122, 86); ctx.lineTo(122, 50); ctx.stroke();
+  ctx.lineWidth = 1; for (let k = 54; k < 86; k += 8) { ctx.beginPath(); ctx.moveTo(119, k); ctx.lineTo(125, k + 4); ctx.stroke(); }
+  if (Math.floor(t * 2) % 2) circ(122, 49, 2.6, '#ff5a5a');
+  // floodlight beams sweeping across the front
+  for (const [fx, dir] of [[6, 1], [134, -1]]) {
+    const a = -Math.PI / 2 + dir * (1.9 + 0.35 * Math.sin(t * 0.8 + fx));
+    const beam = ctx.createRadialGradient(fx, 124, 2, fx, 124, 46);
+    beam.addColorStop(0, 'rgba(255,246,200,0.38)'); beam.addColorStop(1, 'rgba(255,246,200,0)');
+    ctx.fillStyle = beam; ctx.beginPath(); ctx.moveTo(fx, 124); ctx.arc(fx, 124, 46, a - 0.22, a + 0.22); ctx.closePath(); ctx.fill();
+    circ(fx, 124, 3, '#3a3833'); circ(fx, 124, 1.8, '#fff6c8');
+  }
+  ctx.fillStyle = '#b8a77a';
+  for (const sx of [40, 88]) for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.ellipse(sx + k * 6, 121, 3.5, 2.3, 0, 0, Math.PI * 2); ctx.fill(); }
+  flag(4, 6, e.team);
+  // the helicopter: parked, takes off, circles the HQ, lands (a 30 second loop)
+  const cyc = t % 30, pad = [22, 118];
+  if (cyc < 12) hqHeli(pad[0], pad[1], -0.4, 0, t);
+  else if (cyc < 14) { const k = (cyc - 12) / 2; hqHeli(pad[0], pad[1], -0.4 - k * 1.2, k, t); }
+  else if (cyc < 26) {
+    const k = (cyc - 14) / 12, a = 2.2 - k * Math.PI * 2, rr = 70 + 18 * Math.sin(k * Math.PI);
+    const hx = 70 + Math.cos(a) * rr, hy = 70 + Math.sin(a) * rr;
+    const sx = 70 + Math.cos(2.2) * 70, sy = 70 + Math.sin(2.2) * 70, blend = Math.min(1, k * 6, (1 - k) * 6);
+    hqHeli(pad[0] + (hx - pad[0]) * blend, pad[1] + (hy - pad[1]) * blend, a - Math.PI / 2, 1, t);
+  } else if (cyc < 28) { const k = (cyc - 26) / 2; hqHeli(pad[0], pad[1], -0.4, 1 - k, t); }
+  else hqHeli(pad[0], pad[1], -0.4, 0, t);
 }
 
 function drawBarracks(e) {

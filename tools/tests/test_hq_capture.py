@@ -14,7 +14,7 @@ with sync_playwright() as p:
         pg = b.new_page(viewport={'width': 400, 'height': 300}); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)))
         pg.goto(f'http://127.0.0.1:{sys.argv[2]}/index.html'); pg.evaluate("localStorage.setItem('mini-rts-map','classic'); localStorage.setItem('mini-rts-difficulty','hard')")
         pg.goto(f'http://127.0.0.1:{sys.argv[2]}/index.html'); pg.wait_for_timeout(2000); pg.click('#ovBtn')
-        res[case] = pg.evaluate("""(kind)=>{ game.ents = game.ents.filter(e => e.type !== 'settler');
+        res[case] = pg.evaluate("""(kind)=>{ runAI = () => {}; game.ents = game.ents.filter(e => e.type !== 'settler' && e.type !== 'hq');   // start from no HQs (the computer may already have deployed)
           const mine = spawn('hq', 0, 500, 1100), theirs = spawn('hq', 1, 1500, 500); mine.built = theirs.built = true;
           if (kind === 'raid') {   // the computer knows only about your HQ: no raid should be planned against it
             game.ai.known.set(mine.id, {}); return { raidPlan: aiRaidPlan(spawn('engineer', 1, 1500, 600)) };
