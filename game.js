@@ -63,21 +63,21 @@ const MAPS = {
       [[[-40, 2300], [300, 2290], [550, 2240], [820, 2280]], 32],   // wall north of your base, right to the map edge (gap only at the east end)
       [[[1080, 2230], [1150, 2450], [1110, 2720]], 32],   // wall east of your base (gap at the bottom)
       [[[930, 1040], [1200, 1200]], 30],                  // outcrop by the flank field
-      [[[2000, 610], [2190, 640]], 30],                   // ridge across the road from the bridge plateau (the pinch onto the bridge)
+      [[[2612, 610], [2415, 640]], 30],                   // ridge across the road from the bridge plateau (the pinch onto the bridge), across the river from your side
       [[[780, 1520], [940, 1700]], 28],                   // rocks by the north expansion
       [[[600, 700], [640, 1000]], 28],                    // rocks shielding the far corner
-      [[[1950, 2500], [2080, 2700]], 30],                 // rocks by the south bridge
+      [[[3002, 2500], [2782, 2700]], 30],                 // rocks by the south bridge, on the far side of the river (mirrored: by the north bridge on your side)
     ],
     forests: [[1470, 1250, 360, 250, 0.35], [270, 820, 160], [1530, 420, 160], [980, 1950, 130], [1700, 1500, 110]],   // the big jungle sits on the routes between the bases
     plateaus: [
       { x: 1979, y: 1806, rx: 250, ry: 165, tilt: 0.94, ramps: [2.51], overhang: true },   // lookout over the island, close to its west bridge: juts out over the river   // lookout over the island: juts out over the river
       { x: 1450, y: 1690, rx: 190, ry: 130, tilt: -0.6, ramps: [2.3] },   // beside the main road to the island's west bridge: with the river lookout it squeezes the road into a pinch about 150 wide
-      { x: 2060, y: 290, rx: 160, ry: 110, tilt: 0.1, ramps: [3.4] },     // overlooks the river bridge above the island; with the ridge below it, pinches the road onto the bridge
+      { x: 2683, y: 290, rx: 160, ry: 110, tilt: -0.1, ramps: [-0.26] },  // overlooks the river bridge above the island, on the far bank; with the ridge below it, pinches the road onto the bridge
     ],
     river: { amp: 110, period: 420, half: 44 },
     bridges: [{ y: 480, hw: 74 }],   // one crossing above the island (and its mirror below), plus the two island bridges
-    // neutral villages: an Oil Derrick and a few houses. This one (and its mirror) is about as far from both bases.
-    villages: [{ x: 1880, y: 560, derrick: [0, 0], houses: [[-100, -62], [96, -58], [-84, 82]] }],
+    // neutral villages: an Oil Derrick and a few houses, each on the far side of a river bridge from one base.
+    villages: [{ x: 2747, y: 560, derrick: [0, 0], houses: [[100, -62], [-96, -58], [84, 82]] }],   // on the far side of the top bridge (its mirror is on your side of the bottom bridge)
   },
 };
 let mapChoice = 'large';
@@ -743,7 +743,7 @@ const bg = document.createElement('canvas');
     };
     b.fillStyle = 'rgba(120,102,68,0.45)'; b.beginPath(); b.ellipse(dx0, dy0 + 6, 70, 56, 0, 0, Math.PI * 2); b.fill();   // trodden square
     for (const [hx, hy] of v.houses) track(vx + hx * k, vy + hy * k + 18 * k, dx0, dy0, 10);
-    track(dx0, dy0, dx0 + 40 * k, dy0 + 230 * k, 12);
+    track(dx0, dy0, dx0 - 40 * k, dy0 + 230 * k, 12);
   }
   b.strokeStyle = 'rgba(0,0,0,0.5)'; b.lineWidth = 6; b.strokeRect(3, 3, W - 6, H - 6);
   for (const m of allMasks) free(m);
