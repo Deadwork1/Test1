@@ -73,7 +73,7 @@ const MAPS = {
       [[[2612, 610], [2415, 640]], 30],                   // ridge across the road from the bridge plateau (the pinch onto the bridge), across the river from your side
       [[[3002, 2500], [2782, 2700]], 30],                 // rocks by the south bridge, on the far side of the river (mirrored: by the north bridge on your side)
     ],
-    forests: [[1220, 1180, 500, 345, 0.25], [700, 1160, 490, 210, -0.08], [650, 860, 390, 270, 0], [840, 1460, 240, 180, 0.3], [1530, 420, 160], [980, 1950, 130], [1700, 1500, 110]],   // the big jungle sits on the routes between the bases, an old ruined base in its middle
+    forests: [[1220, 1180, 500, 345, 0.25], [700, 1160, 490, 210, -0.08], [650, 860, 390, 270, 0], [840, 1460, 240, 180, 0.3], [1530, 420, 160], [980, 1950, 130]],   // the big jungle sits on the routes between the bases, an old ruined base in its middle
     plateaus: [
       { x: 1979, y: 1806, rx: 250, ry: 165, tilt: 0.94, ramps: [2.51], overhang: true },   // lookout over the island, close to its west bridge: juts out over the river   // lookout over the island: juts out over the river
       { x: 1450, y: 1690, rx: 190, ry: 130, tilt: -0.6, ramps: [2.3] },   // beside the main road to the island's west bridge: with the river lookout it squeezes the road into a pinch about 150 wide
