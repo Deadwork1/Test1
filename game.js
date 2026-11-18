@@ -54,7 +54,7 @@ const MAPS = {
     // a neutral village by your river bridge (its mirror sits by the computer's), guarded by the bridge plateau
     villages: [{ x: 1480, y: 1795, derrick: [0, 0], houses: [[-100, 62], [96, 58], [-84, -82]], out: [40, -230] }],
     // an old ruined base in a clearing in the middle of the big jungle on your side (its mirror is on the computer's)
-    ruins: [{ x: 520, y: 650, clearing: [118, 100], buildings: [['barracks', -44, -24], ['power', 50, -28], ['radar', 4, 50]] }],
+    ruins: [{ x: 520, y: 650, clearing: [140, 115], buildings: [['barracks', -64, -30], ['power', 66, -34], ['radar', 0, 56]] }],
   },
   huge: {   // the base corner is laid out like Large's; the extra room is all in the ground between the bases
     label: 'Huge', W: 4800, H: 3000, start: { x: 400, y: 2600 },
@@ -83,7 +83,7 @@ const MAPS = {
     bridges: [{ y: 480, hw: 74 }],   // one crossing above the island (and its mirror below), plus the two island bridges
     // neutral villages: an Oil Derrick and a few houses, each on the far side of a river bridge from one base.
     villages: [{ x: 2747, y: 560, derrick: [0, 0], houses: [[100, -62], [-96, -58], [84, 82]], out: [-40, 230] }],   // on the far side of the top bridge (its mirror is on your side of the bottom bridge)
-    ruins: [{ x: 580, y: 920, clearing: [118, 100], buildings: [['barracks', -44, -24], ['power', 50, -28], ['radar', 4, 50]] }],   // old ruined base in the middle of the big jungle
+    ruins: [{ x: 580, y: 920, clearing: [140, 115], buildings: [['barracks', -64, -30], ['power', 66, -34], ['radar', 0, 56]] }],   // old ruined base in the middle of the big jungle
   },
 };
 let mapChoice = 'large';
@@ -136,7 +136,7 @@ const STATS = {
 const PRODUCES = { barracks: ['soldier', 'grenadier', 'rocket', 'sniper', 'engineer'], refinery: ['extractor'], factory: ['buggy', 'light', 'artillery', 'heavy'] };
 // Tech tree: what else you need (finished, and still standing) before you can build or train something
 const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['tower'], heavy: ['tech'], artillery: ['power'], radar: ['power'], medbay: ['barracks'] };
-const hasBuilt = (team, type) => game.ents.some(b => b.team === team && b.type === type && b.built);
+const hasBuilt = (team, type) => game.ents.some(b => b.team === team && b.type === type && b.built && ruinWorks(b));   // (a captured ruin counts once it's repaired to half)
 const missingFor = (team, type) => (REQUIRES[type] || []).filter(t => !hasBuilt(team, t));
 const unlocked = (team, type) => missingFor(team, type).length === 0;
 const TRAIN_TIME = { soldier: 4, buggy: 6, extractor: 6, grenadier: 4.5, engineer: 5, rocket: 5, sniper: 6, light: 10, heavy: 16, artillery: 12 };   // seconds to make each unit
@@ -166,7 +166,7 @@ try { if (DIFFICULTY[localStorage.getItem('mini-rts-difficulty')]) difficulty = 
 const diff = () => DIFFICULTY[difficulty];
 // Power Plants: each finished one makes building and training 25% faster, up to double speed
 const POWER_BONUS = 0.25, POWER_MAX = 2;
-const powerBoost = team => Math.min(POWER_MAX, 1 + POWER_BONUS * game.ents.filter(b => b.team === team && b.type === 'power' && b.built).length);
+const powerBoost = team => Math.min(POWER_MAX, 1 + POWER_BONUS * game.ents.filter(b => b.team === team && b.type === 'power' && b.built && ruinWorks(b)).length);
 // how many times longer than normal this side takes to build things (difficulty slow-down ÷ power boost)
 const slowOf = e => (e.team === 1 ? diff().slow : 1) / powerBoost(e.team);
 const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', rocket: 'Rocket Soldier', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', tower: 'Guard Tower', power: 'Power Plant', radar: 'Radar', medbay: 'Medbay', wall: 'Wall', gate: 'Gate', derrick: 'Oil Derrick', house: 'House', civilian: 'Civilian' };
@@ -179,7 +179,7 @@ const TEAMS = [
 const NEUTRAL = 2;
 // Old ruined bases (Large and Huge maps): neutral, battered buildings an Engineer can capture. They start at RUIN_HP
 // of full health and don't work until repaired to RUIN_WORKS of full health.
-const RUIN_HP = 0.2, RUIN_WORKS = 0.5;
+const RUIN_HP = 0.2, RUIN_WORKS = 0.5, RUIN_SIGHT = 160, RUIN_REPAIR = 1 / 3;   // RUIN_REPAIR: Engineers fix ruins at a third of the usual speed   // (a broken Radar only sees as far as an ordinary building)
 const ruinWorks = e => !e.ruin || (e.team !== NEUTRAL && e.hp >= e.maxHp * RUIN_WORKS);
 const animT = e => ruinWorks(e) ? performance.now() / 1000 : 0;   // a ruin that isn't working stands still: no spinning dish, no glow
 const isNeutralType = t => t === 'derrick' || t === 'house';
@@ -1079,8 +1079,8 @@ function updateFog() {
   for (const e of game.ents) {
     if (e.team === NEUTRAL) continue;
     const f = fog[e.team];
-    if (STATS[e.type].radar && e.built) { for (const i of radarCells(e.x, e.y, STATS[e.type].sight)) { f.vis[i] = 1; f.exp[i] = 1; } continue; }
-    const r = STATS[e.type].sight * (isBuilding(e) && !e.built ? 0.6 : 1) * (elevAt(e.x, e.y) ? HIGH_SIGHT : 1) * (isUnit(e) && terrainAt(e.x, e.y) === T.FOREST ? FOREST_SIGHT : 1);
+    if (STATS[e.type].radar && e.built && ruinWorks(e)) { for (const i of radarCells(e.x, e.y, STATS[e.type].sight)) { f.vis[i] = 1; f.exp[i] = 1; } continue; }
+    const r = (STATS[e.type].radar ? RUIN_SIGHT : STATS[e.type].sight) * (isBuilding(e) && !e.built ? 0.6 : 1) * (elevAt(e.x, e.y) ? HIGH_SIGHT : 1) * (isUnit(e) && terrainAt(e.x, e.y) === T.FOREST ? FOREST_SIGHT : 1);
     for (const i of visibleCells(e.x, e.y, r)) { f.vis[i] = 1; f.exp[i] = 1; }
   }
   const d = fogImg.data;
@@ -1236,7 +1236,7 @@ function placeBuilding(team, type, x, y, vertical) {
 
 function produce(b, unit) {
   unit = unit || (PRODUCES[b.type] || [])[0];
-  if (!unit || !PRODUCES[b.type].includes(unit) || !unlocked(b.team, unit) || !b.built || b.queue >= STATS[b.type].maxQueue || game.credits[b.team] < COST[unit]) return false;
+  if (!unit || !PRODUCES[b.type].includes(unit) || !unlocked(b.team, unit) || !b.built || !ruinWorks(b) || b.queue >= STATS[b.type].maxQueue || game.credits[b.team] < COST[unit]) return false;
   spend(b.team, COST[unit]);
   b.queue++; b.qTypes.push(unit);
   return true;
@@ -1459,6 +1459,15 @@ function update(dt) {
       game.effects.push({ kind: 'text', x: e.x, y: e.y - 34, text: 'Derrick knocked out', t: 0, color: '#e7e5e4' });
       e.team = NEUTRAL; e.hp = e.maxHp; e.payT = 0; e.takenAt = undefined; e.target = null;
       game.ai.known.delete(e.id); bldDirty = true;
+      continue;
+    }
+    if (e.ruin && e.hp <= 0 && !e.sold) {   // a ruined base's building isn't destroyed: it falls back into a neutral ruin, ready to be taken again
+      const was = e.team;
+      game.effects.push({ kind: 'boom', x: e.x, y: e.y, t: 0, big: true });
+      if (was === 0 || visibleAt(e.x, e.y)) game.effects.push({ kind: 'text', x: e.x, y: e.y - 34, text: was === 0 ? 'Ruin lost' : 'Ruin knocked out', t: 0, color: '#e7e5e4' });
+      if (was === 0 || was === 1) { game.stats[was].buildingsLost++; game.stats[1 - was].destroyed++; }
+      e.team = NEUTRAL; e.hp = e.maxHp * RUIN_HP; e.queue = 0; e.qTypes = []; e.trainT = 0; e.target = null; e.takenAt = undefined;
+      game.selected.delete(e.id); game.ai.known.delete(e.id); bldDirty = true;
       continue;
     }
     if (e.hp <= 0) {
@@ -1721,7 +1730,7 @@ function updateEngineer(e, dt) {
   }
   e.facing = Math.atan2(b.y - e.y, b.x - e.x);
   if (o.type === 'repair') {
-    b.hp = Math.min(b.maxHp, b.hp + STATS.engineer.repair * dt);
+    b.hp = Math.min(b.maxHp, b.hp + STATS.engineer.repair * (b.ruin ? RUIN_REPAIR : 1) * dt);   // old ruins are slow going: bring a crew
     e.working = true;
     if (Math.random() < dt * 8) game.effects.push({ kind: 'spark', x: b.x + (Math.random() - .5) * halfX(b) * 1.6, y: b.y + (Math.random() - .5) * halfY(b) * 1.6, t: 0 });
     if (b.hp >= b.maxHp) e.order = null;
@@ -1782,7 +1791,7 @@ function updateBuilding(e, dt) {
     return;
   }
   if (e.type === 'medbay') { updateMedbay(e, dt); return; }
-  if (!PRODUCES[e.type] || e.queue <= 0) return;
+  if (!PRODUCES[e.type] || e.queue <= 0 || !ruinWorks(e)) return;   // a ruined Barracks knocked below half stops training until it's patched up
   e.trainT += dt;
   if (e.trainT >= TRAIN_TIME[e.qTypes[0]] * slowOf(e)) {
     e.trainT = 0; e.queue--;
@@ -3948,7 +3957,7 @@ function drawRange(x, y, r) {
 
 // name tag under a selected building
 function drawNameTag(e) {
-  const txt = NAMES[e.type];
+  const txt = (e.ruin && !ruinWorks(e) ? 'Ruined ' : '') + NAMES[e.type];
   ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center';
   const w = ctx.measureText(txt).width + 12, y = e.y - halfY(e) - 32;   // above the health bar, clear of the door
   ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(e.x - w / 2, y, w, 17);
@@ -4257,7 +4266,7 @@ ui.harvest.addEventListener('click', () => {
 });
 ui.deselect.addEventListener('click', () => { game.selected.clear(); game.placing = null; });
 // Selling: tap Sell, then tap again to confirm. You get half the building's price back (plus anything still queued in it).
-const sellable = b => b && b.team === 0 && isBuilding(b) && COST[b.type] > 0;
+const sellable = b => b && b.team === 0 && isBuilding(b) && COST[b.type] > 0 && !b.ruin;   // captured ruins can't be sold
 const sellValue = b => Math.floor(COST[b.type] / 2) + (b.qTypes || []).reduce((s, t) => s + COST[t], 0);
 let sellArmed = null;
 function sellBuilding(b) {
@@ -4387,7 +4396,7 @@ function updateHUD() {
 
   const sel = [...game.selected].map(byId).filter(Boolean);
   const one = t => sel.find(e => e.type === t);
-  const settler = one('settler'), hq = one('hq'), producer = sel.find(e => PRODUCES[e.type]);
+  const settler = one('settler'), hq = one('hq'), producer = sel.find(e => PRODUCES[e.type] && e.team === 0 && ruinWorks(e)), ruinSel = sel.length === 1 && sel[0].ruin && !ruinWorks(sel[0]) ? sel[0] : null;
   const extractors = sel.filter(e => e.type === 'extractor'), soldiers = sel.filter(e => e.type === 'soldier'), buggies = sel.filter(e => e.type === 'buggy');
   const placing = game.placing;
 
@@ -4455,6 +4464,9 @@ function updateHUD() {
   else if (placing) text = placing.ghost ? 'Tap the square again (or Place here) to build' : `Tap inside the green area to place your ${NAMES[placing.type].toLowerCase()}`;
   else if (settler) text = 'Settler — move somewhere open, then Deploy';
   else if (hq) text = 'Headquarters';
+  else if (ruinSel) text = ruinSel.team === NEUTRAL
+    ? `Ruined ${NAMES[ruinSel.type]} — neutral. Send an Engineer to capture it, then repair it to half to bring it back into use`
+    : ruinSel.team === 0 ? `Ruined ${NAMES[ruinSel.type]}: ${Math.floor(ruinSel.hp / ruinSel.maxHp * 100)}% — repair it to ${RUIN_WORKS * 100}% with Engineers to bring it back into use` : `Ruined ${NAMES[ruinSel.type]} (enemy)`;
   else if (sel.length === 1 && sel[0].type === 'gate') text = 'Gate — opens for your units, enemies must destroy it';
   else if (sel.length === 1 && sel[0].type === 'wall') text = 'Wall';
   else if (sel.length === 1 && sel[0].type === 'power') text = sel[0].built
