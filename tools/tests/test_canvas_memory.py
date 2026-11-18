@@ -34,10 +34,11 @@ with sync_playwright() as p:
         # then try switching map with the buttons
         target = 'classic' if m != 'classic' else 'large'
         try:
-            pg.click(f'#mapRow button[data-m="{target}"]', timeout=3000); pg.wait_for_timeout(2500)
-            switched = pg.evaluate("localStorage.getItem('mini-rts-map')") == target
+            pg.click(f'#mapRow button[data-m="{target}"]', timeout=5000, no_wait_after=True); pg.wait_for_timeout(4000)   # the click reloads the page; don't wait on the load
+            got = pg.evaluate("localStorage.getItem('mini-rts-map')"); switched = got == target
+            if not switched: print('   after click the map setting is', got)
         except Exception as ex:
-            switched = False
+            switched = False; print('   click failed:', str(ex).split(chr(10))[0][:200])
         print(m, json.dumps(r), 'switch to', target, 'works' if switched else 'BROKEN', 'errors', errs[:2])
         ok = ok and r['loaded'] and switched
         ctx.close()

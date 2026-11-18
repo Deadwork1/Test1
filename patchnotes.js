@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.24', date: '18 Nov 2026', title: 'Rich island, two ways in',
+    changes: [
+      'Huge map: much more gold on the middle island: 40 patches instead of 22. A band still runs along the shore by the river lookouts, and the rest is spread across the whole island. Still mirrored, so both sides get exactly the same.',
+      'Huge map: the rock wall north of each base now runs right to the edge of the map, closing the far-left gap. Each base has two ways in: the gap between its two rock walls, and the gap at the bottom.',
+    ],
+  },
+  {
     version: '5.23', date: '17 Nov 2026', title: 'Contested high ground',
     changes: [
       'Huge map: the plateaus that sat in quiet corners have moved onto the busy routes. One stands beside the main road from each base to the island, the other north of the big jungle over the road to the village. Each has one ramp facing back towards its own base.',

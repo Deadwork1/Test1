@@ -58,9 +58,9 @@ const MAPS = {
       { x: 1250, y: 640, nodes: 10, amount: 600, spread: 130 },   // contested flank field
       { x: 330, y: 330, nodes: 7, amount: 600, spread: 95 },      // far corner field
     ],
-    island: { r: 500, nodes: 22, amount: 600, spread: 300, ring: [290, 440] },   // gold scattered round the island's edge, near the river (and the lookouts)
+    island: { r: 500, nodes: 22, amount: 600, spread: 300, ring: [290, 440], inner: 18 },   // gold round the island's edge (near the river and the lookouts) plus plenty across the middle   // gold scattered round the island's edge, near the river (and the lookouts)
     ridges: [
-      [[[300, 2290], [550, 2240], [820, 2280]], 32],      // wall north of your base (gaps at both ends)
+      [[[-40, 2300], [300, 2290], [550, 2240], [820, 2280]], 32],   // wall north of your base, right to the map edge (gap only at the east end)
       [[[1080, 2230], [1150, 2450], [1110, 2720]], 32],   // wall east of your base (gap at the bottom)
       [[[930, 1040], [1200, 1200]], 30],                  // outcrop by the flank field
       [[[1800, 800], [1890, 1200]], 30],                  // ridge near the river
@@ -176,7 +176,7 @@ const START = [{ x: MAP.start.x, y: MAP.start.y }, { x: W - MAP.start.x, y: H - 
 // ore fields: a small one by each base, a big rich one in the middle, two on the flanks
 const ORE_FIELDS = [
   ...MAP.fields.flatMap(f => [f, { ...f, x: W - f.x, y: H - f.y }]),
-  { x: W / 2, y: H / 2, nodes: MAP.island.nodes, amount: MAP.island.amount, spread: MAP.island.spread, ring: MAP.island.ring },
+  { x: W / 2, y: H / 2, nodes: MAP.island.nodes, amount: MAP.island.amount, spread: MAP.island.spread, ring: MAP.island.ring, inner: MAP.island.inner },
 ];
 
 // ---------- Canvas, camera ----------
@@ -783,6 +783,14 @@ function newGame() {
           x = f.x + Math.cos(a) * d; y = f.y + Math.sin(a) * d;
         }
         while ((terrainAt(x, y) !== T.GRASS || terrainAt(W - x, H - y) !== T.GRASS || game.ore.some(o => Math.hypot(o.x - x, o.y - y) < 45)) && ++tries < 40);
+        const rot = rnd() * 6;
+        game.ore.push({ id: game.nextId++, x, y, amount: f.amount, max: f.amount, rot });
+        game.ore.push({ id: game.nextId++, x: W - x, y: H - y, amount: f.amount, max: f.amount, rot: rot + 3 });
+      }
+      for (let i = 0; i < (f.inner || 0) / 2; i++) {   // and more scattered across the middle, also in mirrored pairs
+        let x, y, tries = 0;
+        do { const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * (f.ring[0] - 10); x = f.x + Math.cos(a) * d; y = f.y + Math.sin(a) * d; }
+        while ((terrainAt(x, y) !== T.GRASS || Math.hypot(x - f.x, y - f.y) < 30 || game.ore.some(o => Math.hypot(o.x - x, o.y - y) < 50)) && ++tries < 40);
         const rot = rnd() * 6;
         game.ore.push({ id: game.nextId++, x, y, amount: f.amount, max: f.amount, rot });
         game.ore.push({ id: game.nextId++, x: W - x, y: H - y, amount: f.amount, max: f.amount, rot: rot + 3 });
