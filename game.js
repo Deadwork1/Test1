@@ -13,18 +13,19 @@ const MAPS = {
   classic: {
     label: 'Classic', W: 2400, H: 1500, start: { x: 230, y: 1270 },
     fields: [   // your home field, then your flank field
-      { x: 600, y: 1170, nodes: 7, amount: 500, spread: 90 },
+      { x: 470, y: 1215, nodes: 7, amount: 500, spread: 85 },
       { x: 640, y: 380, nodes: 8, amount: 400, spread: 110 },
     ],
     island: { r: 280, nodes: 14, amount: 500, spread: 160 },
     ridges: [
-      [[[110, 900], [300, 860], [470, 885]], 30],      // wall north of your base
-      [[[880, 1050], [935, 1210], [905, 1385]], 30],   // wall east of your base (gap at the bottom)
+      [[[-30, 1100], [135, 1092], [300, 1060], [480, 1087]], 28],   // wall north of your base, right to the map edge (as on Large, scaled down)
+      [[[655, 1053], [700, 1200], [673, 1347]], 28],   // wall east of your base (gap at the bottom): two ways in, like the bigger maps
     ],
-    forests: [[440, 650, 220, 150, -0.15], [345, 455, 165, 175, 0], [800, 230, 90]],   // [x, y, r] or a jungle [x, y, rx, ry, tilt]; the jungle hides a small ruined base
+    forests: [[405, 640, 195, 145, -0.15], [345, 455, 165, 175, 0], [800, 230, 90]],   // [x, y, r] or a jungle [x, y, rx, ry, tilt]; the jungle hides a small ruined base
     plateaus: [
       { x: 930, y: 470, rx: 175, ry: 130, tilt: 0.2, ramps: [3.0, 1.5] },   // high ground: cliff all round except the ramps
-      { x: 965, y: 925, rx: 140, ry: 95, tilt: 0.94, ramps: [2.51], overhang: true, rim: 34 },   // a small river lookout by the island's west bridge (as on Large, scaled down)
+      { x: 965, y: 925, rx: 140, ry: 95, tilt: 0.94, ramps: [2.51], overhang: true, rim: 34 },
+      { x: 668, y: 828, rx: 108, ry: 74, tilt: -0.6, ramps: [2.3], rim: 32 },   // beside the road to the island's west bridge: with the lookout it pinches the road   // a small river lookout by the island's west bridge (as on Large, scaled down)
       { x: 1110, y: 1405, rx: 90, ry: 62, tilt: -0.1, ramps: [2.88], rim: 32 },   // a small plateau watching your river bridge and the village beside it
     ],
     river: { amp: 70, period: 230, half: 36 },
