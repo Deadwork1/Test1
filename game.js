@@ -2738,17 +2738,43 @@ function aiPlaceRefinery(hq) {
   return aiPlace(hq, 'refinery');
 }
 
-// where the computer digs in its next Turret: just inside each way into its base (clear of its planned walls), then by its Oil Derricks
+// Pinch points: the narrow pass between two plateaus that stand close together (the river lookout and the road plateau beside it).
+// Returns the middle of each pass on low ground, for both sides; worked out once.
+let pinchCache = null;
+function pinchSpots() {
+  if (pinchCache) return pinchCache;
+  const pls = [];
+  for (const pl of MAP.plateaus || []) { pls.push(pl); const [x, y] = mirror([pl.x, pl.y]); pls.push({ ...pl, x, y }); }
+  const tilesOf = pl => { const out = []; for (let r = 0; r < TROWS; r++) for (let c = 0; c < TCOLS; c++) { const x = c * TC + TC / 2, y = r * TC + TC / 2, dx = x - pl.x, dy = y - pl.y, co = Math.cos(pl.tilt), si = Math.sin(pl.tilt); const u = (dx * co + dy * si) / pl.rx, v = (-dx * si + dy * co) / pl.ry; if (Math.hypot(u, v) < 1.1 && elev[r * TCOLS + c]) out.push([x, y]); } return out; };
+  const tiles = pls.map(tilesOf);
+  pinchCache = [];
+  for (let i = 0; i < pls.length; i++) for (let j = i + 1; j < pls.length; j++) {
+    if (Math.hypot(pls[i].x - pls[j].x, pls[i].y - pls[j].y) > Math.max(pls[i].rx, pls[i].ry) + Math.max(pls[j].rx, pls[j].ry) + 220) continue;
+    let best = null, bd = Infinity;
+    for (const a of tiles[i]) for (const b of tiles[j]) { const d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (d < bd) { bd = d; best = [a, b]; } }
+    if (!best || bd - TC > 160) continue;   // a real pinch: no more than about 160 wide
+    const x = (best[0][0] + best[1][0]) / 2, y = (best[0][1] + best[1][1]) / 2;
+    pinchCache.push({ x, y, width: bd - TC });
+  }
+  return pinchCache;
+}
+
+// where the computer digs in its next Turret: just inside each way into its base (clear of its planned walls), the pinch on its side
+// of the river (it goes for that first about half the time, while it's free), then by its Oil Derricks
 function aiTurretSpot(hq) {
   const turrets = game.ents.filter(e => e.team === 1 && (e.type === 'turret' || (e.type === 'engineer' && e.turretAt)));
   const taken = (x, y) => turrets.some(t => { const p = t.type === 'turret' ? t : t.turretAt; return Math.hypot(p.x - x, p.y - y) < 90; });
   const onPlan = (x, y) => (game.ai.wallPlans || []).some(pl => [...pl.tiles, pl.gate].some(t => Math.abs(t.x - x) < 45 && Math.abs(t.y - y) < 45));
+  const mySide = p => (p.x - W / 2) * (hq.x - W / 2) > 0;   // on the computer's half of the map
+  const pinches = pinchSpots().filter(mySide).map(p => ({ x: p.x, y: p.y, pull: 0, lowGround: true }));
   const near = [...findEntrances(1).map(ch => ({ x: ch.x, y: ch.y, pull: 80 })),
                 ...game.ents.filter(d => d.type === 'derrick' && d.team === 1).map(d => ({ x: d.x, y: d.y, pull: 70 }))];
+  near.splice(Math.random() < 0.5 ? 0 : Math.min(1, near.length), 0, ...pinches);   // the pinch first about half the time, otherwise right after the first entrance
   for (const p of near) {
     const a = Math.atan2(hq.y - p.y, hq.x - p.x);
     for (const [da, dd] of [[0, 0], [0.5, 0], [-0.5, 0], [0, 30], [0.8, 20], [-0.8, 20]]) {
       const x = p.x + Math.cos(a + da) * (p.pull + dd), y = p.y + Math.sin(a + da) * (p.pull + dd);
+      if (p.lowGround && elevAt(x, y)) continue;   // in the pass itself, not up on a plateau
       if (!taken(x, y) && !onPlan(x, y) && turretSpotOk(x, y)) return { x, y };
     }
   }
