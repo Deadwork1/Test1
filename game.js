@@ -2202,8 +2202,7 @@ function runAI(dt) {
   for (const k in seenNow) ai.seen[k] = Math.max(ai.seen[k], seenNow[k]);
   ai.seenBuggies = Math.max(ai.seenBuggies || 0, game.ents.filter(v => v.team === 0 && (v.type === 'buggy' || isTank(v)) && visibleAt(v.x, v.y, 1)).length);
   const wantRocket = D.rockets && unlocked(1, 'rocket') && (ai.seenBuggies || 0) > 0 && of('rocket').length + qOf('rocket') < Math.min(6, ai.seenBuggies);
-  const hillsOn = D.hill > 0 && game.time > D.hillAfter - 60;   // it holds plateaus: train two extra Snipers for each one to sit up there
-  const wantSniper = unlocked(1, 'sniper') && of('sniper').length + qOf('sniper') < D.snipers + (hillsOn ? 2 * D.hill : 0) && game.time > 240;
+  const wantSniper = unlocked(1, 'sniper') && of('sniper').length + qOf('sniper') < D.snipers && game.time > 240;   // (the ones it has go up the plateaus first)
   // engineers: a repairer only when something is badly damaged, and now and then a raider sent the long way round to steal a building
   const repairers = of('engineer').filter(en => !en.raid).length + qOf('engineer') - (ai.raidPending ? 1 : 0);
   const needsFix = mine.some(b => isBuilding(b) && !isWallType(b.type) && b.built && b.hp < b.maxHp * 0.6);
