@@ -1587,6 +1587,15 @@ function crush(e) {
 }
 
 // artillery picks its own targets by what it's for: guard towers first, then other buildings, then units
+// a spot within this unit's range of a building that it can actually get to (nearest first), for when the building itself is boxed in
+function approachSpot(e, b) {
+  const d = Math.max(halfX(b), halfY(b)) + rangeOf(e) * 0.8, spots = [];
+  for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2, x = b.x + Math.cos(a) * d, y = b.y + Math.sin(a) * d; if (walkable(terrainAt(x, y), isVehicle(e))) spots.push({ x, y, dd: Math.hypot(x - e.x, y - e.y) }); }
+  spots.sort((p, q) => p.dd - q.dd);
+  for (const s of spots) if (findPath(e.x, e.y, s.x, s.y, isVehicle(e), e.team, isCombat(e), e.r)) return s;
+  return null;
+}
+
 function findSiegeTarget(e, radius) {
   let best = null, bestScore = Infinity;
   const min = STATS[e.type].minRange || 0;
@@ -1688,7 +1697,12 @@ function updateSoldier(e, dt) {   // soldiers and buggies
     // artillery may shell a building it has seen before even if nobody is looking at it right now (buildings don't move)
     const seen = visibleAt(t.x, t.y, e.team) || (s.siege && isBuilding(t) && exploredAt(t.x, t.y, e.team));
     if (edgeDist(e.x, e.y, t) > rangeOf(e) || !seen || !canShoot(e, t)) {   // out of range, out of sight (e.g. up on a cliff) or rock in the way: close in
-      if (navigate(e, t.x, t.y, dt) === 'fail') e.order = o.resume || null;
+      // can't get to it (a building boxed in by others, say)? head for the nearest spot it can reach within range of it and shoot from there
+      if (navigate(e, o.ax !== undefined ? o.ax : t.x, o.ay !== undefined ? o.ay : t.y, dt) === 'fail') {
+        const ap = isBuilding(t) && !o.approachTried ? approachSpot(e, t) : null;
+        o.approachTried = true;
+        if (ap) { o.ax = ap.x; o.ay = ap.y; e.nav = null; } else e.order = o.resume || null;
+      }
     } else {
       if (s.tank || s.siege) e.turret = Math.atan2(t.y - e.y, t.x - e.x);   // tanks swing the turret, not the hull
       else e.facing = Math.atan2(t.y - e.y, t.x - e.x);
@@ -1973,6 +1987,8 @@ function aiExploreSpot(fromX, fromY, preferFar) {
     const i = Math.floor(Math.random() * f.exp.length);
     if (f.exp[i]) continue;
     const x = (i % COLS) * CELL + CELL / 2, y = Math.floor(i / COLS) * CELL + CELL / 2;
+    // only open ground a vehicle can get its body into: not hard against the map edge or tucked into a pocket of rock
+    if (x < 60 || y < 60 || x > W - 60 || y > H - 60 || [[0, 0], [22, 0], [-22, 0], [0, 22], [0, -22]].some(([dx, dy]) => !walkable(terrainAt(x + dx, y + dy), true))) continue;
     const score = preferFar && hq ? Math.hypot(x - hq.x, y - hq.y) : -Math.hypot(x - fromX, y - fromY);
     if (score > bestScore) { bestScore = score; best = { x, y }; }
   }
