@@ -108,7 +108,7 @@ const STATS = {
   settler:   { hp: 200, speed: 38, r: 16, sight: 180 },
   soldier:   { hp: 60,  speed: 52, r: 9,  sight: 170, range: 85, dmg: 7, cooldown: 0.8 },
   extractor: { hp: 300, speed: 34, r: 15, sight: 150, capacity: 150, rate: 30, unloadTime: 1.5 },
-  buggy:     { hp: 140, speed: 95, r: 13, sight: 220, range: 110, dmg: 5,  cooldown: 0.25 },   // fast, machine gun
+  buggy:     { hp: 140, speed: 95, r: 13, sight: 220, range: 110, dmg: 4,  cooldown: 0.25 },   // fast, machine gun (damage 5 until v5.41)
   light:     { hp: 350, speed: 60, r: 15, sight: 200, range: 130, dmg: 30, cooldown: 1.5, tank: true },   // light tank: all-rounder
   heavy:     { hp: 1000, speed: 40, r: 19, sight: 210, range: 140, dmg: 60, cooldown: 2.0, tank: true },   // heavy tank: slow, very tough
   // artillery: very slow and fragile, but its shells fly further than a guard tower can shoot and wreck buildings.
@@ -130,7 +130,7 @@ const STATS = {
   radar:     { hp: 400, size: 64, sight: 750, buildTime: 14, radar: true },
   medbay:    { hp: 500, size: 84, sight: 180, buildTime: 10, walkOn: true, heal: 8, healVehicle: 15, slots: 5 },   // round pad units stand on to heal: up to 5 infantry or 1 vehicle at a time   // sweeps a huge circle: sees over rocks and up onto plateaus (not into forests)
   wall:      { hp: 400, size: 25, sight: 50 },
-  gate:      { hp: 600, size: 50, sight: 60 },
+  gate:      { hp: 600, size: 75, sight: 60 },   // 3 tiles long: room for two units side by side
   // neutral buildings: they start out belonging to no one (team 2) and can't be hurt while neutral
   derrick:   { hp: 600, size: 64, sight: 160, pay: 100, payEvery: 15 },   // an Engineer captures it; then it pays its owner every 15s
   house:     { hp: 400, size: 42, sight: 0 },                             // village houses: scenery for now
@@ -157,10 +157,10 @@ const DIFFICULTY = {
             guard: 1, maxWave: 6, extractors: 2, refineries: 1, walls: false, grenadiers: false, engineers: 0, rockets: false, snipers: 0, factory: false, tanks: 0, heavyTanks: false, artillery: 0, raidEvery: 0, waveEvery: 240, minWave: 3, focus: 'nearest',
             derricks: true, derrickAfter: 480, escort: 2, garrison: 1, hill: 0, hillSize: 0, hillAfter: 0 },
   normal: { label: 'Normal', think: 1.5, slow: 1.18, income: 0.85, attackAt: 7, attackAfter: 180, barracks: 1, maxArmy: 20, towers: 2, buggies: true, plants: 1,
-            guard: 3, maxWave: 14, extractors: 4, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 1, factory: true, tanks: 0.25, heavyTanks: false, artillery: 1, raidEvery: 240, waveEvery: 180, minWave: 4, focus: 'economy',
+            guard: 3, maxWave: 14, extractors: 4, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 1, factory: true, tanks: 0.25, heavyTanks: false, artillery: 1, raidEvery: 480, hqGuard: 2, waveEvery: 180, minWave: 4, focus: 'economy',
             derricks: true, derrickAfter: 360, escort: 3, garrison: 2, hill: 1, hillSize: 3, hillAfter: 420 },
   hard:   { label: 'Hard',   think: 1,   slow: 1,    income: 1,    attackAt: 6, attackAfter: 0,   barracks: 2, maxArmy: Infinity, towers: 3, buggies: true, plants: 2,
-            guard: 4, maxWave: 30, extractors: 8, refineries: 3, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true, artillery: 2, raidEvery: 180, earlyRefinery: true, expandAt: 1500, waveEvery: 120, minWave: 5, focus: 'defences',
+            guard: 4, maxWave: 30, extractors: 8, refineries: 3, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true, artillery: 2, raidEvery: 360, hqGuard: 3, earlyRefinery: true, expandAt: 1500, waveEvery: 120, minWave: 5, focus: 'defences',
             derricks: true, derrickAfter: 300, escort: 3, garrison: 3, hill: 2, hillSize: 3, hillAfter: 360 },
 };
 let difficulty = 'normal';
@@ -854,7 +854,8 @@ function spawn(type, team, x, y) {
 
 function isBuildingType(t) { return t === 'derrick' || t === 'house' || t === 'hq' || t === 'barracks' || t === 'refinery' || t === 'factory' || t === 'tech' || t === 'power' || t === 'tower' || t === 'radar' || t === 'medbay' || t === 'wall' || t === 'gate'; }
 const isWallType = t => t === 'wall' || t === 'gate';
-const gateHalf = vertical => vertical ? { hx: TC / 2, hy: TC } : { hx: TC, hy: TC / 2 };
+const GATE_HALF = TC * 1.5;   // a gate is 3 tiles long
+const gateHalf = vertical => vertical ? { hx: TC / 2, hy: GATE_HALF } : { hx: GATE_HALF, hy: TC / 2 };
 const halfX = e => e.type === 'gate' ? gateHalf(e.vertical).hx : e.size / 2;
 const halfY = e => e.type === 'gate' ? gateHalf(e.vertical).hy : e.size / 2;
 const isBuilding = e => isBuildingType(e.type);
@@ -1105,19 +1106,18 @@ function canPlace(team, type, x, y) {
   return true;
 }
 
-// walls snap to tiles; gates (2×2 tiles) snap to tile corners
+// walls snap to tiles; gates (3 tiles long) snap to the middle of a tile
 const snapWall = (x, y) => ({ x: Math.floor(x / TC) * TC + TC / 2, y: Math.floor(y / TC) * TC + TC / 2 });
 // a gate lines up with the tiles; it turns to match the wall it's dropped into unless you've rotated it yourself
 function snapGate(x, y, vertical) {
-  return vertical ? { x: Math.floor(x / TC) * TC + TC / 2, y: Math.round(y / TC) * TC, vertical }
-                  : { x: Math.round(x / TC) * TC, y: Math.floor(y / TC) * TC + TC / 2, vertical };
+  return { x: Math.floor(x / TC) * TC + TC / 2, y: Math.floor(y / TC) * TC + TC / 2, vertical };
 }
 function fitGate(x, y, team, forced) {
   if (forced !== undefined) return snapGate(x, y, forced);
   const isWall = (c, r) => c >= 0 && r >= 0 && c < TCOLS && r < TROWS && wallKind[r * TCOLS + c] && wallTeam[r * TCOLS + c] === team;
   const h = snapGate(x, y, false), v = snapGate(x, y, true);
-  const hc = h.x / TC, hr = Math.floor(h.y / TC), vc = Math.floor(v.x / TC), vr = v.y / TC;
-  const hs = isWall(hc - 2, hr) + isWall(hc + 1, hr), vs = isWall(vc, vr - 2) + isWall(vc, vr + 1);
+  const c = Math.floor(h.x / TC), r = Math.floor(h.y / TC);
+  const hs = isWall(c - 2, r) + isWall(c + 2, r), vs = isWall(c, r - 2) + isWall(c, r + 2);   // walls just past either end
   return vs > hs ? v : h;
 }
 
@@ -1214,6 +1214,31 @@ function updateMedbay(b, dt) {
   for (const u of healing) u.hp = Math.min(u.maxHp, u.hp + (isInfantry(u) ? s.heal : s.healVehicle) * dt);
   b.healing = healing.length;
 }
+// Your wounded units that are left idle after a fight (no order, no enemy in sight for a few seconds) walk to your nearest
+// Medbay if there's room on it, heal, then walk back to where they were. Any order you give them cancels it.
+function autoHeal(dt) {
+  game.autoHealT = (game.autoHealT || 0) + dt; if (game.autoHealT < 0.5) return; const step = game.autoHealT; game.autoHealT = 0;
+  const meds = game.ents.filter(b => b.team === 0 && b.type === 'medbay' && b.built);
+  for (const u of game.ents) {
+    if (u.team !== 0 || !isUnit(u) || u.hp <= 0 || u.type === 'settler' || u.type === 'extractor' || u.type === 'engineer') continue;
+    if (u.healTo) {   // on the way, or on the pad
+      const m = byId(u.healTo), myMove = u.order && u.order.type === 'move' && u.order.heal;
+      if (!m || (u.order && !myMove)) { u.healTo = null; continue; }   // Medbay gone, or you gave it another order
+      if (u.hp >= u.maxHp) { u.healTo = null; const back = u.healFrom; u.healFrom = null; if (back && !u.order) u.order = { type: 'move', x: back.x, y: back.y }; }
+      continue;
+    }
+    if (u.order || u.hp >= u.maxHp * 0.6 || foeNear(u)) { u.idleT = 0; continue; }
+    u.idleT = (u.idleT || 0) + step; if (u.idleT < 3 || !meds.length) continue;
+    const m = meds.sort((a, b) => Math.hypot(a.x - u.x, a.y - u.y) - Math.hypot(b.x - u.x, b.y - u.y))[0];
+    if (Math.hypot(m.x - u.x, m.y - u.y) > 1500) continue;
+    const going = game.ents.filter(v => v.healTo === m.id);
+    const inf = isInfantry(u);
+    if (going.some(v => !isInfantry(v)) || (!inf && going.length) || (inf && going.length >= STATS.medbay.slots)) continue;   // full: 5 infantry or 1 vehicle
+    const spot = medbaySpots(m)[inf ? going.length : 0];
+    u.healTo = m.id; u.healFrom = { x: u.x, y: u.y }; u.idleT = 0; u.order = { type: 'move', x: spot.x, y: spot.y, heal: true };
+  }
+}
+
 // spots on the pad: the middle, then four round it
 function medbaySpots(b) { return [[0, 0], [-17, -14], [17, -14], [-17, 14], [17, 14]].map(([dx, dy]) => ({ x: b.x + dx, y: b.y + dy })); }
 // send units onto a Medbay: one vehicle in the middle, or up to 5 infantry; anyone else waits beside it
@@ -1428,6 +1453,7 @@ function update(dt) {
   game.effects = game.effects.filter(fx => fx.t < (fx.kind === 'shot' ? 0.08 : fx.kind === 'text' ? 1.2 : fx.kind === 'spark' ? 0.3 : fx.kind === 'blast' ? 0.45 : 0.6));
 
   defendBuildings();
+  autoHeal(dt);
   runAI(dt);
   updateFog();
 
@@ -1902,7 +1928,7 @@ function findEntrances(team) {
 const findChoke = team => findEntrances(team)[0] || null;
 
 // A wall that seals a gap from one rocky end to the other, with a gate in the middle. The wall is a 4-connected
-// staircase of tiles (nothing slips through diagonally) and the gate always sits on a straight 2-tile stretch,
+// staircase of tiles (nothing slips through diagonally) and the gate always sits on a straight 3-tile stretch,
 // lined up with the wall, so it works however the gap is angled.
 function line4(c0, r0, c1, r1) {
   const out = [[c0, r0]], dc = Math.sign(c1 - c0), dr = Math.sign(r1 - r0), nc = Math.abs(c1 - c0), nr = Math.abs(r1 - r0);
@@ -1918,16 +1944,16 @@ function planGapWall(ch) {
   const horiz = Math.abs(b[0] - a[0]) >= Math.abs(b[1] - a[1]);
   if (horiz ? a[0] > b[0] : a[1] > b[1]) [a, b] = [b, a];   // a is left (or top) end
   const m = [Math.round((a[0] + b[0]) / 2), Math.round((a[1] + b[1]) / 2)];
-  const g1 = horiz ? [m[0] - 1, m[1]] : [m[0], m[1] - 1], g2 = m;   // the gate's two tiles, side by side along the wall
-  const cells = [...line4(a[0], a[1], g1[0], g1[1]), ...line4(g2[0], g2[1], b[0], b[1])];
+  const g1 = horiz ? [m[0] - 1, m[1]] : [m[0], m[1] - 1], g2 = m, g3 = horiz ? [m[0] + 1, m[1]] : [m[0], m[1] + 1];   // the gate's three tiles, in a line along the wall
+  const cells = [...line4(a[0], a[1], g1[0], g1[1]), g2, ...line4(g3[0], g3[1], b[0], b[1])];
   const blockedT = ([c, r]) => { const t = terrainAt(c * TC + TC / 2, r * TC + TC / 2); return t === T.ROCK || t === T.WATER || t === T.CLIFF; };
-  const isGate = ([c, r]) => (c === g1[0] && r === g1[1]) || (c === g2[0] && r === g2[1]);
+  const isGate = ([c, r]) => [g1, g2, g3].some(g => g[0] === c && g[1] === r);
   const wallCells = cells.filter(t => !blockedT(t) && !isGate(t));
   // every piece must be buildable: open grass (no trees) and clear of ore
   const okCell = ([c, r]) => { const x = c * TC + TC / 2, y = r * TC + TC / 2;
     return terrainAt(x, y) === T.GRASS && !game.ore.some(o => Math.abs(o.x - x) < TC / 2 + 10 && Math.abs(o.y - y) < TC / 2 + 10); };
-  if (!wallCells.every(okCell) || !okCell(g1) || !okCell(g2) || wallCells.length < 2) return null;
-  const gate = horiz ? { x: g2[0] * TC, y: g2[1] * TC + TC / 2, vertical: false } : { x: g2[0] * TC + TC / 2, y: g2[1] * TC, vertical: true };
+  if (!wallCells.every(okCell) || !okCell(g1) || !okCell(g2) || !okCell(g3) || wallCells.length < 2) return null;
+  const gate = { x: g2[0] * TC + TC / 2, y: g2[1] * TC + TC / 2, vertical: !horiz };
   return { tiles: wallCells.map(([c, r]) => ({ x: c * TC + TC / 2, y: r * TC + TC / 2 })), gate };
 }
 // where to put guard towers for a gap: just behind the wall, near each rocky end
@@ -1962,11 +1988,10 @@ function aiWallPlan(hq) {
   const a = Math.atan2(H / 2 - hq.y, W / 2 - hq.x), R = 330;
   const cx = hq.x + Math.cos(a) * R, cy = hq.y + Math.sin(a) * R;
   const vertical = Math.abs(Math.cos(a)) > Math.abs(Math.sin(a));   // facing mostly sideways → wall runs up/down
-  const tiles = [], gateAt = vertical ? { x: Math.floor(cx / TC) * TC + TC / 2, y: Math.round(cy / TC) * TC }
-                                      : { x: Math.round(cx / TC) * TC, y: Math.floor(cy / TC) * TC + TC / 2 };
-  for (let k = -7; k <= 6; k++) {
-    if (k === -1 || k === 0) continue;   // the gate's two tiles
-    const x = vertical ? gateAt.x : gateAt.x + k * TC + TC / 2, y = vertical ? gateAt.y + k * TC + TC / 2 : gateAt.y;
+  const tiles = [], gateAt = { x: Math.floor(cx / TC) * TC + TC / 2, y: Math.floor(cy / TC) * TC + TC / 2 };
+  for (let k = -7; k <= 7; k++) {
+    if (Math.abs(k) <= 1) continue;   // the gate's three tiles
+    const x = vertical ? gateAt.x : gateAt.x + k * TC, y = vertical ? gateAt.y + k * TC : gateAt.y;
     tiles.push({ x, y });
   }
   return { tiles, gate: { ...gateAt, vertical } };
@@ -2269,6 +2294,12 @@ function runAI(dt) {
     if (guards.length >= D.guard || (!ai.wavesSent && free.length - (D.guard - guards.length) < ai.waveSize)) break;
     u.role = 'guard'; guards.push(u);
   }
+  // HQ guard: a few more stand right by the Headquarters (losing it loses the game), picked once the entrance guards are in place
+  const hqGuards = army.filter(u => u.role === 'hqguard');
+  if (guards.length >= D.guard) for (const u of army.filter(u => !u.role)) {
+    if (hqGuards.length >= (D.hqGuard || 0) || (!ai.wavesSent && army.filter(v => !v.role).length <= ai.waveSize)) break;
+    u.role = 'hqguard'; u.passive = false; hqGuards.push(u);
+  }
   // high ground and derricks: once it has a few units to spare, it holds its best plateaus with its longest-range
   // units, and leaves a small garrison at every Oil Derrick it owns. Losses are topped up from new units.
   const spare = () => army.filter(u => !u.role && !(u.order && u.order.type === 'attack'));
@@ -2286,10 +2317,14 @@ function runAI(dt) {
   const base = mine.filter(e => isBuilding(e) && !isWallType(e.type));
   const intruders = game.ents.filter(e => e.team === 0 && isUnit(e) && visibleAt(e.x, e.y, 1) && !hiddenFrom(e, 1) &&
     base.some(b => Math.hypot(b.x - e.x, b.y - e.y) < 450));
+  const hqThreat = (hq.hitAt && game.time - hq.hitAt < 4) || intruders.some(e => Math.hypot(e.x - hq.x, e.y - hq.y) < 450);
   if (intruders.length) {
     for (const u of army) {
       if (u.role === 'scout') continue;
-      if ((u.role === 'wave' || u.role === 'hill' || u.role === 'garrison' || u.role === 'outpost') && Math.hypot(u.x - hq.x, u.y - hq.y) > 700) continue;
+      // posted units and waves out in the field stay put, unless the HQ itself is under threat: then waves within reach come home
+      const far = Math.hypot(u.x - hq.x, u.y - hq.y);
+      if ((u.role === 'hill' || u.role === 'garrison' || u.role === 'outpost') && far > 700) continue;
+      if (u.role === 'wave' && far > (hqThreat ? 1600 : 700)) continue;
       if (u.order && u.order.type === 'attack' && byId(u.order.target)) continue;
       const t = nearest(u, intruders);
       u.order = { type: 'attack', target: t.id }; u.passive = false;
@@ -2297,13 +2332,19 @@ function runAI(dt) {
   } else {
     // guards stand watch at the ways into the base (spread over all of them); new units wait at the rally point
     const ents = findEntrances(1);
+    hqGuards.forEach((u, k) => {   // in front of the HQ, spread across its face
+      if (u.order) return;
+      const a = Math.atan2(H / 2 - hq.y, W / 2 - hq.x) + (k - (hqGuards.length - 1) / 2) * 0.6, d = hq.size / 2 + 40;
+      const x = hq.x + Math.cos(a) * d, y = hq.y + Math.sin(a) * d;
+      if (Math.hypot(u.x - x, u.y - y) > 40) u.order = { type: 'move', x, y };
+    });
     guards.forEach((u, k) => {
       if (u.order || !ents.length) return;
       const ch = ents[k % ents.length], x = ch.x - ch.ux * 35 + (Math.random() - 0.5) * 40, y = ch.y - ch.uy * 35 + (Math.random() - 0.5) * 40;
       if (Math.hypot(u.x - x, u.y - y) > 60) u.order = { type: 'move', x, y };
     });
     for (const u of army) {
-      if (u.role === 'wave' || u.role === 'scout' || u.role === 'hill' || u.role === 'garrison' || u.role === 'outpost' || u.role === 'heal' || u.role === 'guard' && ents.length || u.order) continue;
+      if (u.role === 'wave' || u.role === 'scout' || u.role === 'hill' || u.role === 'garrison' || u.role === 'outpost' || u.role === 'heal' || u.role === 'hqguard' || u.role === 'guard' && ents.length || u.order) continue;
       if (Math.hypot(u.x - rally.x, u.y - rally.y) > 90) u.order = { type: 'move', x: rally.x + (Math.random() - .5) * 60, y: rally.y + (Math.random() - .5) * 60 };
     }
   }
@@ -2404,6 +2445,7 @@ function aiHoldHills(army, spare, size) {
 // wounded units at home (guards and those waiting for the next wave), and badly hurt ones posted out or on a wave not far off,
 // go and stand on the Medbay until they're patched up:
 // up to 5 infantry at a time, or one vehicle when no infantry are waiting
+const foeNear = u => game.ents.some(o => o.team !== u.team && o.team !== NEUTRAL && o.hp > 0 && (isUnit(o) || STATS[o.type].dmg) && Math.hypot(o.x - u.x, o.y - u.y) < STATS[u.type].sight);
 function aiHeal(army, med) {
   const healers = army.filter(u => u.role === 'heal');
   for (const u of healers) {
@@ -2415,7 +2457,8 @@ function aiHeal(army, med) {
   const vehicleIn = now.some(u => !isInfantry(u));
   const away = u => u.role === 'hill' || u.role === 'garrison' || u.role === 'outpost' || u.role === 'wave';   // posted out, or on a wave: only when badly hurt and not far off
   const wounded = army.filter(u => !(u.order && u.order.type === 'attack') && (
-      ((!u.role || u.role === 'guard') && u.hp < u.maxHp * 0.55 && Math.hypot(u.x - med.x, u.y - med.y) < 900) ||
+      ((!u.role || u.role === 'guard' || u.role === 'hqguard') && u.hp < u.maxHp * 0.55 && Math.hypot(u.x - med.x, u.y - med.y) < 900) ||
+      (u.role === 'wave' && !u.order && u.hp < u.maxHp * 0.6 && !foeNear(u)) ||   // left idle after a fight, wounded: its chance to get patched up
       (away(u) && u.hp < u.maxHp * 0.4 && Math.hypot(u.x - med.x, u.y - med.y) < 700)))
     .sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp);
   const inf = wounded.filter(isInfantry), veh = wounded.filter(u => !isInfantry(u));
@@ -3546,9 +3589,9 @@ function drawGate(e) {
   const c = TEAMS[e.team];
   // opens only while one of its own units is on the move right by it (going through), not for guards standing next to it
   const near = game.ents.some(u => u.team === e.team && isUnit(u) && game.time - (u.movedAt || -9) < 0.3 &&
-    Math.abs(u.x - e.x) < (e.vertical ? 40 : 45) && Math.abs(u.y - e.y) < (e.vertical ? 45 : 40));
+    Math.abs(u.x - e.x) < (e.vertical ? 40 : GATE_HALF + 20) && Math.abs(u.y - e.y) < (e.vertical ? GATE_HALF + 20 : 40));
   e.openK = Math.max(0, Math.min(1, (e.openK || 0) + (near ? 0.08 : -0.05)));
-  const k = e.openK, L = TC, T = TC / 2;   // half-length along the wall, half-thickness
+  const k = e.openK, L = GATE_HALF, T = TC / 2;   // half-length along the wall, half-thickness
   ctx.save(); ctx.translate(e.x, e.y); if (e.vertical) ctx.rotate(Math.PI / 2);
   // ground: track the doors run in
   ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(-L + 3, -T + 4, L * 2, T * 2);
