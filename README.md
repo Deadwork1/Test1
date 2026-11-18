@@ -29,7 +29,7 @@ A small real-time strategy game inspired by classic 90s RTS games, built step by
 - Drag to scroll, pinch (or mouse wheel) to zoom, tap the minimap to jump.
 - Your money is shown just above the bottom bar. The pause menu has Resume, Restart, **Exit Game** (both tap twice) and the patch notes.
 - Tap a unit or building to select it. **Box select**, then drag, to select several units.
-- **Engineers** (25) can also **dig in**: select one and tap Dig in to turn him into a **Turret** on the spot (25): a manned machine gun (300 health, range 140, strong against infantry, half damage to tanks). It can't be sold, captured or packed up; if it falls, the Engineer goes with it.
+- **Engineers** ($125) can **build a Turret** where they stand ($125, the Engineer is used up). A Turret is empty until infantry climb in to **man** it (select infantry, tap the Turret); then it's a machine gun (300 health, range 140, strong against infantry, half damage to tanks). **Unload** lets the gunner out; if a manned Turret is destroyed, the gunner dies. Anyone can man an empty Turret, the enemy too. Turrets can't be sold or captured.
 - Tap ground to move (groups move in formation), your Medbay to send units onto it to heal, an enemy to attack, ore to harvest (extractors). With engineers selected, tap your damaged building to repair it or an enemy building or Oil Derrick to capture it.
 
 ## Files

@@ -1448,6 +1448,7 @@ function update(dt) {
   if (bldDirty) rebuildBuildingGrid();
 
   for (const e of game.ents) {
+    if (e.order && e.order.type === 'man' && isInfantry(e)) { updateManning(e, dt); continue; }
     if (e.type === 'settler') { if (e.order && navigate(e, e.order.x, e.order.y, dt)) e.order = null; }
     else if (isCombat(e)) updateSoldier(e, dt);
     else if (e.type === 'engineer') updateEngineer(e, dt);
@@ -1481,6 +1482,7 @@ function update(dt) {
       if (!e.deployed && !e.sold && (e.team === 0 || e.team === 1) && !isWallType(e.type)) {
         const mine = game.stats[e.team], theirs = game.stats[1 - e.team];
         if (isBuilding(e)) { mine.buildingsLost++; theirs.destroyed++; } else { mine.unitsLost++; theirs.kills++; }
+        if (e.type === 'turret' && e.crew) { mine.unitsLost++; theirs.kills++; }   // the gunner goes down with it
       }
       game.selected.delete(e.id);
       if (isBuilding(e)) bldDirty = true;
@@ -1748,7 +1750,7 @@ function updateEngineer(e, dt) {
   }
 }
 
-// An Engineer digs in where he stands and becomes a Turret (he mans it: he's gone from your army, and if the Turret falls so does he).
+// An Engineer builds a Turret where he stands (he's used up). It's empty: it only fires once an infantry unit climbs in to man it.
 // Needs open grass, clear of buildings and ore, and the Turret's price.
 const turretSpotOk = (x, y) => terrainAt(x, y) === T.GRASS && siteIsFree(x, y, STATS.turret.size);
 function digIn(en) {
@@ -1759,10 +1761,37 @@ function digIn(en) {
   const t = spawn('turret', en.team, en.x, en.y);
   if (game.stats[en.team]) game.stats[en.team].buildings++;
   game.effects.push({ kind: 'dust', x: en.x, y: en.y, t: 0 });
-  en.hp = 0; en.deployed = true;   // he's inside now
+  en.hp = 0; en.deployed = true;   // the Engineer is used up building it
   game.selected.delete(en.id);
   bldDirty = true;
   return t;
+}
+
+// an infantry unit climbs into an empty Turret (anyone's: an enemy's empty Turret becomes yours) and mans the gun
+const canMan = (u, t) => t && t.type === 'turret' && t.built && !t.crew && t.hp > 0 && isInfantry(u);
+function updateManning(e, dt) {
+  const t = byId(e.order.target);
+  if (!canMan(e, t)) { e.order = null; return; }
+  if (edgeDist(e.x, e.y, t) > e.r + 16) { if (navigate(e, t.x, t.y, dt) === 'fail') e.order = null; return; }
+  const was = t.team;
+  t.crew = { type: e.type, hp: e.hp, maxHp: e.maxHp };
+  t.cooldown = 0.3; t.target = null;
+  if (was !== e.team) {
+    t.team = e.team; game.ai.known.delete(t.id); bldDirty = true;
+    if (e.team === 0 || was === 0 || visibleAt(t.x, t.y)) game.effects.push({ kind: 'text', x: t.x, y: t.y - 26, text: e.team === 0 ? 'Turret taken!' : was === 0 ? 'Turret lost!' : 'Turret taken by the enemy', t: 0, color: e.team === 0 ? '#7dff7d' : '#ff6b6b' });
+    if (game.selected.has(t.id) && e.team !== 0) game.selected.delete(t.id);
+  }
+  const wasSelected = game.selected.has(e.id);
+  e.hp = 0; e.deployed = true; e.order = null;   // he's on the gun now (not a death)
+  if (wasSelected && e.team === 0) { game.selected.delete(e.id); if (game.selected.size === 0) game.selected.add(t.id); }
+}
+// the gunner climbs back out; the Turret is empty again
+function unloadTurret(t) {
+  if (!t || t.type !== 'turret' || !t.crew) return null;
+  const u = spawn(t.crew.type, t.team, t.x, t.y + t.size / 2 + 12);
+  u.hp = Math.min(u.maxHp, t.crew.hp); u.facing = Math.PI / 2;
+  t.crew = null; t.target = null;
+  return u;
 }
 
 function captureBuilding(b, team) {
@@ -1827,6 +1856,7 @@ function updateBuilding(e, dt) {
 function updateTower(e, dt) {
   if (!e.built) return updateBuilding(e, dt);
   const s = STATS[e.type];   // (Guard Towers and Turrets)
+  if (e.type === 'turret' && !e.crew) { e.target = null; return; }   // nobody on the gun
   e.cooldown -= dt;
   let t = e.target && byId(e.target);
   if (!t || hiddenFrom(t, e.team) || !visibleAt(t.x, t.y, e.team) || edgeDist(e.x, e.y, t) > rangeOf(e) || !canShoot(e, t)) { t = findEnemyNear(e, rangeOf(e)); e.target = t ? t.id : null; }
@@ -2170,6 +2200,7 @@ function defendBuildings() {
       if ((u.role === 'hill' || u.role === 'garrison' || u.role === 'outpost') && d > 300) continue;
       if (!u.order && holdsGround(u) && d > rangeOf(u) + 60) continue;   // snipers and units on high ground stay put unless the fight is right there   // they hold their post unless the fight is right there
       const o = u.order;
+      if (o && o.type === 'man') continue;   // on the way to man a Turret: that's the best help it can give
       if (o && o.type === 'attack' && byId(o.target) && byId(o.target).hp > 0 && !isBuilding(byId(o.target))) continue;   // already fighting a unit
       if (o && o.type === 'move' && u.team === 0 && game.time - (o.given || 0) < 3) continue;   // you only just told it where to go
       if (u.role === 'wave' && Math.hypot(u.x - b.x, u.y - b.y) > 300) continue;
@@ -2376,6 +2407,12 @@ function runAI(dt) {
   }
 
   // ---- army ----
+  // crew its empty Turrets: the nearest spare infantry climbs in (and goes again if that one is killed on the way)
+  for (const t of of('turret')) {
+    if (!t.built || t.crew || army.some(u => u.order && u.order.type === 'man' && u.order.target === t.id)) continue;
+    const crew = army.filter(u => isInfantry(u) && (!u.role || u.role === 'guard') && u.type !== 'sniper').sort((a, b) => Math.hypot(a.x - t.x, a.y - t.y) - Math.hypot(b.x - t.x, b.y - t.y))[0];
+    if (crew) { crew.order = { type: 'man', target: t.id }; crew.role = 'gunner'; crew.passive = true; }
+  }
   const rally = aiRally(hq);
   const targets = game.ents.filter(e => e.team === 0 && !isWallType(e.type) && visibleAt(e.x, e.y, 1) && !hiddenFrom(e, 1)).map(e => ({ x: e.x, y: e.y, type: e.type }));
   for (const [id, k] of ai.known) if (!beingRetaken(byId(id) || {}, 1)) targets.push(k);
@@ -3723,7 +3760,7 @@ function drawTower(e) {
   ctx.restore();
 }
 
-// a Turret: a sandbag ring round a dug-in machine gun, with the Engineer crouched behind it
+// a Turret: a sandbag ring round a dug-in machine gun, with its gunner behind it once someone mans it
 function drawTurret(e) {
   const c = TEAMS[e.team], h = e.size / 2;
   ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.arc(e.x + 3, e.y + 4, h, 0, Math.PI * 2); ctx.fill();
@@ -3732,7 +3769,7 @@ function drawTurret(e) {
     const n = Math.max(1, Math.round(10 * e.progress));
     ctx.fillStyle = '#c2ad7c'; ctx.strokeStyle = '#7d6c45'; ctx.lineWidth = 1;
     for (let i = 0; i < n; i++) { const a = i / 10 * Math.PI * 2 - Math.PI / 2; ctx.beginPath(); ctx.ellipse(e.x + Math.cos(a) * (h - 3), e.y + Math.sin(a) * (h - 3), 5, 3.5, a + Math.PI / 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
-    ctx.fillStyle = '#e8d9a8'; ctx.beginPath(); ctx.arc(e.x, e.y, 4, 0, Math.PI * 2); ctx.fill();   // the Engineer's hard hat, busy digging
+    ctx.fillStyle = '#e8d9a8'; ctx.beginPath(); ctx.arc(e.x, e.y, 4, 0, Math.PI * 2); ctx.fill();   // a hard hat: the Engineer at work
     return;
   }
   ctx.fillStyle = '#c2ad7c'; ctx.strokeStyle = '#7d6c45'; ctx.lineWidth = 1;
@@ -3742,9 +3779,14 @@ function drawTurret(e) {
   ctx.fillStyle = '#2a2a2a'; ctx.fillRect(2, -1.5, 15, 3);   // gun barrel
   ctx.fillStyle = '#3a3a3a'; ctx.fillRect(-2, -3.5, 7, 7);   // gun body
   if (e.cooldown > STATS.turret.cooldown - 0.06) { ctx.fillStyle = '#ffe9a0'; ctx.beginPath(); ctx.arc(18, 0, 3, 0, Math.PI * 2); ctx.fill(); }
-  ctx.fillStyle = c.dark; ctx.beginPath(); ctx.arc(-6, 0, 5.5, 0, Math.PI * 2); ctx.fill();   // the gunner, in his team's colours
-  ctx.fillStyle = c.color; ctx.beginPath(); ctx.arc(-6, 0, 4, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#f2f2f2'; ctx.beginPath(); ctx.arc(-6, 0, 2.6, 0, Math.PI * 2); ctx.fill();   // white hard hat
+  if (e.crew) {   // the gunner, in his side's colours
+    ctx.fillStyle = c.dark; ctx.beginPath(); ctx.arc(-6, 0, 5.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = c.color; ctx.beginPath(); ctx.arc(-6, 0, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.arc(-6, 0, 2.2, 0, Math.PI * 2); ctx.fill();   // helmet
+  } else {   // empty: a little team flag stuck in the sandbags so you can tell whose it is
+    ctx.rotate(-a); ctx.strokeStyle = '#ddd'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(-9, 8); ctx.lineTo(-9, -6); ctx.stroke();
+    ctx.fillStyle = c.color; ctx.fillRect(-9, -6, 7, 5);
+  }
   ctx.restore();
 }
 
@@ -4199,6 +4241,11 @@ function handleTap(x, y) {
   const myUnits = [...game.selected].map(byId).filter(e => e && e.team === 0 && isUnit(e));
 
   const engineers = myUnits.filter(e => e.type === 'engineer');
+  // infantry selected + an empty Turret (yours or anyone's) tapped = the nearest one climbs in to man it
+  if (hit && canMan({ type: 'soldier' }, hit)) {
+    const crew = myUnits.filter(isInfantry).sort((a, b) => Math.hypot(a.x - hit.x, a.y - hit.y) - Math.hypot(b.x - hit.x, b.y - hit.y))[0];
+    if (crew) { crew.order = { type: 'man', target: hit.id }; game.effects.push({ kind: 'marker', x: hit.x, y: hit.y, t: 0, color: '#7dff7d' }); return; }
+  }
   if (hit && hit.team === 0) {
     // engineers selected + one of your damaged buildings tapped = repair it
     if (engineers.length && isBuilding(hit) && !isWallType(hit.type) && hit.hp < hit.maxHp) {
@@ -4294,7 +4341,7 @@ const $ = id => document.getElementById(id);
 const ui = {
   credits: $('credits'), clock: $('clock'), info: $('info'), powerChip: $('powerChip'), sell: $('btnSell'),
   deploy: $('btnDeploy'), radar: $('btnRadar'), medbay: $('btnMedbay'), barracks: $('btnBarracks'), refinery: $('btnRefinery'), tower: $('btnTower'), power: $('btnPower'), factory: $('btnFactory'), tech: $('btnTech'), wall: $('btnWall'), gate: $('btnGate'), rotate: $('btnRotate'), 
-  harvest: $('btnHarvest'), turret: $('btnTurret'), place: $('btnPlace'), cancel: $('btnCancel'), deselect: $('btnDeselect'),
+  harvest: $('btnHarvest'), turret: $('btnTurret'), unload: $('btnUnload'), place: $('btnPlace'), cancel: $('btnCancel'), deselect: $('btnDeselect'),
   box: $('btnBox'), all: $('btnAll'), pause: $('btnPause'), map: $('btnMap'),
   overlay: $('overlay'), ovTitle: $('ovTitle'), ovText: $('ovText'), ovBtn: $('ovBtn'),
 };
@@ -4315,11 +4362,14 @@ ui.deploy.addEventListener('click', () => {
 ui.barracks.addEventListener('click', () => startPlacing('barracks'));
 ui.refinery.addEventListener('click', () => startPlacing('refinery'));
 ui.tower.addEventListener('click', () => startPlacing('tower'));
-ui.turret.addEventListener('click', () => {   // every selected Engineer digs in where he stands
+ui.unload.addEventListener('click', () => {   // the gunners of the selected Turrets climb out
+  for (const t of [...game.selected].map(byId)) if (t && t.team === 0 && t.type === 'turret') { const u = unloadTurret(t); if (u) game.selected.add(u.id); }
+});
+ui.turret.addEventListener('click', () => {   // every selected Engineer builds a Turret where he stands
   const engs = [...game.selected].map(byId).filter(e => e && e.team === 0 && e.type === 'engineer');
   let made = 0, why = null;
   for (const en of engs) { const r = digIn(en); if (typeof r === 'object') made++; else why = why || r; }
-  if (!made && why) flash = { t: performance.now(), text: why === 'money' ? 'Not enough money for a Turret ($' + COST.turret + ')' : 'Can\'t dig in here: move to open grass, away from buildings and ore' };
+  if (!made && why) flash = { t: performance.now(), text: why === 'money' ? 'Not enough money for a Turret ($' + COST.turret + ')' : 'Can\'t build a Turret here: move to open grass, away from buildings and ore' };
 });
 ui.power.addEventListener('click', () => startPlacing('power'));
 ui.radar.addEventListener('click', () => startPlacing('radar'));
@@ -4504,6 +4554,7 @@ function updateHUD() {
   syncProduceButtons(producer && !placing ? producer.type : null);
   show(ui.harvest, extractors.length > 0 && !placing);
   show(ui.turret, sel.some(e => e.type === 'engineer' && e.team === 0) && !placing);
+  show(ui.unload, sel.some(e => e.type === 'turret' && e.team === 0 && e.crew) && !placing);
   show(ui.place, !!(placing && (placing.ghost || (placing.type === 'wall' && placing.anchor))));
   show(ui.cancel, !!placing);
   show(ui.rotate, !!(placing && placing.type === 'gate'));
@@ -4570,12 +4621,14 @@ function updateHUD() {
   else if (sel.length === 1 && sel[0].type === 'medbay') text = sel[0].built ? 'Medbay — heals up to 5 infantry or 1 vehicle standing on it' + (sel[0].healing ? ' (healing ' + sel[0].healing + ')' : '') + '. Select units, then tap it' : 'Medbay: building…';
   else if (sel.length === 1 && sel[0].type === 'radar') text = sel[0].built ? 'Radar — reveals everything within ' + STATS.radar.sight + ', over rocks and cliffs (not hidden infantry in forests)' : 'Radar: ' + Math.floor(sel[0].progress * 100) + '% built';
   else if (sel.length === 1 && sel[0].type === 'tower') text = sel[0].built ? 'Guard Tower — fires at enemies in range' : `Guard Tower: ${Math.floor(sel[0].progress * 100)}% built`;
-  else if (sel.length === 1 && sel[0].type === 'turret') text = sel[0].built ? 'Turret — an Engineer on a machine gun: strong against infantry, half damage to tanks' : `Turret: digging in (${Math.floor(sel[0].progress * 100)}%)`;
+  else if (sel.length === 1 && sel[0].type === 'turret') text = !sel[0].built ? `Turret: being built (${Math.floor(sel[0].progress * 100)}%)`
+    : sel[0].crew ? `Turret — manned by a ${NAMES[sel[0].crew.type]}: a machine gun, strong against infantry, half damage to tanks`
+    : 'Turret — empty. Select infantry and tap it to man the gun (anyone can man an empty Turret, the enemy too)';
   else if (producer) text = producer.built ? `${NAMES[producer.type]}${producer.queue ? ' — making ×' + producer.queue : ''}` : `${NAMES[producer.type]}: ${Math.floor(producer.progress * 100)}% built`;
   else if (extractors.length === 1 && sel.length === 1) text = extractorStatus(extractors[0]);
   else if (sel.length === 1 && sel[0].type === 'engineer') {
     const o = sel[0].order;
-    text = o && o.type === 'repair' ? 'Engineer: repairing' : o && o.type === 'capture' ? 'Engineer: going in to capture' : 'Engineer — tap your damaged building to repair, an enemy building or Oil Derrick to capture, or Dig in to make a Turret here';
+    text = o && o.type === 'repair' ? 'Engineer: repairing' : o && o.type === 'capture' ? 'Engineer: going in to capture' : 'Engineer — tap your damaged building to repair, an enemy building or Oil Derrick to capture, or Dig in to build a Turret here (it needs infantry to man it)';
   } else if (sel.length) {
     const counts = {};
     for (const e of sel) counts[e.type] = (counts[e.type] || 0) + 1;

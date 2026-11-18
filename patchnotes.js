@@ -2,6 +2,15 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.45.1', date: '18 Nov 2026', title: 'Man the guns',
+    changes: [
+      'Turrets now need a crew. An Engineer builds an empty Turret (he\'s used up), and it does nothing until someone climbs in: select any infantry and tap the Turret to man it.',
+      'Unload lets the gunner back out. If a manned Turret is destroyed, the gunner goes down with it.',
+      'Anyone can man an empty Turret, the enemy too: leave one empty and enemy infantry can climb in and turn it on you.',
+      'The computer sends its own infantry to crew the Turrets it builds.',
+    ],
+  },
+  {
     version: '5.45', date: '18 Nov 2026', title: 'Dig in',
     changes: [
       'New: Engineers can dig in. Select one and tap "Dig in: Turret" and he builds a Turret where he stands (25, 3 seconds). He mans it from then on: he leaves your army, and if the Turret is destroyed, he goes with it.',
