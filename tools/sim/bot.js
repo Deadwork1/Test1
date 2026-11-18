@@ -117,6 +117,7 @@ window.runSim = function (strategy, maxMinutes) {
         for (const en of of('engineer')) if (!en.order && !en.retake) { const hurt = mine.find(b => isBuilding(b) && b.built && b.hp < b.maxHp * 0.7 && !isWallType(b.type)); if (hurt) en.order = { type: 'repair', target: hurt.id }; }
         // attack in waves at the nearest enemy building (the bot cheats on knowing where it is)
         const army = mine.filter(e => isCombat(e));
+        for (const e of army) if (e.inWave && !e.order) e.inWave = false;   // a wave unit with nothing left to do is back in the pool (it used to stay flagged and never attack again)
         const idle = army.filter(e => !e.order || (e.order.type === 'move' && !e.inWave));   // waiting at home (including walking to a guard spot)
         const ents = findEntrances(0);
         if (ents.length && idle.length < waveSize) idle.filter(u => !u.order).sort((a, b) => a.id - b.id).forEach((u, k) => { const ch = ents[k % ents.length];
@@ -124,7 +125,7 @@ window.runSim = function (strategy, maxMinutes) {
           if (Math.hypot(u.x - x, u.y - y) > 70) u.order = { type: 'move', x, y }; });
         if (idle.length >= waveSize) {
           const cx = idle.reduce((s, e) => s + e.x, 0) / idle.length, cy = idle.reduce((s, e) => s + e.y, 0) / idle.length;
-          const tgt = game.ents.filter(e => e.team === 1 && isBuilding(e) && !isWallType(e.type)).sort((a, b) => Math.hypot(a.x - cx, a.y - cy) - Math.hypot(b.x - cx, b.y - cy))[0];
+          const tgt = game.ents.filter(e => e.team === 1 && isBuilding(e) && !isWallType(e.type) && e.type !== 'derrick').sort((a, b) => Math.hypot(a.x - cx, a.y - cy) - Math.hypot(b.x - cx, b.y - cy))[0];
           if (tgt) { for (const u of idle) u.inWave = true; for (const u of idle) u.order = { type: 'attackmove', x: tgt.x + (Math.random() - .5) * 60, y: tgt.y + (Math.random() - .5) * 60 }; waves++; waveSize = Math.min(30, waveSize + 3); }
         }
       }
