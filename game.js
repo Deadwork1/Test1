@@ -1214,31 +1214,6 @@ function updateMedbay(b, dt) {
   for (const u of healing) u.hp = Math.min(u.maxHp, u.hp + (isInfantry(u) ? s.heal : s.healVehicle) * dt);
   b.healing = healing.length;
 }
-// Your wounded units that are left idle after a fight (no order, no enemy in sight for a few seconds) walk to your nearest
-// Medbay if there's room on it, heal, then walk back to where they were. Any order you give them cancels it.
-function autoHeal(dt) {
-  game.autoHealT = (game.autoHealT || 0) + dt; if (game.autoHealT < 0.5) return; const step = game.autoHealT; game.autoHealT = 0;
-  const meds = game.ents.filter(b => b.team === 0 && b.type === 'medbay' && b.built);
-  for (const u of game.ents) {
-    if (u.team !== 0 || !isUnit(u) || u.hp <= 0 || u.type === 'settler' || u.type === 'extractor' || u.type === 'engineer') continue;
-    if (u.healTo) {   // on the way, or on the pad
-      const m = byId(u.healTo), myMove = u.order && u.order.type === 'move' && u.order.heal;
-      if (!m || (u.order && !myMove)) { u.healTo = null; continue; }   // Medbay gone, or you gave it another order
-      if (u.hp >= u.maxHp) { u.healTo = null; const back = u.healFrom; u.healFrom = null; if (back && !u.order) u.order = { type: 'move', x: back.x, y: back.y }; }
-      continue;
-    }
-    if (u.order || u.hp >= u.maxHp * 0.6 || foeNear(u)) { u.idleT = 0; continue; }
-    u.idleT = (u.idleT || 0) + step; if (u.idleT < 3 || !meds.length) continue;
-    const m = meds.sort((a, b) => Math.hypot(a.x - u.x, a.y - u.y) - Math.hypot(b.x - u.x, b.y - u.y))[0];
-    if (Math.hypot(m.x - u.x, m.y - u.y) > 1500) continue;
-    const going = game.ents.filter(v => v.healTo === m.id);
-    const inf = isInfantry(u);
-    if (going.some(v => !isInfantry(v)) || (!inf && going.length) || (inf && going.length >= STATS.medbay.slots)) continue;   // full: 5 infantry or 1 vehicle
-    const spot = medbaySpots(m)[inf ? going.length : 0];
-    u.healTo = m.id; u.healFrom = { x: u.x, y: u.y }; u.idleT = 0; u.order = { type: 'move', x: spot.x, y: spot.y, heal: true };
-  }
-}
-
 // spots on the pad: the middle, then four round it
 function medbaySpots(b) { return [[0, 0], [-17, -14], [17, -14], [-17, 14], [17, 14]].map(([dx, dy]) => ({ x: b.x + dx, y: b.y + dy })); }
 // send units onto a Medbay: one vehicle in the middle, or up to 5 infantry; anyone else waits beside it
@@ -1453,7 +1428,6 @@ function update(dt) {
   game.effects = game.effects.filter(fx => fx.t < (fx.kind === 'shot' ? 0.08 : fx.kind === 'text' ? 1.2 : fx.kind === 'spark' ? 0.3 : fx.kind === 'blast' ? 0.45 : 0.6));
 
   defendBuildings();
-  autoHeal(dt);
   runAI(dt);
   updateFog();
 
