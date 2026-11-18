@@ -4124,7 +4124,7 @@ function updateHUD() {
 function endGame(won) {
   game.over = won ? 'win' : 'lose';
   game.selected.clear(); game.placing = null;
-  ui.ovTitle.textContent = won ? 'You win!' : 'You lost';
+  ui.ovTitle.textContent = won ? 'You win!' : 'You Lose';
   ui.ovText.textContent = won ? 'You destroyed the enemy Headquarters.' : 'Your Headquarters was destroyed.';
   showResults();
   ui.ovBtn.textContent = 'Play again';

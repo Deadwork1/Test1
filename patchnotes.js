@@ -2,11 +2,15 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.32.1', date: '18 Nov 2026', title: 'You Lose',
+    changes: ['The results screen now says "You Lose" when you are beaten.'],
+  },
+  {
     version: '5.32', date: '18 Nov 2026', title: 'Lose your HQ, lose the game',
     changes: [
       'New win rule: you lose when your Headquarters is destroyed (before you deploy, when you lose your Settler), and you win by destroying the enemy Headquarters.',
       'Headquarters can no longer be captured by Engineers.',
-      'New results screen at the end of every game: You win! or You lost, how long you played, and you against the enemy for troops made, buildings made, walls built, enemy troops killed, enemy buildings destroyed, troops and buildings lost, buildings captured, money earned and money spent.',
+      'New results screen at the end of every game: You win! or You Lose, how long you played, and you against the enemy for troops made, buildings made, walls built, enemy troops killed, enemy buildings destroyed, troops and buildings lost, buildings captured, money earned and money spent.',
       'The start and results screen now scrolls from the top on small phones instead of cutting off its title.',
     ],
   },
