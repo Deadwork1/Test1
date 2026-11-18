@@ -2,6 +2,12 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.45.2', date: '18 Nov 2026', title: 'No accidental sales',
+    changes: [
+      'Fixed: clicking on after placing a building could land on Sell and sell it by accident. Sell now ignores clicks for a second after it appears, and the "tap again" confirmation has to come at least half a second after the first tap, so a double-click never sells.',
+    ],
+  },
+  {
     version: '5.45.1', date: '18 Nov 2026', title: 'Man the guns',
     changes: [
       'Turrets now need a crew. An Engineer builds an empty Turret (he\'s used up), and it does nothing until someone climbs in: select any infantry and tap the Turret to man it.',
