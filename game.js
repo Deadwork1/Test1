@@ -2177,7 +2177,8 @@ function runAI(dt) {
   for (const k in seenNow) ai.seen[k] = Math.max(ai.seen[k], seenNow[k]);
   ai.seenBuggies = Math.max(ai.seenBuggies || 0, game.ents.filter(v => v.team === 0 && (v.type === 'buggy' || isTank(v)) && visibleAt(v.x, v.y, 1)).length);
   const wantRocket = D.rockets && unlocked(1, 'rocket') && (ai.seenBuggies || 0) > 0 && of('rocket').length + qOf('rocket') < Math.min(6, ai.seenBuggies);
-  const wantSniper = unlocked(1, 'sniper') && of('sniper').length + qOf('sniper') < D.snipers && game.time > 240;
+  const hillsOn = D.hill > 0 && game.time > D.hillAfter - 60;   // it holds plateaus: train two extra Snipers for each one to sit up there
+  const wantSniper = unlocked(1, 'sniper') && of('sniper').length + qOf('sniper') < D.snipers + (hillsOn ? 2 * D.hill : 0) && game.time > 240;
   // engineers: a repairer only when something is badly damaged, and now and then a raider sent the long way round to steal a building
   const repairers = of('engineer').filter(en => !en.raid).length + qOf('engineer') - (ai.raidPending ? 1 : 0);
   const needsFix = mine.some(b => isBuilding(b) && !isWallType(b.type) && b.built && b.hp < b.maxHp * 0.6);
@@ -2313,7 +2314,8 @@ function runAI(dt) {
   // when you're nearly beaten (only a few buildings left that it knows of, and it clearly has the bigger army) it goes all in, guards too
   const yourArmy = game.ents.filter(e => e.team === 0 && isCombat(e) && visibleAt(e.x, e.y, 1)).length;
   const allIn = ai.known.size > 0 && ai.known.size <= 3 && army.length >= Math.max(6, yourArmy * 2);
-  const gathered = army.filter(u => (allIn ? u.role !== 'scout' && u.role !== 'wave' && u.role !== 'hill' && u.role !== 'garrison' && u.role !== 'outpost' : !u.role) && (allIn || Math.hypot(u.x - rally.x, u.y - rally.y) < 160));
+  const keepSnipers = D.hill > 0 && game.time > D.hillAfter && (game.ai.hills || []).length;   // Snipers wait for a place on the high ground instead of joining waves
+  const gathered = army.filter(u => !(keepSnipers && u.type === 'sniper' && !allIn) && (allIn ? u.role !== 'scout' && u.role !== 'wave' && u.role !== 'hill' && u.role !== 'garrison' && u.role !== 'outpost' : !u.role) && (allIn || Math.hypot(u.x - rally.x, u.y - rally.y) < 160));
   const lost = !ai.known.size && game.time > D.attackAfter + 90;   // still hasn't found you: go looking in force
   const due = game.time >= D.attackAfter && game.time >= (ai.nextWave || 0);
   const enough = gathered.length >= D.minWave;   // when it's due it goes with what it has, as long as there's a handful
@@ -2356,9 +2358,9 @@ function runAI(dt) {
 
 // The plateaus worth holding, best first: on its own half of the map, the river lookouts first, then the ones
 // nearest the middle. Each comes with a few spots along its top edge, facing the middle (where enemies come from).
-function aiHillSpots() {
-  const hq = hqOf(1); if (!hq) return [];
-  const foe = START[0], mid = { x: W / 2, y: H / 2 }, out = [];
+function aiHillSpots(team = 1) {   // (the test player borrows this for its own side)
+  const hq = hqOf(team); if (!hq) return [];
+  const foe = START[1 - team], mid = { x: W / 2, y: H / 2 }, out = [];
   for (const base of MAP.plateaus || []) for (const pl of [base, { ...base, x: W - base.x, y: H - base.y }]) {
     if (Math.hypot(pl.x - hq.x, pl.y - hq.y) > Math.hypot(pl.x - foe.x, pl.y - foe.y)) continue;   // the enemy's half
     // every bit of standable high ground on this plateau; the edge that faces the middle is where to stand
@@ -2387,6 +2389,11 @@ function aiHoldHills(army, spare, size) {
       const pick = spare().filter(u => RANGED.includes(u.type)).sort((a, b) => RANGED.indexOf(a.type) - RANGED.indexOf(b.type)).slice(0, 1);
       if (pick.length) sentOne = true;
       for (const u of pick) { u.role = 'hill'; u.hill = k; u.passive = false; u.order = null; squad.push(u); }
+    }
+    // a Sniper waiting at home takes the place of a lesser unit up there (Snipers are the best at holding high ground)
+    if (squad.length >= size && !sentOne) {
+      const sn = spare().find(u => u.type === 'sniper'), worst = squad.filter(u => u.type !== 'sniper').sort((a, b) => RANGED.indexOf(b.type) - RANGED.indexOf(a.type))[0];
+      if (sn && worst) { worst.role = null; worst.order = null; squad.splice(squad.indexOf(worst), 1, sn); sn.role = 'hill'; sn.hill = k; sn.passive = false; sn.order = null; sentOne = true; }
     }
     squad.forEach((u, j) => {
       const s = h.spots[j % h.spots.length], k2 = Math.floor(j / h.spots.length), x = s.x + k2 * 12, y = s.y - k2 * 10;   // a second lot stands just beside the first

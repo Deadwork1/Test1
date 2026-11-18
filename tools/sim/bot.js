@@ -56,7 +56,7 @@ function putRefineryNearOre() {
   return put('refinery');
 }
 window.runSim = function (strategy, maxMinutes) {
-  const S = STRATS[strategy]; newGame(); wallPlan = []; gatesLeft = null; allPlans = null; retryGates = []; lastGateRetry = 0; game.paused = false;
+  const S = STRATS[strategy]; newGame(); window.botHills = null; wallPlan = []; gatesLeft = null; allPlans = null; retryGates = []; lastGateRetry = 0; game.paused = false;
   const st = { strategy, difficulty, map: mapChoice, produced: [{}, {}], died: [{}, {}], kills: {}, killValue: {}, spent: [{}, {}], captures: [0, 0], derrickSecs: [0, 0], firstDerrick: [null, null], highUnitSecs: [0, 0], firstOnHigh: [null, null], stuckEvents: 0, stuckTypes: {},
                peakExtractors: [0, 0], idleCashSamples: [], crushes: 0, firstTank: [null, null], firstAttackOnPlayerBase: null, aiWaves: 0, errors: [] };
   const P0 = window.produce;
@@ -116,7 +116,11 @@ window.runSim = function (strategy, maxMinutes) {
         // engineers: repair damaged buildings
         for (const en of of('engineer')) if (!en.order && !en.retake) { const hurt = mine.find(b => isBuilding(b) && b.built && b.hp < b.maxHp * 0.7 && !isWallType(b.type)); if (hurt) en.order = { type: 'repair', target: hurt.id }; }
         // attack in waves at the nearest enemy building (the bot cheats on knowing where it is)
-        const army = mine.filter(e => isCombat(e));
+        // snipers go and sit on the high ground on our side of the map (the best place for them) instead of joining waves
+        if (!window.botHills || (!botHills.length && hq)) window.botHills = aiHillSpots(0).flatMap(h => h.spots);
+        const snipers = of('sniper');
+        if (botHills.length) snipers.forEach((u, k) => { const p = botHills[k % botHills.length]; if (!u.order && Math.hypot(u.x - p.x, u.y - p.y) > 30) u.order = { type: 'move', x: p.x, y: p.y }; });
+        const army = mine.filter(e => isCombat(e) && !(e.type === 'sniper' && botHills.length));
         for (const e of army) if (e.inWave && !e.order) e.inWave = false;   // a wave unit with nothing left to do is back in the pool (it used to stay flagged and never attack again)
         const idle = army.filter(e => !e.order || (e.order.type === 'move' && !e.inWave));   // waiting at home (including walking to a guard spot)
         const ents = findEntrances(0);
