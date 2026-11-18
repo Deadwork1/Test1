@@ -32,6 +32,7 @@ Example: `python3 rec/record.py .. 8801 large hard mixed 60`
 - `test_rock_fire.py` checks direct fire can't pass through rock (lobbed grenades can).
 - `test_building_edges.py` checks an Extractor leaving its Refinery and a tank attacking past its own buildings don't snag on building edges.
 - `test_back_to_menu.py` checks the pause menu's Exit Game button (two taps, fresh game on the start screen, Start plays again).
+- `test_hq_capture.py` checks an Engineer capturing a Headquarters wins (or loses) the game and that the computer's raids can pick your HQ.
 - `test_hold_ground.py` checks idle Snipers and units on high ground shoot what comes in range but don't chase it off.
 - `dbg_*.py` are one-off debugging scripts. `dbg_inbuilding.py <game folder> <port> <map> <difficulty> <strategy> [minutes] [seed]` plays a seeded game and reports units stuck walking into buildings (total stuck-seconds), for comparing two versions of the game.
 - `pic_forest_sight.py <game folder> <port> <out.png>` shows a soldier's view inside a forest next to one on grass.

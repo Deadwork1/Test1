@@ -2,6 +2,14 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.38', date: '18 Nov 2026', title: 'Steal the Headquarters',
+    changes: [
+      'Engineers can capture a Headquarters again. Take the enemy HQ with an Engineer and you win, the same as destroying it. Lose yours to an enemy Engineer and you lose.',
+      'The computer\'s Engineer raids (Normal and Hard) may now go for your HQ too, so keep a guard near it.',
+      'The results screen says whether the Headquarters was destroyed or captured.',
+    ],
+  },
+  {
     version: '5.37.2', date: '18 Nov 2026', title: 'Room to breathe',
     changes: ['Large map: each village and its Oil Derrick have moved up a little, away from the cliff of the plateau beside them.'],
   },
