@@ -4354,9 +4354,9 @@ for (const b of document.querySelectorAll('#mapRow button')) {
   });
 }
 $('mapInfo').textContent = {
-  classic: 'Classic: the original smaller map. Quicker games.',
-  large: 'Large: a smaller Huge. Extra ore fields, high ground with river lookouts, one bridge each side and a village with an Oil Derrick. Longer games.',
-  huge: 'Huge: lots of open ground between the bases, more ore fields and high ground. The longest games.',
+  classic: 'Classic: the smaller map. A village with an Oil Derrick, high ground by the bridges and a small ruined base hidden in the jungle. Quicker games.',
+  large: 'Large: a smaller Huge. Extra ore fields, high ground with river lookouts, one bridge each side, a village with an Oil Derrick and an old ruined base deep in the jungle. Longer games.',
+  huge: 'Huge: lots of open ground between the bases, more ore fields, high ground and an old ruined base deep in the jungle. The longest games.',
 }[mapChoice];
 
 // ---------- Difficulty picker ----------

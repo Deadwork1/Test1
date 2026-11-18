@@ -37,6 +37,8 @@ Example: `python3 rec/record.py .. 8801 large hard mixed 60`
 - `test_rock_fire.py` checks direct fire can't pass through rock (lobbed grenades can).
 - `test_building_edges.py` checks an Extractor leaving its Refinery and a tank attacking past its own buildings don't snag on building edges.
 - `test_back_to_menu.py` checks the pause menu's Exit Game button (two taps, fresh game on the start screen, Start plays again).
+- `test_ruins.py` checks the ruined bases on every map: capture, repair, working only from half health, no selling, falling back to neutral when knocked out.
+- `test_ai_ruins.py <game folder> <port> <maps> <difficulties>` logs when the computer captures and repairs each ruin.
 - `test_gate_harvest.py` walls off your base entrances with gates, puts the Refinery inside and checks Extractors mining outside get back in without jamming (money earned and longest stuck time, all three maps).
 - `test_gate_yield.py` checks right of way at a gate: an Extractor leaving the base goes first, one coming in waits outside, then follows.
 - `test_gatefit.py` checks every unit type gets through a gate (3 tiles wide) both ways.

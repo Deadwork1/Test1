@@ -2,6 +2,18 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.44', date: '18 Nov 2026', title: 'Taken by nature',
+    changes: [
+      'New: old ruined bases. Each side has one, hidden in a clearing deep in a big jungle in the north-west (the computer\'s is the mirror). On Large and Huge it is a ruined Barracks, Power Plant and Radar; on Classic a Barracks and a Radar.',
+      'The ruins are neutral and battered. Send an Engineer to capture each building, then repair it: it only starts working once it is back to half health. Ruins are slow to fix, so bring a few Engineers.',
+      'Once working, a ruin is a normal building: the Barracks trains troops near the front, the Power Plant speeds you up, the Radar sees far, and they count for the tech tree. Only infantry can get in through the trees, and you can\'t build anything else there.',
+      'A ruin knocked down to nothing isn\'t destroyed: it falls back into a neutral ruin, ready to be taken again. Ruins can\'t be sold.',
+      'The computer goes after the ruins too, from 9 / 7 / 6 minutes on Easy / Normal / Hard, and sends Engineers to repair them.',
+      'Large and Huge: the big jungles are much bigger, reaching toward the map edge and filling the north-west, with wide gaps at both ends so tanks can get round. A few rock lines in and beside the jungles, and a small wood by the island bridge on Huge, are gone.',
+      'Classic: rebuilt like the bigger maps. Each base is smaller with two ways in, the cliff above it running to the map edge. New: a village with an Oil Derrick and two houses by your river bridge, a river lookout beside the island bridge with a road plateau making a pinch, and a small plateau by the river bridge.',
+    ],
+  },
+  {
     version: '5.43.1', date: '18 Nov 2026', title: 'Only when provoked',
     changes: [
       'The computer\'s Extractors only go after infantry that are attacking them. If the shooter stops (walks away or picks another target), the Extractor gives up at once and goes back to work.',
