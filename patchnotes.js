@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.43', date: '18 Nov 2026', title: 'Watch your feet',
+    changes: [
+      'The computer\'s Extractors fight back: shot by infantry they can reach, they drive straight at the shooter to run them over, then go back to work.',
+      'They give up when the shooter dies, hides in a forest, slips out of sight, or after 8 seconds of chasing, and never stray far from where they were. Yours still only crush infantry that get in their way.',
+    ],
+  },
+  {
     version: '5.42.2', date: '18 Nov 2026', title: 'After you',
     changes: [
       'Extractors take turns at your gates: one leaving the base goes first, and one coming back waits just outside until it is through, then drives in.',

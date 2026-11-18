@@ -1293,12 +1293,34 @@ function autoHarvest(e) {
   return false;
 }
 
+// The computer's Extractors fight back: shot by infantry they can reach, they drive at the shooter to run it over,
+// then go back to work. They give up when it dies, hides in a forest, slips out of sight, or after 8 s / 220 of chasing.
+function runOverShooter(e, dt) {
+  const o = e.order;
+  if (o && o.type === 'runover') {
+    const t = byId(o.target);
+    if (!t || t.hp <= 0 || game.time > o.until || Math.hypot(e.x - o.fromX, e.y - o.fromY) > 220 || !visibleAt(t.x, t.y, e.team) || !walkable(terrainAt(t.x, t.y), true)) {
+      e.order = o.resume || null; e.nav = null; return false;
+    }
+    if (navigate(e, t.x, t.y, dt) === 'fail') { e.order = o.resume || null; e.nav = null; }
+    return true;
+  }
+  if (e.docked || game.time - (e.hitAt || -9) > 1) return false;
+  const t = byId(e.hitBy);
+  if (!t || t.hp <= 0 || t.team === e.team || t.team === NEUTRAL || !isInfantry(t) || Math.hypot(t.x - e.x, t.y - e.y) > 200 || !walkable(terrainAt(t.x, t.y), true)) return false;
+  e.order = { type: 'runover', target: t.id, resume: o && o.type === 'harvest' ? o : null, until: game.time + 8, fromX: e.x, fromY: e.y };
+  e.nav = null; e.hitAt = -9;
+  return true;
+}
+
 function updateExtractor(e, dt) {
   crush(e);   // like tanks, a moving extractor runs over enemy infantry in its way
   const s = STATS.extractor, o = e.order;
   e.mining = false;
   if (e.docked && (!o || o.type !== 'harvest' || !['docking', 'unloading', 'undocking'].includes(o.phase))) e.docked = false;
-  if (!o) return;
+  if (e.team === 1 && runOverShooter(e, dt)) return;
+  if (!e.order) return;
+  if (e.order !== o) return updateExtractor(e, dt);   // just went back to its job after a chase
   if (o.type === 'move') { if (navigate(e, o.x, o.y, dt)) e.order = null; return; }
 
   if (o.phase === 'toNode' || o.phase === 'mining') {
@@ -1444,7 +1466,7 @@ function update(dt) {
       const d = edgeDist(g.x, g.y, o);
       const vehicle = isUnit(o) && !isInfantry(o);
       const mult = isBuilding(o) ? (g.vsBuilding || 1) : vehicle ? (g.vsVehicle || STATS.grenadier.vsVehicle) : 1;
-      if (d <= g.r) o.hp -= g.dmg * (1 - 0.5 * d / g.r) * mult;
+      if (d <= g.r) { o.hp -= g.dmg * (1 - 0.5 * d / g.r) * mult; if (g.src && isUnit(o)) { o.hitBy = g.src; o.hitAt = game.time; } }
     }
     game.effects.push({ kind: 'blast', x: g.x, y: g.y, r: g.r, t: 0, big: !!g.shell });
   }
@@ -1460,6 +1482,7 @@ function update(dt) {
       r.done = true;
       if (t && t.hp > 0 && d <= step + 30) {
         const S = STATS.rocket;
+        if (r.src && isUnit(t)) { t.hitBy = r.src; t.hitAt = game.time; }
         t.hp -= r.dmg * (isInfantry(t) ? S.vsInfantry : isBuilding(t) ? S.vsBuilding : t.type === 'heavy' ? S.vsHeavy : S.vsVehicle) * uphill(r.fromX, r.fromY, t);   // the heavy tank's thick armour shrugs off some of it
       }
       game.effects.push({ kind: 'blast', x: r.tx, y: r.ty, r: 16, t: 0 });
@@ -1635,9 +1658,9 @@ function updateSoldier(e, dt) {   // soldiers and buggies
       if (e.cooldown <= 0) {
         e.cooldown = s.cooldown;
         e.revealT = s.reveal || 1.5;   // firing gives away your position (snipers only briefly)
-        if (isBuilding(t)) { t.hitBy = e.id; t.hitAt = game.time; }   // so the owner's units nearby can come and deal with it
+        t.hitBy = e.id; t.hitAt = game.time;   // who shot it (so the owner's units nearby can deal with it, and the computer's Extractors can run the shooter down)
         if (s.rocket) {   // rocket: flies fast and homes in, so it's hard to dodge
-          game.rockets.push({ x: e.x + Math.cos(e.facing) * 12, y: e.y + Math.sin(e.facing) * 12, target: t.id, tx: t.x, ty: t.y, team: e.team, dmg: s.dmg, life: 1.5, fromX: e.x, fromY: e.y });
+          game.rockets.push({ x: e.x + Math.cos(e.facing) * 12, y: e.y + Math.sin(e.facing) * 12, target: t.id, tx: t.x, ty: t.y, team: e.team, dmg: s.dmg, life: 1.5, fromX: e.x, fromY: e.y, src: e.id });
           e.throwT = 0.2;
         } else if (s.siege) {   // artillery shell: a long, high arc that lands near (not exactly on) the target
           const sp = isBuilding(t) ? 0 : s.spread;
@@ -1646,7 +1669,7 @@ function updateSoldier(e, dt) {   // soldiers and buggies
           game.effects.push({ kind: 'blast', x: e.x + Math.cos(e.turret) * 52, y: e.y + Math.sin(e.turret) * 52, r: 9, t: 0 });   // muzzle blast
         } else if (s.splash) {   // grenade: flies for a moment, so fast targets can dodge it
           game.grenades.push({ x0: e.x, y0: e.y, x: t.x + (Math.random() - .5) * 10, y: t.y + (Math.random() - .5) * 10,
-                               t: 0, dur: s.flight, team: e.team, dmg: s.dmg, r: s.splash });
+                               t: 0, dur: s.flight, team: e.team, dmg: s.dmg, r: s.splash, src: e.id });
           e.throwT = 0.25;
         } else {
           t.hp -= s.dmg * (isInfantry(t) ? 1 : isBuilding(t) ? (s.vsBuilding || 1) : (s.vsVehicle || 1)) * armour(e.type, t) * uphill(e.x, e.y, t);
