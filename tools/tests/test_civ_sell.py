@@ -36,8 +36,10 @@ with sync_playwright() as p:
       const queued = bar.qTypes.reduce((s, t) => s + COST[t], 0), before = game.credits[0];
       game.selected = new Set([bar.id]); updateHUD();
       const btn = document.getElementById('btnSell');
+      sellShownAt -= SELL_SETTLE + 1;   // (as if you'd looked at it for a moment: Sell ignores clicks for a second after it appears)
       out.sellLabel = btn.textContent; btn.click(); updateHUD(); out.armedLabel = btn.textContent;
       out.stillThereAfterOneTap = !!byId(bar.id);
+      sellArmedAt -= SELL_CONFIRM_GAP + 1;   // (and the second tap comes a moment later, not as a double-click)
       btn.click(); step(0.1);
       out.soldGone = !byId(bar.id); out.refund = Math.round(game.credits[0] - before - 0.1 * 1); out.expected = 150 + queued;
       game.selected = new Set([hq.id]); updateHUD(); out.hqSellShown = btn.style.display !== 'none';
