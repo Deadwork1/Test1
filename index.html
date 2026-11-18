@@ -28,7 +28,9 @@
   #panel { bottom: 0; padding-bottom: max(6px, env(safe-area-inset-bottom)); overflow-x: auto; }
   .chip { background: rgba(10,16,8,.82); border: 1px solid rgba(255,255,255,.12); border-radius: 10px;
     padding: 7px 10px; font-weight: 600; font-size: 14px; }
-  #credits { color: #ffd86b; font-variant-numeric: tabular-nums; min-width: 70px; }
+  #credits { color: #ffd86b; font-variant-numeric: tabular-nums; min-width: 70px; text-align: center; }
+  /* money sits on its own just above the bottom bar, so it stays put while the bar slides */
+  #money { position: fixed; left: max(8px, env(safe-area-inset-left)); bottom: calc(58px + env(safe-area-inset-bottom)); pointer-events: none; }
   #info { font-weight: 500; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
   .spacer { flex: 1 1 auto !important; pointer-events: none; }
   button { font: inherit; font-size: 14px; font-weight: 600; color: #e8efe2; background: #2c4a22;
@@ -88,8 +90,9 @@
   <button id="btnAll" class="ghost">Army</button>
 </div>
 
+<div id="money"><span id="credits" class="chip">$0</span></div>
+
 <div id="panel" class="bar">
-  <span id="credits" class="chip">$0</span>
   <span id="info" class="chip">Tap your settler to begin</span>
   <button id="btnSell" class="ghost">Sell</button>
   <button id="btnDeploy">Deploy HQ</button>
