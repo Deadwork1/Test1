@@ -1401,7 +1401,8 @@ function update(dt) {
 // a building one of your engineers is on its way to take back: don't shoot it
 // (for the first minute after it's taken, everyone holds fire while an engineer gets there)
 const beingRetaken = (o, team) => isBuilding(o) && ((o.takenAt !== undefined && o.team !== team && game.time - o.takenAt < 60 && game.lost[team].includes(o.id)) || game.ents.some(en => en.team === team && en.type === 'engineer' && en.order && en.order.type === 'capture' && en.order.target === o.id));
-const lobs = e => !!(STATS[e.type].splash || STATS[e.type].siege);   // grenadiers and artillery arc their shots
+const lobs = e => !!(STATS[e.type].splash || STATS[e.type].siege);
+const holdsGround = e => e.type === 'sniper' || !!elevAt(e.x, e.y);   // snipers and units up on high ground don't leave their spot to chase   // grenadiers and artillery arc their shots
 function clearShot(x0, y0, x1, y1) {
   const d = Math.hypot(x1 - x0, y1 - y0), n = Math.ceil(d / 8);
   for (let k = 1; k < n; k++) {
@@ -1496,11 +1497,13 @@ function updateSoldier(e, dt) {   // soldiers and buggies
     const cur = byId(o.target);
     if (cur && isInfantry(cur)) { const v = findVehicleNear(e, s.range); if (v) { o.target = v.id; } }
   }
-  // idle or attack-moving soldiers look for nearby enemies on their own
+  // idle or attack-moving soldiers look for nearby enemies on their own. Snipers, and anyone standing on high ground,
+  // hold their ground when idle: they only take on what's already in range and never chase it off
   if ((!o && !e.passive) || (o && o.type === 'attackmove')) {
-    const foe = s.siege ? findSiegeTarget(e, Math.max(s.sight, rangeOf(e)))
-      : (s.rocket && findVehicleNear(e, s.sight)) || (e.type === 'sniper' && findInfantryNear(e, s.sight)) || findEnemyNear(e, s.sight);
-    if (foe) { e.order = { type: 'attack', target: foe.id, resume: o }; o = e.order; }
+    const hold = !o && holdsGround(e), look = hold ? rangeOf(e) : s.sight;
+    const foe = s.siege ? findSiegeTarget(e, Math.max(look, hold ? 0 : rangeOf(e)))
+      : (s.rocket && findVehicleNear(e, look)) || (e.type === 'sniper' && findInfantryNear(e, look)) || findEnemyNear(e, look);
+    if (foe) { e.order = { type: 'attack', target: foe.id, resume: o, hold }; o = e.order; }
   }
   if (!o) {
     // holding a place in a formation: drift back to it if something nudged it out of line
@@ -1527,6 +1530,8 @@ function updateSoldier(e, dt) {   // soldiers and buggies
   } else if (o.type === 'attack') {
     const t = byId(o.target);
     if (!t || t.team === e.team || t.team === NEUTRAL || hiddenFrom(t, e.team)) { e.order = o.resume || null; return; }   // gone, captured or knocked back to neutral
+    // holding its ground: if the target has moved out of reach (or out of sight), let it go rather than follow it
+    if (o.hold && (edgeDist(e.x, e.y, t) > rangeOf(e) + 4 || !visibleAt(t.x, t.y, e.team) || !canShoot(e, t))) { e.order = o.resume || null; return; }
     // a unit that slips into the fog is lost: go to where it was last seen, then stop (no tracking it through the fog)
     if (isUnit(t) && !visibleAt(t.x, t.y, e.team) && Math.hypot(t.x - e.x, t.y - e.y) > s.sight) {
       // head for the last spot it was seen, ready to fight anything met on the way
@@ -2005,7 +2010,8 @@ function defendBuildings() {
       // anyone busy within 300 comes; units standing idle within 500
       const d = Math.hypot(u.x - b.x, u.y - b.y);
       if (u.team !== b.team || !isCombat(u) || d > (u.order || u.role === 'wave' ? 300 : 500)) continue;   // (was 450 / 1000: units ran too far to help)
-      if ((u.role === 'hill' || u.role === 'garrison' || u.role === 'outpost') && d > 300) continue;   // they hold their post unless the fight is right there
+      if ((u.role === 'hill' || u.role === 'garrison' || u.role === 'outpost') && d > 300) continue;
+      if (!u.order && holdsGround(u) && d > rangeOf(u) + 60) continue;   // snipers and units on high ground stay put unless the fight is right there   // they hold their post unless the fight is right there
       const o = u.order;
       if (o && o.type === 'attack' && byId(o.target) && byId(o.target).hp > 0 && !isBuilding(byId(o.target))) continue;   // already fighting a unit
       if (o && o.type === 'move' && u.team === 0 && game.time - (o.given || 0) < 3) continue;   // you only just told it where to go

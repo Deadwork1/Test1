@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.34', date: '18 Nov 2026', title: 'Hold the high ground',
+    changes: [
+      'Snipers, and any unit standing on high ground, now hold their ground when idle: they shoot enemies that come within range but no longer run off after them. The base alarm doesn\'t pull them away either unless the fight is right next to them.',
+      'If you order one to attack something, it still goes after it.',
+    ],
+  },
+  {
     version: '5.33', date: '18 Nov 2026', title: 'Sharp-eyed Snipers',
     changes: ['Snipers now see as far as a Scout Buggy: 220 (was 200). In a forest that is 154, on high ground 275.'],
   },
