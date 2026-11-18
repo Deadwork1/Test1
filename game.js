@@ -24,8 +24,8 @@ const MAPS = {
     forests: [[440, 650, 220, 150, -0.15], [345, 455, 165, 175, 0], [800, 230, 90]],   // [x, y, r] or a jungle [x, y, rx, ry, tilt]; the jungle hides a small ruined base
     plateaus: [
       { x: 930, y: 470, rx: 175, ry: 130, tilt: 0.2, ramps: [3.0, 1.5] },   // high ground: cliff all round except the ramps
-      { x: 965, y: 925, rx: 125, ry: 85, tilt: 0.94, ramps: [2.51], overhang: true },   // a small river lookout by the island's west bridge (as on Large, scaled down)
-      { x: 1110, y: 1405, rx: 85, ry: 58, tilt: -0.1, ramps: [2.88] },   // a small plateau watching your river bridge and the village beside it
+      { x: 965, y: 925, rx: 140, ry: 95, tilt: 0.94, ramps: [2.51], overhang: true, rim: 34 },   // a small river lookout by the island's west bridge (as on Large, scaled down)
+      { x: 1110, y: 1405, rx: 90, ry: 62, tilt: -0.1, ramps: [2.88], rim: 32 },   // a small plateau watching your river bridge and the village beside it
     ],
     river: { amp: 70, period: 230, half: 36 },
     bridges: [{ y: 230, hw: 62 }],                     // river bridges on your half (mirrored for theirs)
@@ -284,7 +284,7 @@ function segDist(px, py, ax, ay, bx, by) {
         const dx = x - pl.x, dy = y - pl.y, co = Math.cos(pl.tilt), si = Math.sin(pl.tilt);
         const u = (dx * co + dy * si) / pl.rx, v = (-dx * si + dy * co) / pl.ry, a = Math.atan2(v, u);
         const edge = 1 + 0.07 * Math.sin(a * 4 + pl.x) + 0.04 * Math.sin(a * 9 + pl.y), d = Math.hypot(u, v) / edge;
-        const rimW = 42 / Math.min(pl.rx, pl.ry);   // thick enough that the cliff never has holes
+        const rimW = (pl.rim || 42) / Math.min(pl.rx, pl.ry);   // thick enough that the cliff never has holes (small plateaus use a thinner rim, or they'd be all cliff)
         if (d < 1 && dI > ISLAND.r + (pl.overhang ? 0 : 34)) {
           const ang = Math.atan2(dy, dx);
           const onRamp = pl.ramps.some(ra => Math.abs(Math.atan2(Math.sin(ang - ra), Math.cos(ang - ra))) < 0.3);
