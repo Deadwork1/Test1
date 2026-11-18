@@ -159,13 +159,13 @@ const SHORT = { buggy: 'Buggy', rocket: 'Rocket', sniper: 'Sniper', light: 'Ligh
 const DIFFICULTY = {
   easy:   { label: 'Easy',   think: 2.5, slow: 1.5,  income: 0.7,  attackAt: 5, attackAfter: 300, barracks: 1, maxArmy: 11, towers: 0, buggies: false, plants: 0,
             guard: 1, maxWave: 6, extractors: 2, refineries: 1, walls: false, grenadiers: false, engineers: 0, rockets: false, snipers: 0, factory: false, tanks: 0, heavyTanks: false, artillery: 0, raidEvery: 0, waveEvery: 240, minWave: 3, focus: 'nearest',
-            derricks: true, derrickAfter: 480, escort: 2, garrison: 1, hill: 0, hillSize: 0, hillAfter: 0 },
+            derricks: true, derrickAfter: 480, ruinAfter: 540, escort: 2, garrison: 1, hill: 0, hillSize: 0, hillAfter: 0 },
   normal: { label: 'Normal', think: 1.5, slow: 1.08, income: 0.94, attackAt: 7, attackAfter: 180, barracks: 1, maxArmy: 26, towers: 2, buggies: true, plants: 1,
             guard: 3, maxWave: 16, extractors: 6, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 1, factory: true, tanks: 0.25, heavyTanks: false, artillery: 1, raidEvery: 480, hqGuard: 2, waveEvery: 180, minWave: 4, focus: 'economy',
-            derricks: true, derrickAfter: 360, escort: 3, garrison: 2, hill: 1, hillSize: 3, hillAfter: 420 },
+            derricks: true, derrickAfter: 360, ruinAfter: 420, escort: 3, garrison: 2, hill: 1, hillSize: 3, hillAfter: 420 },
   hard:   { label: 'Hard',   think: 1,   slow: 1,    income: 1,    attackAt: 6, attackAfter: 0,   barracks: 2, maxArmy: Infinity, towers: 3, buggies: true, plants: 2,
             guard: 4, maxWave: 30, extractors: 8, refineries: 3, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true, artillery: 2, raidEvery: 360, hqGuard: 3, earlyRefinery: true, expandAt: 1500, waveEvery: 120, minWave: 5, focus: 'defences',
-            derricks: true, derrickAfter: 300, escort: 3, garrison: 3, hill: 2, hillSize: 3, hillAfter: 360 },
+            derricks: true, derrickAfter: 300, ruinAfter: 360, escort: 3, garrison: 3, hill: 2, hillSize: 3, hillAfter: 360 },
 };
 let difficulty = 'normal';
 try { if (DIFFICULTY[localStorage.getItem('mini-rts-difficulty')]) difficulty = localStorage.getItem('mini-rts-difficulty'); } catch (err) {}
@@ -2168,7 +2168,7 @@ function runAI(dt) {
   const D = diff();
 
   const mine = game.ents.filter(e => e.team === 1);
-  const of = t => mine.filter(e => e.type === t);
+  const of = t => mine.filter(e => e.type === t && !e.ruin);   // (a captured ruin is a bonus: it doesn't stand in for the buildings it makes at home)
   const settler = of('settler')[0], hq = of('hq')[0];
   const barracks = of('barracks'), refineries = of('refinery'), extractors = of('extractor');
   const army = mine.filter(isCombat);   // soldiers and buggies
@@ -2278,13 +2278,15 @@ function runAI(dt) {
   // engineers: a repairer only when something is badly damaged, and now and then a raider sent the long way round to steal a building
   const repairers = of('engineer').filter(en => !en.raid).length + qOf('engineer') - (ai.raidPending ? 1 : 0);
   const needsFix = mine.some(b => isBuilding(b) && !isWallType(b.type) && b.built && b.hp < b.maxHp * 0.6);
+  const brokenRuin = mine.some(b => b.ruin && !ruinWorks(b));   // a ruin it has taken but not yet patched up: worth a repair crew of up to 2 extra
   const raidDue = D.raidEvery && game.time > 360 && game.time - (ai.lastRaid || 0) > D.raidEvery && !ai.raidPending && [...ai.known.keys()].some(id => { const b = byId(id); return b && b.team === 0 && b.type !== 'hq' && canCapture(b); });
   // win back buildings your engineers took: send an engineer with an escort (try again if it's killed)
   const retake = D.engineers > 0 ? game.lost[1].map(byId).filter(b => b && b.team === 0 && canCapture(b)) : [];
-  if (D.derricks && game.time > D.derrickAfter) for (const d of game.ents) if (d.type === 'derrick' && d.team !== 1 && !retake.includes(d)) retake.push(d);   // it knows where the villages are, like a player who knows the map   // and Oil Derricks it has found
+  if (D.derricks && game.time > D.derrickAfter) for (const d of game.ents) if (d.type === 'derrick' && d.team !== 1 && !retake.includes(d)) retake.push(d);
+  if (game.time > (D.ruinAfter || Infinity)) for (const r of game.ents) if (r.ruin && r.team !== 1 && canCapture(r) && !retake.includes(r)) retake.push(r);   // the old ruined bases, one building at a time, without rushing   // it knows where the villages are, like a player who knows the map   // and Oil Derricks it has found
   const retaking = of('engineer').some(en => en.retake) || ai.retakePending;
   const retakeDue = (D.engineers > 0 || D.derricks) && retake.length && !retaking && game.time - (ai.lastRetake || -99) > 25;
-  const wantEngineer = (D.engineers > 0 && needsFix && repairers < D.engineers) || raidDue || retakeDue;
+  const wantEngineer = ((D.engineers > 0 || brokenRuin) && needsFix && repairers < D.engineers + (brokenRuin ? 2 : 0)) || raidDue || retakeDue;
   // War Factory first: buggies (about one per two soldiers) and tanks (a share of its army; heavies once it has a Tech Centre).
   // While it wants a vehicle, the barracks hold back so the money can build up.
   const qF = t => of('factory').reduce((n, f) => n + f.qTypes.filter(q => q === t).length, 0);
