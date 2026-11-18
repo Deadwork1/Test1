@@ -2,6 +2,10 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.41.1', date: '18 Nov 2026', title: 'Seamless walls',
+    changes: ['Wall sections no longer show a thin seam where they join.'],
+  },
+  {
     version: '5.41', date: '18 Nov 2026', title: 'A tougher opponent',
     changes: [
       'Gates are wider: 3 tiles long instead of 2, so two units fit through side by side and Extractors stop jamming in the doorway.',

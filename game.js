@@ -3549,7 +3549,7 @@ function drawWall(e) {
     for (const [dc, dr] of [[1, 0], [0, 1], [1, 1], [1, -1], [-1, 0], [0, -1], [-1, -1], [-1, 1]]) {
       if (!linked(dc, dr)) continue;
       if (dc && dr && (linked(dc, 0) || linked(0, dr))) continue;   // diagonal only when there's no straight link
-      ctx.beginPath(); ctx.moveTo(e.x + ox, e.y + oy); ctx.lineTo(e.x + ox + dc * TC / 2, e.y + oy + dr * TC / 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(e.x + ox, e.y + oy); ctx.lineTo(e.x + ox + dc * (TC / 2 + 1), e.y + oy + dr * (TC / 2 + 1)); ctx.stroke();   // a pixel past halfway, so the two halves meet without a hairline seam
     }
     ctx.fillStyle = pass ? '#b3aea2' : 'rgba(0,0,0,0.35)';
     ctx.fillRect(e.x - 8 + ox, e.y - 8 + oy, 16, 16);
