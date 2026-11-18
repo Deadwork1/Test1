@@ -2,6 +2,12 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.29', date: '18 Nov 2026', title: 'The pinch',
+    changes: [
+      'Huge map: the plateau beside the road to the island has moved closer to the river lookout. The road to the island bridge now squeezes through a gap about 150 wide between the two cliffs, overlooked from both sides. Armies still fit through, and the route is no longer than before.',
+    ],
+  },
+  {
     version: '5.28', date: '18 Nov 2026', title: 'Lookouts by the bridges, longer Radar',
     changes: [
       'Huge map: the river lookouts have slid round the river towards the island bridge on their side, as close as they can go without getting in the way of the bridge. The gold band on the island moved with them.',

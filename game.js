@@ -71,7 +71,7 @@ const MAPS = {
     forests: [[1470, 1250, 360, 250, 0.35], [270, 820, 160], [1530, 420, 160], [980, 1950, 130], [1700, 1500, 110]],   // the big jungle sits on the routes between the bases
     plateaus: [
       { x: 1979, y: 1806, rx: 250, ry: 165, tilt: 0.94, ramps: [2.51], overhang: true },   // lookout over the island, close to its west bridge: juts out over the river   // lookout over the island: juts out over the river
-      { x: 1200, y: 1680, rx: 190, ry: 130, tilt: -0.6, ramps: [2.3] },   // beside the main road to the island's west bridge
+      { x: 1450, y: 1690, rx: 190, ry: 130, tilt: -0.6, ramps: [2.3] },   // beside the main road to the island's west bridge: with the river lookout it squeezes the road into a pinch about 150 wide
       { x: 1450, y: 820, rx: 160, ry: 110, tilt: 0.4, ramps: [2.4] },     // north of the jungle, over the way to the north village
     ],
     river: { amp: 110, period: 420, half: 44 },
