@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.42.2', date: '18 Nov 2026', title: 'After you',
+    changes: [
+      'Extractors take turns at your gates: one leaving the base goes first, and one coming back waits just outside until it is through, then drives in.',
+      'A waiting Extractor gives up after 8 seconds and goes anyway, so two can never lock each other out. The computer\'s Extractors follow the same rule.',
+    ],
+  },
+  {
     version: '5.42.1', date: '18 Nov 2026', title: 'Clear the gate',
     changes: [
       'Fixed Extractors getting stuck at your gate and not getting back into the base. They drove through the gate\'s outer edge, too close to the wall, and two meeting head-on never made way for each other.',

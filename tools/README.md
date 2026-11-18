@@ -37,6 +37,7 @@ Example: `python3 rec/record.py .. 8801 large hard mixed 60`
 - `test_building_edges.py` checks an Extractor leaving its Refinery and a tank attacking past its own buildings don't snag on building edges.
 - `test_back_to_menu.py` checks the pause menu's Exit Game button (two taps, fresh game on the start screen, Start plays again).
 - `test_gate_harvest.py` walls off your base entrances with gates, puts the Refinery inside and checks Extractors mining outside get back in without jamming (money earned and longest stuck time, all three maps).
+- `test_gate_yield.py` checks right of way at a gate: an Extractor leaving the base goes first, one coming in waits outside, then follows.
 - `test_gatefit.py` checks every unit type gets through a gate (3 tiles wide) both ways.
 - `test_medbay.py` checks the Medbay: tech lock, healing up to 5 infantry or 1 vehicle (first come, first served), units walking across it, tap-to-send and the computer healing its wounded.
 - `test_autoheal.py` checks the computer's wounded idle units go to its Medbay (yours don't go by themselves) and that it keeps an HQ guard.

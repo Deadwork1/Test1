@@ -537,7 +537,34 @@ function navigate(e, tx, ty, dt) {
       if (w && w.team !== e.team) { e.order = { type: 'attack', target: w.id, resume: e.order }; e.nav = null; return false; }
     }
   }
+  if (e.type === 'extractor' && gateYield(e, nav)) { e.yieldT = (e.yieldT || 0) + dt; return false; }   // let one leaving the base come out first
+  e.yieldT = 0;
   if (moveToward(e, p.x, p.y, dt)) { nav.i++; if (nav.i >= nav.path.length) return true; }
+  return false;
+}
+
+// Right of way at your own gates: an Extractor leaving the base goes first, one coming in waits just outside until
+// it's through. (It gives up waiting after 8 seconds, so two can never lock each other out.)
+function gateYield(e, nav) {
+  if ((e.yieldT || 0) > 8) return false;
+  const hq = hqOf(e.team);
+  if (!hq) return false;
+  // which side of the gate a point is on: + = the side the HQ is on (inside), - = outside; 0 = in the gateway
+  const sideOf = (g, x, y) => { const s = g.vertical ? x - g.x : y - g.y, inSign = Math.sign(g.vertical ? hq.x - g.x : hq.y - g.y) || 1; return Math.abs(s) <= TC / 2 ? 0 : Math.sign(s) * inSign; };
+  const along = (g, x, y) => Math.abs(g.vertical ? y - g.y : x - g.x);
+  const ahead = n => n ? n.path.slice(n.i, n.i + 3) : [];
+  for (const g of game.ents) {
+    if (g.type !== 'gate' || g.team !== e.team || g.hp <= 0 || Math.abs(g.x - e.x) > 110 || Math.abs(g.y - e.y) > 110) continue;
+    const dist = Math.abs(g.vertical ? e.x - g.x : e.y - g.y);
+    if (sideOf(g, e.x, e.y) !== -1 || dist < 34 || dist > 100 || along(g, e.x, e.y) > 70) continue;   // only while waiting its turn just outside
+    if (!ahead(nav).some(p => sideOf(g, p.x, p.y) >= 0)) continue;                                      // not heading in through this gate
+    for (const o of game.ents) {
+      if (o === e || o.type !== 'extractor' || o.team !== e.team || o.hp <= 0 || o.docked || !o.nav || o.nav.fail) continue;
+      if (Math.abs(o.x - g.x) > 120 || Math.abs(o.y - g.y) > 120 || along(g, o.x, o.y) > 80) continue;
+      const os = sideOf(g, o.x, o.y);
+      if (os >= 0 && ahead(o.nav).some(p => sideOf(g, p.x, p.y) === -1)) return true;                    // it's on its way out: wait
+    }
+  }
   return false;
 }
 
