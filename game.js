@@ -165,12 +165,12 @@ const DIFFICULTY = {
   easy:   { label: 'Easy',   think: 2.5, slow: 1.5,  income: 0.7,  attackAt: 5, attackAfter: 300, barracks: 1, maxArmy: 11, towers: 0, buggies: false, plants: 0,
             guard: 1, maxWave: 6, extractors: 2, refineries: 1, walls: false, grenadiers: false, engineers: 0, rockets: false, snipers: 0, factory: false, tanks: 0, heavyTanks: false, artillery: 0, raidEvery: 0, waveEvery: 240, minWave: 3, focus: 'nearest',
             derricks: true, derrickAfter: 480, ruinAfter: 540, turrets: 1, turretsTotal: 2, engineerCap: 2, escort: 2, garrison: 1, hill: 0, hillSize: 0, hillAfter: 0 },
-  normal: { label: 'Normal', think: 1.5, slow: 1, income: 1, attackAt: 7, attackAfter: 180, barracks: 1, maxArmy: 30, towers: 2, buggies: true, plants: 1,
-            guard: 3, maxWave: 16, extractors: 6, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 1, factory: true, tanks: 0.25, heavyTanks: false, artillery: 1, raidEvery: 480, hqGuard: 2, waveEvery: 180, minWave: 4, focus: 'economy',
-            derricks: true, derrickAfter: 360, ruinAfter: 420, turrets: 1, turretsTotal: 3, engineerCap: 3, escort: 3, garrison: 2, hill: 1, hillSize: 3, hillAfter: 420 },
-  hard:   { label: 'Hard',   think: 1,   slow: 0.9,  income: 1.12,    attackAt: 6, attackAfter: 0,   barracks: 2, maxArmy: Infinity, towers: 3, buggies: true, plants: 2,
-            guard: 4, maxWave: 30, extractors: 8, refineries: 3, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true, artillery: 2, raidEvery: 360, hqGuard: 3, earlyRefinery: true, expandAt: 1500, antiArmor: 12, waveEvery: 120, minWave: 5, focus: 'defences',
-            derricks: true, derrickAfter: 300, ruinAfter: 360, turrets: 2, turretsTotal: 4, engineerCap: 4, escort: 3, garrison: 3, hill: 2, hillSize: 3, hillAfter: 360 },
+  normal: { label: 'Normal', think: 1.5, slow: 1, income: 1, attackAt: 8, attackAfter: 180, barracks: 1, maxArmy: 36, towers: 2, buggies: true, plants: 1,
+            guard: 3, maxWave: 22, extractors: 6, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 1, factory: true, tanks: 0.25, heavyTanks: false, artillery: 1, raidEvery: 600, hqGuard: 2, waveEvery: 180, minWave: 8, waveGrow: 3, waveWait: 60, focus: 'economy',
+            derricks: true, derrickAfter: 360, ruinAfter: 420, turrets: 1, turretsTotal: 2, engineerCap: 2, escort: 3, garrison: 2, hill: 1, hillSize: 3, hillAfter: 420 },
+  hard:   { label: 'Hard',   think: 1,   slow: 0.9,  income: 1.12,    attackAt: 12, attackAfter: 0,   barracks: 3, factories: 2, maxArmy: Infinity, towers: 3, buggies: true, plants: 2,
+            guard: 4, maxWave: 36, extractors: 8, refineries: 3, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true, artillery: 2, raidEvery: 480, hqGuard: 3, earlyRefinery: true, expandAt: 1500, antiArmor: 12, waveEvery: 120, minWave: 12, waveGrow: 3, waveWait: 60, focus: 'defences',
+            derricks: true, derrickAfter: 300, ruinAfter: 360, turrets: 1, turretsTotal: 2, engineerCap: 3, escort: 3, garrison: 3, hill: 2, hillSize: 3, hillAfter: 360 },
 };
 let difficulty = 'normal';
 try { if (DIFFICULTY[localStorage.getItem('mini-rts-difficulty')]) difficulty = localStorage.getItem('mini-rts-difficulty'); } catch (err) {}
@@ -2387,7 +2387,7 @@ function runAI(dt) {
   // Hard puts down a second refinery straight away (after a minute); everyone builds the rest once its economy and first wave are going
   const reqRefineries = extractors.length >= 3 && sent >= 1 ? D.refineries : D.earlyRefinery && game.time > 60 ? 2 : 1;
   // the build phase lasts until this stage's extras are built (or 90s, so it never stalls)
-  const wantFactory = D.factory && sent >= 1 && !of('factory').length && unlocked(1, 'factory') && !aiBlocked('factory');
+  const wantFactory = D.factory && sent >= 1 && of('factory').length < (sent >= 3 && of('factory').some(f => f.built) ? (D.factories || 1) : 1) && unlocked(1, 'factory') && !aiBlocked('factory');   // (Hard adds a second one after 3 waves)
   const wantTech = D.heavyTanks && sent >= 2 && of('factory').some(f => f.built) && !of('tech').length && unlocked(1, 'tech') && !aiBlocked('tech');
   const wantRadar = D.walls && sent >= 1 && !of('radar').length && unlocked(1, 'radar') && !aiBlocked('radar');   // Normal and Hard
   const wantMedbay = D.walls && sent >= 1 && !of('medbay').length && unlocked(1, 'medbay') && !aiBlocked('medbay');   // Normal and Hard: somewhere to patch up the wounded
@@ -2434,7 +2434,7 @@ function runAI(dt) {
   // ---- economy ----
   const wantExtractors = Math.min(D.extractors, refineries.filter(r => r.built).length * 3);
   const qx = refineries.reduce((n, r) => n + r.queue, 0);
-  for (const r of refineries) if (extractors.length + qx < wantExtractors && r.queue === 0) produce(r);
+  for (const r of refineries) if (extractors.length + qx < wantExtractors && r.queue === 0 && (extractors.length < 3 || game.time - (ai.extractorAt || -99) > 30) && produce(r)) ai.extractorAt = game.time;   // (replacing lost ones: one every 30 s at most, so the money goes into troops)
   for (const x of extractors) {   // idle extractors go to ore it knows about, or drive off to look for some
     if (x.order || autoHarvest(x)) continue;
     const spot = aiExploreSpot(x.x, x.y, false);
@@ -2668,12 +2668,14 @@ function runAI(dt) {
   const gathered = army.filter(u => !(keepSnipers && u.type === 'sniper' && !allIn) && (allIn ? u.role !== 'scout' && u.role !== 'wave' && u.role !== 'hill' && u.role !== 'garrison' && u.role !== 'outpost' : !u.role) && (allIn || Math.hypot(u.x - rally.x, u.y - rally.y) < 160));
   const lost = !ai.known.size && game.time > D.attackAfter + 90;   // still hasn't found you: go looking in force
   const due = game.time >= D.attackAfter && game.time >= (ai.nextWave || 0);
-  const enough = gathered.length >= D.minWave;   // when it's due it goes with what it has, as long as there's a handful
+  // when it's due it waits for a full wave (its target size), but not for ever: after waveWait more seconds it goes with what it has, as long as there's a minimum
+  const fullWave = Math.max(D.minWave, Math.min(ai.waveSize, army.length - D.guard));
+  const enough = gathered.length >= fullWave || (gathered.length >= D.minWave && game.time >= (ai.nextWave || 0) + (D.waveWait || 0));
   if (!intruders.length && due && enough && (ai.known.size || lost)) {
     const target = aiWaveTarget(rally, targets, D.focus) || aiExploreSpot(hq.x, hq.y, true);
     if (target) {
       gathered.forEach((u, k) => { const a = k * 2.4, rr = 14 * Math.sqrt(k); u.role = 'wave'; u.passive = false; u.order = { type: 'attackmove', x: target.x + Math.cos(a) * rr, y: target.y + Math.sin(a) * rr }; });   // spread out so they don't queue nose to tail
-      ai.waveSize = Math.min(D.maxWave, (D.maxArmy === Infinity ? 99 : D.maxArmy - D.guard), ai.waveSize + 2);   // each wave a little bigger
+      ai.waveSize = Math.min(D.maxWave, (D.maxArmy === Infinity ? 99 : D.maxArmy - D.guard), ai.waveSize + (D.waveGrow || 2));   // each wave a little bigger
       ai.wavesSent = (ai.wavesSent || 0) + 1;
       ai.nextWave = game.time + D.waveEvery;
       ai.buildUntil = game.time + Math.min(60, D.waveEvery / 3);   // a short spell of building after each wave

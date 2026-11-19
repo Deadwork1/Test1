@@ -2,6 +2,16 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.48', date: '19 Nov 2026', title: 'Bigger enemy armies',
+    changes: [
+      'Normal and Hard: the computer keeps a bigger army and attacks with bigger waves. When a wave is due it waits until it has a proper one (at least 8 on Normal, 12 on Hard), but never more than a minute longer before it goes. Each wave is 3 bigger than the last, up to 22 on Normal (was 16) and 36 on Hard (was 30). Normal\'s army cap goes up to 36 (was 26).',
+      'It puts more of its money into troops: fewer Engineers at once (2 on Normal, 3 on Hard), Engineer raids every 10 minutes on Normal and 8 on Hard (were 8 and 6), fewer Turrets (at most 2 in a game), and once its economy is going it replaces a lost Extractor at most once every 30 seconds.',
+      'Hard builds a third Barracks and, after its third wave, a second War Factory.',
+      'Stronger economy: Normal now earns full income and builds at full speed (was 94% and 8% slower). Hard earns 12% more from each load and builds and trains 10% faster.',
+      'Hard answers your vehicles better: it remembers every vehicle of yours it has seen, trains up to 12 Rocket Soldiers to match (a Heavy Tank counts as 2.5, a Light Tank 1.5, a Buggy or Artillery 1), and a third more tanks once it has seen 3 or more of yours.',
+    ],
+  },
+  {
     version: '5.47.1', date: '19 Nov 2026', title: 'Who killed whom',
     changes: [
       'The game report now lists, for each side, what each unit type killed: for example your Heavy Tanks killed 12 Rocket Soldiers, 8 Soldiers and 2 Refineries. Buildings count too, and a Turret\'s gunner counts as a kill of his own.',
