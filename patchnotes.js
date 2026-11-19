@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.46.3', date: '19 Nov 2026', title: 'Who killed what',
+    changes: [
+      'The game report now records, for each unit type on both sides, how many kills it made, the value of what it killed, and the value of all the damage it did (the share of a target\'s health it took off, times the target\'s price). Units and buildings with no price, like Civilians and the Headquarters, count as $0.',
+      'So a saved report can now show which units really gave the best value for money.',
+    ],
+  },
+  {
     version: '5.46.2', date: '19 Nov 2026', title: 'No selling from the menu',
     changes: [
       'Fixed: the Sell button showed through the pause menu and could still sell a building while the game was paused. Menus now sit on top of everything, Sell is hidden while paused or after the game ends, and it can\'t sell at those times.',

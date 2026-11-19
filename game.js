@@ -835,7 +835,7 @@ function newGame() {
     effects: [],
     over: null, paused: false,
     ai: { timer: 0, attacking: false, known: new Map(), scout: null, exploreTarget: null },
-    track: { made: [{}, {}], lost: [{}, {}], timeline: [], nextSample: 0 },   // for the game report: what each side made and lost, and a snapshot every 30 s
+    track: { made: [{}, {}], lost: [{}, {}], hits: [{}, {}], timeline: [], nextSample: 0 },   // for the game report: what each side made and lost, and a snapshot every 30 s
   };
   for (const f of fog) { f.vis.fill(0); f.exp.fill(0); }
   { const box = document.getElementById('results'); if (box) box.style.display = 'none'; }
@@ -920,6 +920,22 @@ const halfX = e => e.type === 'gate' ? gateHalf(e.vertical).hx : e.size / 2;
 const halfY = e => e.type === 'gate' ? gateHalf(e.vertical).hy : e.size / 2;
 const isBuilding = e => isBuildingType(e.type);
 const isUnit = e => !isBuilding(e);
+// Damage, with a note of who did it (for the game report: which unit types killed what, and how much value they destroyed).
+// Value destroyed = the share of the target's health taken off, times its price (things with no price, like Civilians and the HQ, count as $0).
+function hurt(t, amount, srcType, srcTeam) {
+  if (amount <= 0 || t.hp <= 0) return;
+  if (game.track && srcType && (srcTeam === 0 || srcTeam === 1) && (t.team === 0 || t.team === 1) && t.team !== srcTeam) {
+    const h = game.track.hits[srcTeam], k = h[srcType] || (h[srcType] = { kills: 0, killValue: 0, damageValue: 0 });
+    k.damageValue += Math.min(amount, t.hp) / t.maxHp * (COST[t.type] || 0);
+    t.lastHit = srcType; t.lastHitTeam = srcTeam;
+  }
+  t.hp -= amount;
+}
+function creditKill(e, extra) {   // e has just died: its killer's unit type gets the kill
+  if (!game.track || !e.lastHit || e.lastHitTeam === e.team) return;
+  const k = game.track.hits[e.lastHitTeam][e.lastHit]; if (!k) return;
+  k.kills += 1 + (extra || 0); k.killValue += COST[e.type] || 0;
+}
 const isSolid = e => isBuilding(e) && !STATS[e.type].walkOn;   // the Medbay is a pad units walk onto, so it doesn't block movement
 const byId = id => game.ents.find(e => e.id === id);
 const oreById = id => game.ore.find(o => o.id === id);
@@ -1476,6 +1492,7 @@ function update(dt) {
       game.effects.push({ kind: 'boom', x: e.x, y: e.y, t: 0, big: true });
       if (was === 0 || visibleAt(e.x, e.y)) game.effects.push({ kind: 'text', x: e.x, y: e.y - 34, text: was === 0 ? 'Ruin lost' : 'Ruin knocked out', t: 0, color: '#e7e5e4' });
       if (was === 0 || was === 1) { game.stats[was].buildingsLost++; game.stats[1 - was].destroyed++; }
+      creditKill(e);
       e.team = NEUTRAL; e.hp = e.maxHp * RUIN_HP; e.queue = 0; e.qTypes = []; e.trainT = 0; e.target = null; e.takenAt = undefined;
       game.selected.delete(e.id); game.ai.known.delete(e.id); bldDirty = true;
       continue;
@@ -1485,6 +1502,7 @@ function update(dt) {
         const mine = game.stats[e.team], theirs = game.stats[1 - e.team];
         if (isBuilding(e)) { mine.buildingsLost++; theirs.destroyed++; } else { mine.unitsLost++; theirs.kills++; }
         if (game.track) game.track.lost[e.team][e.type] = (game.track.lost[e.team][e.type] || 0) + 1;
+        creditKill(e, e.type === 'turret' && e.crew ? 1 : 0);
         if (e.type === 'turret' && e.crew) { mine.unitsLost++; theirs.kills++; }   // the gunner goes down with it
         if (e.type === 'turret' && e.team === 1) game.ai.turretLostAt = game.time;
       }
@@ -1506,7 +1524,7 @@ function update(dt) {
       const d = edgeDist(g.x, g.y, o);
       const vehicle = isUnit(o) && !isInfantry(o);
       const mult = isBuilding(o) ? (g.vsBuilding || 1) : vehicle ? (g.vsVehicle || STATS.grenadier.vsVehicle) : 1;
-      if (d <= g.r) { o.hp -= g.dmg * (1 - 0.5 * d / g.r) * mult; if (g.src && isUnit(o)) { o.hitBy = g.src; o.hitAt = game.time; } }
+      if (d <= g.r) { hurt(o, g.dmg * (1 - 0.5 * d / g.r) * mult, g.srcType, g.team); if (g.src && isUnit(o)) { o.hitBy = g.src; o.hitAt = game.time; } }
     }
     game.effects.push({ kind: 'blast', x: g.x, y: g.y, r: g.r, t: 0, big: !!g.shell });
   }
@@ -1523,7 +1541,7 @@ function update(dt) {
       if (t && t.hp > 0 && d <= step + 30) {
         const S = STATS.rocket;
         if (r.src && isUnit(t)) { t.hitBy = r.src; t.hitAt = game.time; }
-        t.hp -= r.dmg * (isInfantry(t) ? S.vsInfantry : isBuilding(t) ? S.vsBuilding : t.type === 'heavy' ? S.vsHeavy : S.vsVehicle) * uphill(r.fromX, r.fromY, t);   // the heavy tank's thick armour shrugs off some of it
+        hurt(t, r.dmg * (isInfantry(t) ? S.vsInfantry : isBuilding(t) ? S.vsBuilding : t.type === 'heavy' ? S.vsHeavy : S.vsVehicle) * uphill(r.fromX, r.fromY, t), r.srcType, r.team);   // the heavy tank's thick armour shrugs off some of it
       }
       game.effects.push({ kind: 'blast', x: r.tx, y: r.ty, r: 16, t: 0 });
     } else { r.x += dx / d * step; r.y += dy / d * step; }
@@ -1581,7 +1599,7 @@ function crush(e) {
     for (const o of game.ents) {
       if (o.team === e.team || !isInfantry(o) || o.hp <= 0) continue;
       if (Math.hypot(o.x - e.x, o.y - e.y) < e.r * 0.75 + o.r * 0.5) {
-        o.hp = 0;
+        hurt(o, o.hp, e.type, e.team);
         game.effects.push({ kind: 'text', x: o.x, y: o.y - 10, text: 'Crushed!', t: 0, color: '#ffb0a0' });
       }
     }
@@ -1714,22 +1732,22 @@ function updateSoldier(e, dt) {   // soldiers and buggies
         e.revealT = s.reveal || 1.5;   // firing gives away your position (snipers only briefly)
         t.hitBy = e.id; t.hitAt = game.time;   // who shot it (so the owner's units nearby can deal with it, and the computer's Extractors can run the shooter down)
         if (s.rocket) {   // rocket: flies fast and homes in, so it's hard to dodge
-          game.rockets.push({ x: e.x + Math.cos(e.facing) * 12, y: e.y + Math.sin(e.facing) * 12, target: t.id, tx: t.x, ty: t.y, team: e.team, dmg: s.dmg, life: 1.5, fromX: e.x, fromY: e.y, src: e.id });
+          game.rockets.push({ x: e.x + Math.cos(e.facing) * 12, y: e.y + Math.sin(e.facing) * 12, target: t.id, tx: t.x, ty: t.y, team: e.team, dmg: s.dmg, life: 1.5, fromX: e.x, fromY: e.y, src: e.id, srcType: e.type });
           e.throwT = 0.2;
         } else if (s.siege) {   // artillery shell: a long, high arc that lands near (not exactly on) the target
           const sp = isBuilding(t) ? 0 : s.spread;
           game.grenades.push({ x0: e.x + Math.cos(e.turret) * 26, y0: e.y + Math.sin(e.turret) * 26, x: t.x + (Math.random() - .5) * 2 * sp, y: t.y + (Math.random() - .5) * 2 * sp,
-                               t: 0, dur: s.flight, team: e.team, dmg: s.dmg, r: s.splash, vsBuilding: s.vsBuilding, vsVehicle: s.vsVehicle, shell: true });
+                               t: 0, dur: s.flight, team: e.team, dmg: s.dmg, r: s.splash, vsBuilding: s.vsBuilding, vsVehicle: s.vsVehicle, shell: true, srcType: e.type });
           game.effects.push({ kind: 'blast', x: e.x + Math.cos(e.turret) * 52, y: e.y + Math.sin(e.turret) * 52, r: 9, t: 0 });   // muzzle blast
         } else if (s.splash) {   // grenade: flies for a moment, so fast targets can dodge it
           game.grenades.push({ x0: e.x, y0: e.y, x: t.x + (Math.random() - .5) * 10, y: t.y + (Math.random() - .5) * 10,
-                               t: 0, dur: s.flight, team: e.team, dmg: s.dmg, r: s.splash, src: e.id });
+                               t: 0, dur: s.flight, team: e.team, dmg: s.dmg, r: s.splash, src: e.id, srcType: e.type });
           e.throwT = 0.25;
         } else {
-          t.hp -= s.dmg * (isInfantry(t) ? 1 : isBuilding(t) ? (s.vsBuilding || 1) : (s.vsVehicle || 1)) * armour(e.type, t) * uphill(e.x, e.y, t);
+          hurt(t, s.dmg * (isInfantry(t) ? 1 : isBuilding(t) ? (s.vsBuilding || 1) : (s.vsVehicle || 1)) * armour(e.type, t) * uphill(e.x, e.y, t), e.type, e.team);
           if (s.tank) {   // shell burst: also nicks enemy infantry right next to the target (quarter damage)
             game.effects.push({ kind: 'blast', x: t.x, y: t.y, r: e.type === 'heavy' ? 18 : 13, t: 0 });
-            for (const o of game.ents) if (o !== t && o.team !== e.team && isInfantry(o) && Math.hypot(o.x - t.x, o.y - t.y) < 22) o.hp -= s.dmg * 0.25 * armour(e.type, o) * uphill(e.x, e.y, o);
+            for (const o of game.ents) if (o !== t && o.team !== e.team && isInfantry(o) && Math.hypot(o.x - t.x, o.y - t.y) < 22) hurt(o, s.dmg * 0.25 * armour(e.type, o) * uphill(e.x, e.y, o), e.type, e.team);
           }
           game.effects.push({ kind: 'shot', heavy: e.type === 'sniper' || !!s.tank, x: e.x, y: e.y, x2: t.x + (Math.random() - .5) * 8,
                               y2: t.y + (Math.random() - .5) * 8, team: e.team, t: 0 });
@@ -1883,7 +1901,7 @@ function updateTower(e, dt) {
   e.aim = Math.atan2(t.y - e.y, t.x - e.x);
   if (e.cooldown <= 0) {
     e.cooldown = s.cooldown;
-    t.hp -= s.dmg * armour(e.type, t) * uphill(e.x, e.y, t);
+    hurt(t, s.dmg * armour(e.type, t) * uphill(e.x, e.y, t), e.type, e.team);
     const muzzle = e.type === 'turret' ? 16 : 20;
     game.effects.push({ kind: 'shot', x: e.x + Math.cos(e.aim) * muzzle, y: e.y + Math.sin(e.aim) * muzzle - (e.type === 'turret' ? 2 : 6),
                         x2: t.x, y2: t.y, team: e.team, t: 0, heavy: e.type === 'tower' });
@@ -4747,12 +4765,18 @@ function reportSnapshot() {   // where both sides stand right now
   };
   return { t: Math.round(game.time), you: side(0), enemy: side(1), enemyWavesSent: game.ai.wavesSent || 0 };
 }
+function reportHits(team) {
+  const out = {};
+  for (const [type, k] of Object.entries(game.track.hits[team])) out[type] = { kills: k.kills, killValue: Math.round(k.killValue), damageValue: Math.round(k.damageValue) };
+  return out;
+}
 function buildReport() {
   return {
     game: 'Mini RTS', version: (typeof PATCH_NOTES !== 'undefined' && PATCH_NOTES[0].version) || '?', saved: new Date().toISOString(),
     map: mapChoice, difficulty: difficulty, secondsPlayed: Math.round(game.time), result: game.over || 'in progress',
     stats: { you: game.stats[0], enemy: game.stats[1] },
     made: { you: game.track.made[0], enemy: game.track.made[1] }, lost: { you: game.track.lost[0], enemy: game.track.lost[1] },
+    byUnit: { you: reportHits(0), enemy: reportHits(1) },   // per unit type: kills, value of what it killed, value of the damage it did ($, from prices)
     now: reportSnapshot(),
     enemyAI: { wavesSent: game.ai.wavesSent || 0, nextWaveSize: game.ai.waveSize || 0, turretsBuilt: game.ai.turretsBuilt || 0 },
     timeline: game.track.timeline,
