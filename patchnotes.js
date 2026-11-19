@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.48.1', date: '19 Nov 2026', title: 'Steadier enemy build-up',
+    changes: [
+      'Fixed: since v5.48 the computer waits to gather a full first wave, and on Normal that held up its War Factory, Radar, Medbay, walls and second Refinery, so it often never built a tank. On Normal and Hard its building plan now moves on with time too: after 5 minutes it builds as if it had sent its first wave, and after 8 as if it had sent its second.',
+      'In 50 test games on the Large map the computer now wins about 24% on Normal and 60% on Hard (8% and 40% before this fix).',
+    ],
+  },
+  {
     version: '5.48', date: '19 Nov 2026', title: 'Bigger enemy armies',
     changes: [
       'Normal and Hard: the computer keeps a bigger army and attacks with bigger waves. When a wave is due it waits until it has a proper one (at least 8 on Normal, 12 on Hard), but never more than a minute longer before it goes. Each wave is 3 bigger than the last, up to 22 on Normal (was 16) and 36 on Hard (was 30). Normal\'s army cap goes up to 36 (was 26).',
