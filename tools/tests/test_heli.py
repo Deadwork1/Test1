@@ -25,7 +25,7 @@ JS = r'''(()=>{ const U=update; window.update=()=>{}; window.draw=()=>{}; const 
  const tFired=run(40,()=>h.ammo===0);
  out.attack={secToEmpty:tFired, tankDamage: Math.round(hp0-Math.max(0,tank.hp)), tankDead: tank.hp<=0};
  const tHome=run(40,()=>h.landed); out.home={sec:tHome, landed:h.landed, onPad:Math.hypot(h.x-pad.x,h.y-pad.y)<1};
- const tRe=run(20,()=>h.ammo===6); out.reload={sec:tRe, ammo:h.ammo};
+ const tRe=run(20,()=>h.ammo===STATS.heli.ammo); out.reload={sec:tRe, ammo:h.ammo};
  // who can hit it: park it in the air over an enemy group
  h.order={type:'move',x:pad.x+300,y:pad.y+150}; run(10,()=>h.order&&h.order.arrived); h.ammo=0; h.order={type:'move',x:h.x,y:h.y,arrived:true}; // (no ammo: it would fly home, so keep it hovering by refilling a move order each step)
  const hold=()=>{ h.order={type:'move',x:h.x,y:h.y,arrived:true}; h.ammo=0; };

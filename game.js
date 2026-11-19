@@ -121,8 +121,8 @@ const STATS = {
   artillery: { hp: 120, speed: 28, r: 13, sight: 150, range: 250, minRange: 80, dmg: 45, cooldown: 4, siege: true, splash: 40, flight: 1.3, spread: 14, vsBuilding: 3, vsVehicle: 0.6 },
   sniper:    { hp: 45,  speed: 46, r: 9,  sight: 220, range: 160, dmg: 75, cooldown: 2.7, vsVehicle: 0.15, vsBuilding: 0.1, reveal: 0.5 },   // one-shots infantry from far away; useless vs vehicles
   rocket:    { hp: 55,  speed: 45, r: 9,  sight: 170, range: 130, dmg: 40, cooldown: 2.5, rocket: true, vsVehicle: 2, vsHeavy: 1.5, vsBuilding: 2, vsInfantry: 0.4, vsAir: 1.5 },   // (and the only soldier that can hit aircraft)
-  // attack helicopter: flies over everything, fires 6 missiles, then goes home to its Helipad to reload (about 10 s) and patch up
-  heli:      { hp: 300, speed: 90, r: 14, sight: 220, range: 140, dmg: 35, cooldown: 1.0, air: true, ammo: 6, reload: 10, repair: 3, vsVehicle: 1.5, vsBuilding: 1, vsInfantry: 0.5 },   // anti-vehicle: double vs vehicles & buildings, weak vs infantry
+  // attack helicopter: flies over everything, fires 8 missiles (6 of 35 until v5.49.2), then goes home to its Helipad to reload (about 10 s) and patch up
+  heli:      { hp: 300, speed: 90, r: 14, sight: 220, range: 140, dmg: 45, cooldown: 1.0, air: true, ammo: 8, reload: 10, repair: 3, vsVehicle: 1.5, vsBuilding: 1, vsInfantry: 0.5 },   // anti-vehicle: double vs vehicles & buildings, weak vs infantry
   grenadier: { hp: 55,  speed: 48, r: 9,  sight: 170, range: 95,  dmg: 16, cooldown: 2.0, splash: 38, flight: 0.55, vsVehicle: 0.5 },   // lobbed grenades: area damage, half vs vehicles
   engineer:  { hp: 20,  speed: 48, r: 9,  sight: 150, repair: 30 },
   civilian:  { hp: 40,  speed: 50, r: 8,  sight: 150, range: 75, dmg: 4, cooldown: 0.9 },   // villagers with handguns: weaker than a soldier, can't be bought   // no weapon, very fragile: repairs (hp per second) and captures
@@ -2408,7 +2408,7 @@ function runAI(dt) {
   else if (wantTech && cash >= COST.tech) aiPlace(hq, 'tech');
   else if (wantMedbay && cash >= COST.medbay) aiPlace(hq, 'medbay');
   else if (wantRadar && cash >= COST.radar + 150) aiPlace(hq, 'radar');
-  else if (wantPad && cash >= COST.helipad + 150) aiPlace(hq, 'helipad');
+  else if (wantPad && cash >= COST.helipad + AI_SPARE) aiPlace(hq, 'helipad');   // helicopters are bought with spare money only (v5.49.2)
 
   // expand toward fresh ore once the ore by its refineries is running out
   const expanding = aiExpand(hq, refineries, sent);
@@ -2456,11 +2456,10 @@ function runAI(dt) {
     else if (of('tower').length < wantTowers && !aiBlocked('tower')) reserve += COST.tower;
   }
   if (wantSam && defended) reserve += COST.sam;   // your aircraft are about: a SAM Site comes before more troops and tanks
-  const heliDue = of('helipad').some(p => p.built && !padHeli(p) && !p.queue);   // an empty Helipad: its helicopter comes before more tanks
-  const vReserve = reserve + (heliDue ? COST.heli : 0);   // vehicles don't wait for the Tech Centre savings
+  const vReserve = reserve;   // vehicles don't wait for the Tech Centre savings
   // the War Factory (and later the Tech Centre) are worth saving for whenever home is safe
   const otherExtrasDone = (refineries.length >= reqRefineries || aiBlocked('refinery')) && (of('tower').length >= wantTowers || aiBlocked('tower'));
-  if (defended && (!building || otherExtrasDone)) reserve += wantFactory ? COST.factory : wantTech ? COST.tech : wantPad ? COST.helipad : 0;
+  if (defended && (!building || otherExtrasDone)) reserve += wantFactory ? COST.factory : wantTech ? COST.tech : 0;
   // an attack is due but there aren't enough troops yet: troops come first, savings wait (it never stops attacking)
   const waveDue = game.time >= D.attackAfter && game.time >= (ai.nextWave || 0);
   if (waveDue && army.filter(u => !u.role).length < D.minWave + 4) reserve = Math.min(reserve, (extractors.length + qx < wantExtractors ? COST.extractor : 0) + (wantSam && defended ? COST.sam : 0));   // (a SAM Site it needs still comes first)
@@ -2536,7 +2535,6 @@ function runAI(dt) {
     if (game.credits[1] >= COST[vehicle] + vReserve) produce(f, vehicle);
   }
   if (vehicle && defended && !of('factory').some(f => f.queue > 0)) reserve += COST[vehicle];
-  if (heliDue) reserve += COST.heli;   // save up for a helicopter for an empty pad
   aiHelis(D);
   for (const b of barracks) {
     if (b.queue >= 2) continue;
@@ -2945,6 +2943,7 @@ function aiTurretSpot(hq) {
 // SAM Site: under the busiest spot on its heat map of your aircraft that it can build on (or close enough to cover it),
 // skipping spots another of its SAM Sites already covers; with nothing on the heat map yet, beside a Refinery (the one nearest you first), else by its HQ
 const AIR_HEAT = 150;
+const AI_SPARE = 300;   // the computer buys a Helipad or helicopter only with this much to spare on top of its price
 function aiPlaceSam(hq, refineries) {
   const have = game.ents.filter(e => e.team === 1 && e.type === 'sam');
   const hot = Object.entries(game.ai.airHeat || {}).map(([k, n]) => { const [c, r] = k.split(',').map(Number); return { x: (c + 0.5) * AIR_HEAT, y: (r + 0.5) * AIR_HEAT, n }; })
@@ -2969,7 +2968,7 @@ function aiPlaceSam(hq, refineries) {
 // that it can see, else a Refinery it knows of (or failing that another building), keeping clear of SAM Sites it has spotted; badly hurt, it flies home.
 function aiHelis(D) {
   if (!D.helis) return;
-  for (const p of game.ents) if (p.team === 1 && p.type === 'helipad' && p.built && !padHeli(p) && !p.queue && game.credits[1] >= COST.heli) produce(p, 'heli');
+  for (const p of game.ents) if (p.team === 1 && p.type === 'helipad' && p.built && !padHeli(p) && !p.queue && game.credits[1] >= COST.heli + AI_SPARE) produce(p, 'heli');
   const sams = [...game.ai.known.values()].filter(k => k.type === 'sam');
   const safe = (x, y) => !sams.some(k => Math.hypot(k.x - x, k.y - y) < STATS.sam.range + 60);
   for (const h of game.ents) {
@@ -3788,10 +3787,10 @@ function drawHeli(e) {
   ctx.fillStyle = c.dark; ctx.fillRect(-29, -6, 4, 12);
   ctx.strokeStyle = 'rgba(20,20,20,0.8)'; ctx.lineWidth = 1.2;
   const ts = t * (alt > 0.1 ? 50 : 4); ctx.beginPath(); ctx.moveTo(-27, -6 * Math.cos(ts)); ctx.lineTo(-27, 6 * Math.cos(ts)); ctx.stroke();
-  // stub wings with missile pods (3 a side)
+  // stub wings with missile pods (4 a side)
   ctx.fillStyle = '#2f3a28'; ctx.fillRect(-4, -13, 6, 26);
-  for (let i = 0; i < 6; i++) {
-    const side = i % 2 ? 1 : -1, k = Math.floor(i / 2), y = side * (8 + k * 2.4);
+  for (let i = 0; i < STATS.heli.ammo; i++) {
+    const side = i % 2 ? 1 : -1, k = Math.floor(i / 2), y = side * (7.5 + k * 1.9);
     ctx.fillStyle = i < e.ammo ? '#e8e4d8' : 'rgba(0,0,0,0.35)'; ctx.fillRect(-3, y - 0.9, 9, 1.8);
     if (i < e.ammo) { ctx.fillStyle = '#d33'; ctx.fillRect(5, y - 0.9, 1.6, 1.8); }
   }
