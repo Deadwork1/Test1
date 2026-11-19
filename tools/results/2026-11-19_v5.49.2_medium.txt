@@ -1,0 +1,50 @@
+v5.49.2 Medium test, 19 Nov 2026: 25 games each on Large Normal and Large Hard, NEW test player (flies helicopters, builds SAM Sites) - the standard from now on.
+Changes: helicopters 8 missiles of 45 (were 6 of 35); computer buys Helipads and helicopters with spare money only.
+Same test player on v5.49.1: Normal 48%, Hard 56%. Targets (set with the old test player): Normal about 26%, Hard about 60%.
+Helicopters: test player 9 (Normal, 0 lost) and 13 (Hard, 4 lost); computer 2 (Normal) and 0 (Hard). Helicopter kills worth $0.45 per $1 on Normal and $0.27 on Hard ($0.15 before).
+
+games 50  errors 0
+
+== Results (player = scripted test player, ai = computer)
+  large normal n= 25  computer wins  20%  player  80%  timeout   0%  median length 13.9 min
+  large hard   n= 25  computer wins  56%  player  40%  timeout   4%  median length 16.7 min
+
+== Computer win rate by player strategy (all maps)
+  buggy     n= 10  computer  50%  player  50%  timeout   0%
+  infantry  n= 10  computer  50%  player  40%  timeout  10%
+  mixed     n= 10  computer  30%  player  70%  timeout   0%
+  tanks     n= 10  computer  10%  player  90%  timeout   0%
+  turtle    n= 10  computer  50%  player  50%  timeout   0%
+
+== Units: value killed per $1 spent (both sides), and split by side
+  [ALL]
+    sniper     made   278  died   169  spent $  55,600  killed $  86,940  value per $1: 1.56
+    light      made   314  died   109  spent $ 125,600  killed $ 132,635  value per $1: 1.06
+    rocket     made   745  died   462  spent $ 149,000  killed $ 138,565  value per $1: 0.93
+    buggy      made   132  died    65  spent $  33,000  killed $  26,165  value per $1: 0.79
+    soldier    made  4602  died  3574  spent $ 460,200  killed $ 354,685  value per $1: 0.77
+    heavy      made    75  died    15  spent $  52,500  killed $  39,090  value per $1: 0.74
+    artillery  made    88  died    45  spent $  39,600  killed $  20,775  value per $1: 0.52
+    grenadier  made  1127  died   881  spent $ 180,320  killed $  90,210  value per $1: 0.50
+    engineer   made  1144  died   350  spent $ 114,400  killed $       0  value per $1: 0.00
+  [LARGE]
+    sniper     made   278  died   169  spent $  55,600  killed $  86,940  value per $1: 1.56
+    light      made   314  died   109  spent $ 125,600  killed $ 132,635  value per $1: 1.06
+    rocket     made   745  died   462  spent $ 149,000  killed $ 138,565  value per $1: 0.93
+    buggy      made   132  died    65  spent $  33,000  killed $  26,165  value per $1: 0.79
+    soldier    made  4602  died  3574  spent $ 460,200  killed $ 354,685  value per $1: 0.77
+    heavy      made    75  died    15  spent $  52,500  killed $  39,090  value per $1: 0.74
+    artillery  made    88  died    45  spent $  39,600  killed $  20,775  value per $1: 0.52
+    grenadier  made  1127  died   881  spent $ 180,320  killed $  90,210  value per $1: 0.50
+    engineer   made  1144  died   350  spent $ 114,400  killed $       0  value per $1: 0.00
+
+== High ground (fighting units, per side) [low ground, high ground]
+  large player   fighting-minutes low      960 high     28 (3% on high ground) | shots/min low 51.2 high 26.5 | damage taken/min low 245.4 high 112.5 | deaths per fighting-minute low 3.616 high 1.245
+  large computer fighting-minutes low      736 high     31 (4% on high ground) | shots/min low 47.2 high 37.2 | damage taken/min low 234.8 high 110.6 | deaths per fighting-minute low 3.233 high 1.881
+
+== Games where one side spent more unit-time on high ground: who won? (decided games only)
+  large side with more high-ground time won 67% of 49 games
+
+== Other
+  large normal stuck/game 1.5  captures player 130 computer 171  derrick-min player 20.0 computer 4.8 per game  | computer Medbay built in 11/25 (median 9.1 min), units sent to heal 14, HP healed 1105  | AI waves 1.9  AI cash avg 122
+  large hard   stuck/game 2.4  captures player 158 computer 231  derrick-min player 21.1 computer 9.2 per game  | computer Medbay built in 22/25 (median 3.3 min), units sent to heal 48, HP healed 1658  | AI waves 2.9  AI cash avg 137

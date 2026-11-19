@@ -2,6 +2,14 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.49.2', date: '19 Nov 2026', title: 'Stronger helicopters',
+    changes: [
+      'Attack Helicopters now carry 8 missiles of 45 damage (were 6 of 35): 67 against vehicles, so one load kills a Light Tank or a Power Plant. Price, health and reload time are unchanged, and SAM Sites are as they were.',
+      'The computer now buys its Helipad and helicopters only with spare money ($300 over the price), so its tanks no longer wait for them. SAM Sites keep their priority.',
+      'In 50 test games on the Large map, against a test player that flies helicopters too, the computer wins about 20% on Normal and 56% on Hard.',
+    ],
+  },
+  {
     version: '5.49.1', date: '19 Nov 2026', title: 'SAM Sites where you fly',
     changes: [
       'The computer now keeps a heat map of where it sees your aircraft flying, and builds its SAM Sites under the busiest spots it can cover from its base, skipping spots one of its SAM Sites already covers. Before any heat builds up, it still puts them beside its Refineries.',
