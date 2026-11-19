@@ -41,7 +41,7 @@
   button:disabled { opacity: .45; }
   button.ghost { background: rgba(10,16,8,.82); border-color: rgba(255,255,255,.2); }
   button.on { background: #6b5a1a; border-color: #ffd86b; }
-  #overlay, #pauseMenu { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+  #overlay, #pauseMenu { z-index: 20; position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
     background: rgba(0,0,0,.7); flex-direction: column; gap: 14px; text-align: center; padding: 20px; }
   #overlay h1, #pauseMenu h1 { margin: 0; font-size: 32px; }
   #pauseMenu .col { display: flex; flex-direction: column; gap: 10px; min-width: 220px; }
@@ -65,7 +65,7 @@
   }
   #overlay > * { flex-shrink: 0; }
   .row { display: flex; gap: 10px; }
-  #notes { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+  #notes { z-index: 30; position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
     background: rgba(0,0,0,.75); padding: 14px; }
   #notesBox { background: #141d11; border: 1px solid #5b8a45; border-radius: 14px; width: min(640px, 100%);
     max-height: 100%; display: flex; flex-direction: column; }
