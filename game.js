@@ -169,7 +169,7 @@ const DIFFICULTY = {
             guard: 3, maxWave: 16, extractors: 6, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 1, factory: true, tanks: 0.25, heavyTanks: false, artillery: 1, raidEvery: 480, hqGuard: 2, waveEvery: 180, minWave: 4, focus: 'economy',
             derricks: true, derrickAfter: 360, ruinAfter: 420, turrets: 1, turretsTotal: 3, engineerCap: 3, escort: 3, garrison: 2, hill: 1, hillSize: 3, hillAfter: 420 },
   hard:   { label: 'Hard',   think: 1,   slow: 0.9,  income: 1.12,    attackAt: 6, attackAfter: 0,   barracks: 2, maxArmy: Infinity, towers: 3, buggies: true, plants: 2,
-            guard: 4, maxWave: 30, extractors: 8, refineries: 3, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true, artillery: 2, raidEvery: 360, hqGuard: 3, earlyRefinery: true, expandAt: 1500, waveEvery: 120, minWave: 5, focus: 'defences',
+            guard: 4, maxWave: 30, extractors: 8, refineries: 3, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true, artillery: 2, raidEvery: 360, hqGuard: 3, earlyRefinery: true, expandAt: 1500, antiArmor: 12, waveEvery: 120, minWave: 5, focus: 'defences',
             derricks: true, derrickAfter: 300, ruinAfter: 360, turrets: 2, turretsTotal: 4, engineerCap: 4, escort: 3, garrison: 3, hill: 2, hillSize: 3, hillAfter: 360 },
 };
 let difficulty = 'normal';
@@ -2471,7 +2471,16 @@ function runAI(dt) {
   ai.seen = ai.seen || { infantry: 0, vehicles: 0, snipers: 0 };
   for (const k in seenNow) ai.seen[k] = Math.max(ai.seen[k], seenNow[k]);
   ai.seenBuggies = Math.max(ai.seenBuggies || 0, game.ents.filter(v => v.team === 0 && (v.type === 'buggy' || isTank(v)) && visibleAt(v.x, v.y, 1)).length);
-  const wantRocket = D.rockets && unlocked(1, 'rocket') && (ai.seenBuggies || 0) > 0 && of('rocket').length + qOf('rocket') < Math.min(6, ai.seenBuggies);
+  // Hard sizes its answer to your vehicles by what it has seen of them (still alive), heavier ones counting for more:
+  // one Rocket Soldier per point (Buggy or Artillery 1, Light Tank 1.5, Heavy Tank 2.5), up to antiArmor; Normal keeps the simple rule
+  ai.seenVeh = ai.seenVeh || {};
+  for (const v of game.ents) if (v.team === 0 && (v.type === 'buggy' || isTank(v) || v.type === 'artillery') && visibleAt(v.x, v.y, 1)) ai.seenVeh[v.id] = v.type;
+  for (const id in ai.seenVeh) { const v = byId(+id); if (!v || v.hp <= 0 || v.team !== 0) delete ai.seenVeh[id]; }
+  const armour = Object.values(ai.seenVeh).reduce((s, t) => s + (t === 'heavy' ? 2.5 : t === 'light' ? 1.5 : 1), 0);
+  const tanksSeen = Object.values(ai.seenVeh).filter(t => t === 'light' || t === 'heavy').length;
+  const wantRocket = D.rockets && unlocked(1, 'rocket') && (D.antiArmor
+    ? armour > 0 && of('rocket').length + qOf('rocket') < Math.min(D.antiArmor, Math.ceil(armour))
+    : (ai.seenBuggies || 0) > 0 && of('rocket').length + qOf('rocket') < Math.min(6, ai.seenBuggies));
   const wantSniper = unlocked(1, 'sniper') && of('sniper').length + qOf('sniper') < D.snipers && game.time > 240;   // (the ones it has go up the plateaus first)
   // engineers: a repairer only when something is badly damaged, and now and then a raider sent the long way round to steal a building
   const repairers = of('engineer').filter(en => !en.raid).length + qOf('engineer') - (ai.raidPending ? 1 : 0);
@@ -2503,7 +2512,7 @@ function runAI(dt) {
   // While it wants a vehicle, the barracks hold back so the money can build up.
   const qF = t => of('factory').reduce((n, f) => n + f.qTypes.filter(q => q === t).length, 0);
   const lights = of('light').length + qF('light'), heavies = of('heavy').length + qF('heavy');
-  const wantTank = D.tanks > 0 && lights + heavies < Math.max(1, Math.floor(army.length * D.tanks * ((ai.seen && ai.seen.infantry >= 10) ? 1.5 : 1)));   // more tanks against infantry-heavy armies
+  const wantTank = D.tanks > 0 && lights + heavies < Math.max(1, Math.floor(army.length * D.tanks * ((ai.seen && ai.seen.infantry >= 10) ? 1.5 : 1) * (D.antiArmor && tanksSeen >= 3 ? 1.33 : 1)));   // more tanks against infantry-heavy armies (and on Hard, against tank-heavy ones)
   // artillery once it has attacked a couple of times, to crack towers and walls from beyond their reach
   const guns = of('artillery').length + qF('artillery');
   const wantArty = D.artillery > 0 && sent >= 2 && unlocked(1, 'artillery') && guns < D.artillery;
