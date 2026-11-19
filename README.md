@@ -23,7 +23,7 @@ A small real-time strategy game inspired by classic 90s RTS games, built step by
 - **Forests** stop tanks and extractors. Infantry walk through slowly and are hidden inside unless an enemy gets close or they open fire; the Scout Buggy can drive through slowly but can't hide. Anything standing in a forest only sees 70% as far.
 - Units find their own way around obstacles and buildings.
 
-- **Helicopters:** an Attack Helicopter ($800) starts docked on its Helipad, flies over everything, fires 6 missiles (strong against vehicles and buildings, weak against infantry), then flies home to reload. Tap an enemy to attack, the ground to hover there, or its Helipad (or Return) to send it home. Only Rocket Soldiers and SAM Sites can shoot aircraft.
+- **Helicopters:** an Attack Helicopter ($800) starts docked on its Helipad, flies over everything, fires 6 missiles (strong against vehicles and buildings, weak against infantry), then flies home to reload. Tap an enemy to attack, the ground to hover there, or its Helipad (or Return) to send it home. Only Rocket Soldiers and SAM Sites can shoot aircraft. On Normal and Hard the computer flies helicopters too (1 / 2), raiding your Extractors and Refineries, and builds SAM Sites once it has seen yours.
 
 - **Crushing:** tanks and Extractors drive straight over enemy infantry and crush them.
 
