@@ -105,7 +105,7 @@ const INCOME = 1;                     // small trickle per second so nobody gets
 const BUILD_RADIUS = 300;             // how far from your HQ you can place buildings
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
 
-const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250, grenadier: 160, engineer: 100, turret: 125, rocket: 200, sniper: 200, light: 400, heavy: 700, artillery: 450, tech: 600, radar: 300, medbay: 400 };
+const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 150, buggy: 250, grenadier: 160, engineer: 100, turret: 125, rocket: 200, sniper: 200, light: 400, heavy: 700, artillery: 450, tech: 600, radar: 300, medbay: 400, helipad: 500, heli: 800, sam: 600 };
 const WALL_REACH = 150;              // walls, gates and guard towers can go this much further out than other buildings
 
 const STATS = {
@@ -120,7 +120,9 @@ const STATS = {
   // shells take a while to land, so moving units can dodge them.
   artillery: { hp: 120, speed: 28, r: 13, sight: 150, range: 250, minRange: 80, dmg: 45, cooldown: 4, siege: true, splash: 40, flight: 1.3, spread: 14, vsBuilding: 3, vsVehicle: 0.6 },
   sniper:    { hp: 45,  speed: 46, r: 9,  sight: 220, range: 160, dmg: 75, cooldown: 2.7, vsVehicle: 0.15, vsBuilding: 0.1, reveal: 0.5 },   // one-shots infantry from far away; useless vs vehicles
-  rocket:    { hp: 55,  speed: 45, r: 9,  sight: 170, range: 130, dmg: 40, cooldown: 2.5, rocket: true, vsVehicle: 2, vsHeavy: 1.5, vsBuilding: 2, vsInfantry: 0.4 },   // anti-vehicle: double vs vehicles & buildings, weak vs infantry
+  rocket:    { hp: 55,  speed: 45, r: 9,  sight: 170, range: 130, dmg: 40, cooldown: 2.5, rocket: true, vsVehicle: 2, vsHeavy: 1.5, vsBuilding: 2, vsInfantry: 0.4, vsAir: 1.5 },   // (and the only soldier that can hit aircraft)
+  // attack helicopter: flies over everything, fires 6 missiles, then goes home to its Helipad to reload (about 10 s) and patch up
+  heli:      { hp: 300, speed: 90, r: 14, sight: 220, range: 140, dmg: 35, cooldown: 1.0, air: true, ammo: 6, reload: 10, repair: 3, vsVehicle: 1.5, vsBuilding: 1, vsInfantry: 0.5 },   // anti-vehicle: double vs vehicles & buildings, weak vs infantry
   grenadier: { hp: 55,  speed: 48, r: 9,  sight: 170, range: 95,  dmg: 16, cooldown: 2.0, splash: 38, flight: 0.55, vsVehicle: 0.5 },   // lobbed grenades: area damage, half vs vehicles
   engineer:  { hp: 20,  speed: 48, r: 9,  sight: 150, repair: 30 },
   civilian:  { hp: 40,  speed: 50, r: 8,  sight: 150, range: 75, dmg: 4, cooldown: 0.9 },   // villagers with handguns: weaker than a soldier, can't be bought   // no weapon, very fragile: repairs (hp per second) and captures
@@ -133,6 +135,8 @@ const STATS = {
   tower:     { hp: 700, size: 46, sight: 230, buildTime: 12, range: 170, dmg: 14, cooldown: 0.9 },
   turret:    { hp: 300, size: 30, sight: 170, buildTime: 3, range: 140, dmg: 5, cooldown: 0.5 },   // an Engineer dug in behind a machine gun (he's inside it: if it falls, so does he)
   radar:     { hp: 400, size: 64, sight: 750, buildTime: 14, radar: true },
+  helipad:   { hp: 600, size: 70, sight: 180, buildTime: 12, trainTime: 15, maxQueue: 1 },   // home of one helicopter: it lands here to reload
+  sam:       { hp: 500, size: 44, sight: 240, buildTime: 12, range: 220, dmg: 50, cooldown: 1.5, antiAir: true },   // SAM site: shoots only at aircraft
   medbay:    { hp: 500, size: 84, sight: 180, buildTime: 10, walkOn: true, heal: 8, healVehicle: 15, slots: 5 },   // round pad units stand on to heal: up to 5 infantry or 1 vehicle at a time   // sweeps a huge circle: sees over rocks and up onto plateaus (not into forests)
   wall:      { hp: 400, size: 25, sight: 50 },
   gate:      { hp: 600, size: 75, sight: 60 },   // 3 tiles long: room for two units side by side
@@ -140,17 +144,17 @@ const STATS = {
   derrick:   { hp: 600, size: 64, sight: 160, pay: 100, payEvery: 15 },   // an Engineer captures it; then it pays its owner every 15s
   house:     { hp: 400, size: 42, sight: 0 },                             // village houses: scenery for now
 };
-const PRODUCES = { barracks: ['soldier', 'grenadier', 'rocket', 'sniper', 'engineer'], refinery: ['extractor'], factory: ['buggy', 'light', 'artillery', 'heavy'] };
+const PRODUCES = { barracks: ['soldier', 'grenadier', 'rocket', 'sniper', 'engineer'], refinery: ['extractor'], factory: ['buggy', 'light', 'artillery', 'heavy'], helipad: ['heli'] };
 // Tech tree: what else you need (finished, and still standing) before you can build or train something
-const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['tower'], heavy: ['tech'], artillery: ['power'], radar: ['power'], medbay: ['barracks'] };
+const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['tower'], heavy: ['tech'], artillery: ['power'], radar: ['power'], medbay: ['barracks'], helipad: ['factory'], sam: ['power'] };
 const hasBuilt = (team, type) => game.ents.some(b => b.team === team && b.type === type && b.built && ruinWorks(b));   // (a captured ruin counts once it's repaired to half)
 const missingFor = (team, type) => (REQUIRES[type] || []).filter(t => !hasBuilt(team, t));
 const unlocked = (team, type) => missingFor(team, type).length === 0;
-const TRAIN_TIME = { soldier: 4, buggy: 6, extractor: 6, grenadier: 4.5, engineer: 5, rocket: 5, sniper: 6, light: 10, heavy: 16, artillery: 12 };   // seconds to make each unit
-const isCombat = e => e.type === 'civilian' || e.type === 'soldier' || e.type === 'buggy' || e.type === 'grenadier' || e.type === 'rocket' || e.type === 'sniper' || e.type === 'light' || e.type === 'heavy' || e.type === 'artillery';
+const TRAIN_TIME = { soldier: 4, buggy: 6, extractor: 6, grenadier: 4.5, engineer: 5, rocket: 5, sniper: 6, light: 10, heavy: 16, artillery: 12, heli: 15 };   // seconds to make each unit
+const isCombat = e => e.type === 'civilian' || e.type === 'soldier' || e.type === 'buggy' || e.type === 'grenadier' || e.type === 'rocket' || e.type === 'sniper' || e.type === 'light' || e.type === 'heavy' || e.type === 'artillery' || e.type === 'heli';
 const isTank = e => e.type === 'light' || e.type === 'heavy';
 const isInfantry = e => e.type === 'civilian' || e.type === 'soldier' || e.type === 'grenadier' || e.type === 'engineer' || e.type === 'rocket' || e.type === 'sniper';
-const SHORT = { buggy: 'Buggy', rocket: 'Rocket', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre' };   // shorter names for buttons
+const SHORT = { buggy: 'Buggy', rocket: 'Rocket', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', heli: 'Helicopter' };   // shorter names for buttons
 
 // How the computer plays at each difficulty.
 //  think: seconds between decisions   slow: build/train time multiplier   income: share of ore value it earns
@@ -176,7 +180,7 @@ const POWER_BONUS = 0.25, POWER_MAX = 2;
 const powerBoost = team => Math.min(POWER_MAX, 1 + POWER_BONUS * game.ents.filter(b => b.team === team && b.type === 'power' && b.built && ruinWorks(b)).length);
 // how many times longer than normal this side takes to build things (difficulty slow-down ÷ power boost)
 const slowOf = e => (e.team === 1 ? diff().slow : 1) / powerBoost(e.team);
-const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', rocket: 'Rocket Soldier', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', tower: 'Guard Tower', turret: 'Turret', power: 'Power Plant', radar: 'Radar', medbay: 'Medbay', wall: 'Wall', gate: 'Gate', derrick: 'Oil Derrick', house: 'House', civilian: 'Civilian' };
+const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', rocket: 'Rocket Soldier', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', tower: 'Guard Tower', turret: 'Turret', power: 'Power Plant', radar: 'Radar', medbay: 'Medbay', wall: 'Wall', gate: 'Gate', derrick: 'Oil Derrick', house: 'House', civilian: 'Civilian', helipad: 'Helipad', heli: 'Attack Helicopter', sam: 'SAM Site' };
 
 const TEAMS = [
   { name: 'You',   color: '#3b82f6', dark: '#1d3f8f', light: '#93c5fd' },
@@ -326,9 +330,9 @@ function segDist(px, py, ax, ay, bx, by) {
 const elevAt = (x, y) => { const c = Math.floor(x / TC), r = Math.floor(y / TC); return c < 0 || r < 0 || c >= TCOLS || r >= TROWS ? 0 : elev[r * TCOLS + c]; };
 const HIGH_SIGHT = 1.25, HIGH_RANGE = 1.2;   // seeing and shooting from high ground
 const UPHILL = 0.5;   // shooting up at high ground from below only does half damage (grenades and artillery shells are lobbed, so they don't lose any)
-const uphill = (x, y, t) => !elevAt(x, y) && elevAt(t.x, t.y) ? UPHILL : 1;
+const uphill = (x, y, t) => !t.air && !elevAt(x, y) && elevAt(t.x, t.y) ? UPHILL : 1;   // (aircraft don't care about high ground)
 const FOREST_SIGHT = 0.7;   // units standing in a forest can't see as far through the trees
-const rangeOf = e => STATS[e.type].range * (elevAt(e.x, e.y) ? HIGH_RANGE : 1);
+const rangeOf = e => STATS[e.type].range * (!e.air && elevAt(e.x, e.y) ? HIGH_RANGE : 1);
 const terrainAt = (x, y) => {
   const c = Math.floor(x / TC), r = Math.floor(y / TC);
   if (c < 0 || r < 0 || c >= TCOLS || r >= TROWS) return T.ROCK;
@@ -907,12 +911,13 @@ function spawn(type, team, x, y) {
   } else {
     e.r = s.r;
     if (type === 'extractor') e.cargo = 0;
+    if (s.air) { e.air = true; e.ammo = s.ammo; e.alt = 0; }
   }
   game.ents.push(e);
   return e;
 }
 
-function isBuildingType(t) { return t === 'derrick' || t === 'house' || t === 'hq' || t === 'barracks' || t === 'refinery' || t === 'factory' || t === 'tech' || t === 'power' || t === 'tower' || t === 'turret' || t === 'radar' || t === 'medbay' || t === 'wall' || t === 'gate'; }
+function isBuildingType(t) { return t === 'derrick' || t === 'house' || t === 'hq' || t === 'barracks' || t === 'refinery' || t === 'factory' || t === 'tech' || t === 'power' || t === 'tower' || t === 'turret' || t === 'radar' || t === 'medbay' || t === 'wall' || t === 'gate' || t === 'helipad' || t === 'sam'; }
 const isWallType = t => t === 'wall' || t === 'gate';
 const GATE_HALF = TC * 1.5;   // a gate is 3 tiles long
 const gateHalf = vertical => vertical ? { hx: TC / 2, hy: GATE_HALF } : { hx: GATE_HALF, hy: TC / 2 };
@@ -920,6 +925,8 @@ const halfX = e => e.type === 'gate' ? gateHalf(e.vertical).hx : e.size / 2;
 const halfY = e => e.type === 'gate' ? gateHalf(e.vertical).hy : e.size / 2;
 const isBuilding = e => isBuildingType(e.type);
 const isUnit = e => !isBuilding(e);
+// who can shoot at what: only Rocket Soldiers and SAM sites can hit aircraft, and SAM sites shoot at nothing else
+const canHit = (e, t) => t.air ? !!(e.type === 'rocket' || STATS[e.type].antiAir) : !STATS[e.type].antiAir;
 // Damage, with a note of who did it (for the game report: which unit types killed what, and how much value they destroyed).
 // Value destroyed = the share of the target's health taken off, times its price (things with no price, like Civilians and the HQ, count as $0).
 function hurt(t, amount, srcType, srcTeam) {
@@ -963,7 +970,7 @@ function moveToward(e, tx, ty, dt) {
     let block = null, bp = Infinity, side = 0;
     const crusher = isTank(e) || e.type === 'extractor';
     for (const o of game.ents) {
-      if (o === e || !isUnit(o) || o.docked || o.hp <= 0) continue;
+      if (o === e || !isUnit(o) || o.docked || o.air || o.hp <= 0) continue;
       if (crusher && o.team !== e.team && isInfantry(o)) continue;   // tanks and extractors drive straight over enemy infantry
       const ox = o.x - e.x, oy = o.y - e.y;
       if (Math.abs(ox) > look + 20 || Math.abs(oy) > look + 20) continue;
@@ -1104,7 +1111,7 @@ function updateFog() {
     if (e.team === NEUTRAL) continue;
     const f = fog[e.team];
     if (STATS[e.type].radar && e.built && ruinWorks(e)) { for (const i of radarCells(e.x, e.y, STATS[e.type].sight)) { f.vis[i] = 1; f.exp[i] = 1; } continue; }
-    const r = (STATS[e.type].radar ? RUIN_SIGHT : STATS[e.type].sight) * (isBuilding(e) && !e.built ? 0.6 : 1) * (elevAt(e.x, e.y) ? HIGH_SIGHT : 1) * (isUnit(e) && terrainAt(e.x, e.y) === T.FOREST ? FOREST_SIGHT : 1);
+    const r = (STATS[e.type].radar ? RUIN_SIGHT : STATS[e.type].sight) * (isBuilding(e) && !e.built ? 0.6 : 1) * (!e.air && elevAt(e.x, e.y) ? HIGH_SIGHT : 1) * (isUnit(e) && !e.air && terrainAt(e.x, e.y) === T.FOREST ? FOREST_SIGHT : 1);
     for (const i of visibleCells(e.x, e.y, r)) { f.vis[i] = 1; f.exp[i] = 1; }
   }
   const d = fogImg.data;
@@ -1163,7 +1170,7 @@ function inBuildArea(team, x, y, extra = 0) {
 function canPlace(team, type, x, y) {
   const size = STATS[type].size;
   if (!unlocked(team, type)) return false;
-  if (!inBuildArea(team, x, y, type === 'tower' ? WALL_REACH : 0) || !siteIsFree(x, y, size)) return false;
+  if (!inBuildArea(team, x, y, type === 'tower' || type === 'sam' ? WALL_REACH : 0) || !siteIsFree(x, y, size)) return false;
   if (team === 1 && diff().walls && hqOf(1)) {   // the computer keeps its planned wall lines and gates clear
     if (!game.ai.wallPlans) { const pl = findEntrances(1).map(planGapWall).filter(Boolean); game.ai.wallPlans = pl.length ? pl : [aiWallPlan(hqOf(1))]; game.ai.gateTried = []; }
     if (game.ai.wallPlans.some(pl => [...pl.tiles, pl.gate].some(t => Math.abs(t.x - x) < size / 2 + 22 && Math.abs(t.y - y) < size / 2 + 22))) return false;
@@ -1261,6 +1268,7 @@ function placeBuilding(team, type, x, y, vertical) {
 function produce(b, unit) {
   unit = unit || (PRODUCES[b.type] || [])[0];
   if (!unit || !PRODUCES[b.type].includes(unit) || !unlocked(b.team, unit) || !b.built || !ruinWorks(b) || b.queue >= STATS[b.type].maxQueue || game.credits[b.team] < COST[unit]) return false;
+  if (unit === 'heli' && padHeli(b)) return false;   // a Helipad looks after one helicopter at a time
   spend(b.team, COST[unit]);
   b.queue++; b.qTypes.push(unit);
   return true;
@@ -1281,7 +1289,7 @@ function findOre(x, y, maxDist, team, mustBeExplored) {
 // Medbay: your units standing on the pad heal, up to 5 infantry at once, or 1 vehicle on its own. First come, first served.
 const MEDBAY_PAD = 40;   // how far from the centre still counts as standing on it (the pad is 42 across from the middle)
 function medbayOccupants(b) {
-  return game.ents.filter(u => u.team === b.team && isUnit(u) && u.hp > 0 && u.type !== 'settler' && !u.docked && Math.hypot(u.x - b.x, u.y - b.y) < MEDBAY_PAD);
+  return game.ents.filter(u => u.team === b.team && isUnit(u) && u.hp > 0 && u.type !== 'settler' && !u.docked && !u.air && Math.hypot(u.x - b.x, u.y - b.y) < MEDBAY_PAD);
 }
 function updateMedbay(b, dt) {
   const s = STATS.medbay;
@@ -1468,10 +1476,11 @@ function update(dt) {
   for (const e of game.ents) {
     if (e.order && e.order.type === 'man' && isInfantry(e)) { updateManning(e, dt); continue; }
     if (e.type === 'settler') { if (e.order && navigate(e, e.order.x, e.order.y, dt)) e.order = null; }
+    else if (e.air) updateHeli(e, dt);
     else if (isCombat(e)) updateSoldier(e, dt);
     else if (e.type === 'engineer') updateEngineer(e, dt);
     else if (e.type === 'extractor') updateExtractor(e, dt);
-    else if (e.type === 'tower' || e.type === 'turret') updateTower(e, dt);
+    else if (e.type === 'tower' || e.type === 'turret' || e.type === 'sam') updateTower(e, dt);
     else if (e.type === 'derrick') updateDerrick(e, dt);
     else if (isBuilding(e)) updateBuilding(e, dt);
   }
@@ -1520,7 +1529,7 @@ function update(dt) {
     if (g.t < g.dur) continue;
     g.done = true;
     for (const o of game.ents) {
-      if (o.team === g.team || o.hp <= 0) continue;
+      if (o.team === g.team || o.hp <= 0 || o.air) continue;   // (they burst on the ground: aircraft are out of reach)
       const d = edgeDist(g.x, g.y, o);
       const vehicle = isUnit(o) && !isInfantry(o);
       const mult = isBuilding(o) ? (g.vsBuilding || 1) : vehicle ? (g.vsVehicle || STATS.grenadier.vsVehicle) : 1;
@@ -1532,16 +1541,19 @@ function update(dt) {
   // rockets in flight: home in on the target and hit hard (double vs vehicles & buildings, weak vs infantry)
   for (const r of game.rockets) {
     const t = byId(r.target);
-    if (t && t.hp > 0) { r.tx = t.x; r.ty = t.y; }
+    if (t && t.hp > 0) { r.tx = t.x; r.ty = t.y - (t.air ? (t.alt || 0) * HELI_LIFT : 0); }   // (at an aircraft: up at its body, not its shadow)
     const dx = r.tx - r.x, dy = r.ty - r.y, d = Math.hypot(dx, dy), step = 480 * dt;
     r.ang = Math.atan2(dy, dx); r.life -= dt;
     if (Math.random() < 0.6) game.effects.push({ kind: 'dust', x: r.x, y: r.y, t: 0.2 });
     if (d <= step + (t ? t.r || 0 : 0) * 0.5 || r.life <= 0) {
       r.done = true;
       if (t && t.hp > 0 && d <= step + 30) {
-        const S = STATS.rocket;
+        const S = STATS[r.srcType] || STATS.rocket;
         if (r.src && isUnit(t)) { t.hitBy = r.src; t.hitAt = game.time; }
-        hurt(t, r.dmg * (isInfantry(t) ? S.vsInfantry : isBuilding(t) ? S.vsBuilding : t.type === 'heavy' ? S.vsHeavy : S.vsVehicle) * uphill(r.fromX, r.fromY, t), r.srcType, r.team);   // the heavy tank's thick armour shrugs off some of it
+        const mult = r.srcType === 'sam' ? 1
+          : r.srcType === 'heli' ? (isInfantry(t) ? S.vsInfantry : isBuilding(t) ? S.vsBuilding : S.vsVehicle)   // helicopter missiles: made for tanks and buildings
+          : (t.air ? S.vsAir : isInfantry(t) ? S.vsInfantry : isBuilding(t) ? S.vsBuilding : t.type === 'heavy' ? S.vsHeavy : S.vsVehicle);   // the heavy tank's thick armour shrugs off some of it
+        hurt(t, r.dmg * mult * (r.srcType === 'rocket' ? uphill(r.fromX, r.fromY, t) : 1), r.srcType, r.team);
       }
       game.effects.push({ kind: 'blast', x: r.tx, y: r.ty, r: 16, t: 0 });
     } else { r.x += dx / d * step; r.y += dy / d * step; }
@@ -1574,12 +1586,12 @@ function clearShot(x0, y0, x1, y1) {
   }
   return true;
 }
-const canShoot = (e, t) => lobs(e) || clearShot(e.x, e.y, t.x, t.y);
+const canShoot = (e, t) => lobs(e) || e.air || t.air || clearShot(e.x, e.y, t.x, t.y);   // (shots up at aircraft, or down from them, clear the rocks)
 
 function findEnemyNear(e, radius) {
   let best = null, bestD = radius;
   for (const o of game.ents) {
-    if (o.team === e.team || o.team === NEUTRAL || hiddenFrom(o, e.team) || isWallType(o.type) || beingRetaken(o, e.team)) continue;
+    if (o.team === e.team || o.team === NEUTRAL || hiddenFrom(o, e.team) || isWallType(o.type) || beingRetaken(o, e.team) || !canHit(e, o)) continue;
     if (!visibleAt(o.x, o.y, e.team)) continue;   // can't pick a target it can't see (behind rocks or in the fog)
     if (!canShoot(e, o)) continue;   // no clear line of fire (rock in the way)
     const d = edgeDist(e.x, e.y, o);
@@ -1621,7 +1633,7 @@ function findSiegeTarget(e, radius) {
   let best = null, bestScore = Infinity;
   const min = STATS[e.type].minRange || 0;
   for (const o of game.ents) {
-    if (o.team === e.team || o.team === NEUTRAL || hiddenFrom(o, e.team) || (isWallType(o.type) && o.type !== 'gate') || beingRetaken(o, e.team)) continue;
+    if (o.team === e.team || o.team === NEUTRAL || o.air || hiddenFrom(o, e.team) || (isWallType(o.type) && o.type !== 'gate') || beingRetaken(o, e.team)) continue;
     if (!visibleAt(o.x, o.y, e.team)) continue;
     const d = edgeDist(e.x, e.y, o);
     if (d > radius || (isUnit(o) && d < min)) continue;
@@ -1644,7 +1656,7 @@ function findInfantryNear(e, radius) {   // nearest enemy infantry in view (not 
 function findVehicleNear(e, radius) {   // nearest enemy vehicle (buggy, extractor, settler) in view
   let best = null, bestD = radius;
   for (const o of game.ents) {
-    if (o.team === e.team || o.team === NEUTRAL || !isUnit(o) || isInfantry(o) || !visibleAt(o.x, o.y, e.team) || !canShoot(e, o)) continue;
+    if (o.team === e.team || o.team === NEUTRAL || !isUnit(o) || isInfantry(o) || !canHit(e, o) || !visibleAt(o.x, o.y, e.team) || !canShoot(e, o)) continue;
     const d = edgeDist(e.x, e.y, o);
     if (d < bestD) { bestD = d; best = o; }
   }
@@ -1700,7 +1712,7 @@ function updateSoldier(e, dt) {   // soldiers and buggies
     if (r) { e.order = null; if (o.slot && r === true) { e.home = { x: o.x, y: o.y, face: o.face }; e.facing = o.face; } }   // arrived (true) or can't get there ('fail')
   } else if (o.type === 'attack') {
     const t = byId(o.target);
-    if (!t || t.team === e.team || t.team === NEUTRAL || hiddenFrom(t, e.team)) { e.order = o.resume || null; return; }   // gone, captured or knocked back to neutral
+    if (!t || t.team === e.team || t.team === NEUTRAL || hiddenFrom(t, e.team) || !canHit(e, t)) { e.order = o.resume || null; return; }   // gone, captured, knocked back to neutral, or out of its reach (an aircraft)
     // holding its ground: if the target has moved out of reach (or out of sight), let it go rather than follow it
     if (o.hold && (edgeDist(e.x, e.y, t) > rangeOf(e) + 4 || !visibleAt(t.x, t.y, e.team) || !canShoot(e, t))) { e.order = o.resume || null; return; }
     // a unit that slips into the fog is lost: go to where it was last seen, then stop (no tracking it through the fog)
@@ -1752,14 +1764,14 @@ function updateSoldier(e, dt) {   // soldiers and buggies
           game.effects.push({ kind: 'shot', heavy: e.type === 'sniper' || !!s.tank, x: e.x, y: e.y, x2: t.x + (Math.random() - .5) * 8,
                               y2: t.y + (Math.random() - .5) * 8, team: e.team, t: 0 });
         }
-        if (isCombat(t) && !t.order) t.order = { type: 'attack', target: e.id };
+        if (isCombat(t) && !t.order && !t.landed && canHit(t, e)) t.order = { type: 'attack', target: e.id };
       }
     }
   }
 }
 
 // Engineers: walk to a building, then either repair it (yours) or capture it (theirs). They're very fragile, so escort them.
-const canCapture = b => isBuilding(b) && !isWallType(b.type) && b.type !== 'tower' && b.type !== 'turret' && b.type !== 'house' && b.built;   // any finished building except walls, gates and guard towers. Capturing the enemy HQ wins the game, the same as destroying it
+const canCapture = b => isBuilding(b) && !isWallType(b.type) && b.type !== 'tower' && b.type !== 'turret' && b.type !== 'sam' && b.type !== 'house' && b.built;   // any finished building except walls, gates and guard towers. Capturing the enemy HQ wins the game, the same as destroying it
 function updateEngineer(e, dt) {
   const o = e.order;
   e.working = false;
@@ -1896,17 +1908,99 @@ function updateTower(e, dt) {
   if (e.type === 'turret' && !e.crew) { e.target = null; return; }   // nobody on the gun
   e.cooldown -= dt;
   let t = e.target && byId(e.target);
-  if (!t || hiddenFrom(t, e.team) || !visibleAt(t.x, t.y, e.team) || edgeDist(e.x, e.y, t) > rangeOf(e) || !canShoot(e, t)) { t = findEnemyNear(e, rangeOf(e)); e.target = t ? t.id : null; }
+  if (!t || t.hp <= 0 || !canHit(e, t) || hiddenFrom(t, e.team) || !visibleAt(t.x, t.y, e.team) || edgeDist(e.x, e.y, t) > rangeOf(e) || !canShoot(e, t)) { t = findEnemyNear(e, rangeOf(e)); e.target = t ? t.id : null; }
   if (!t) return;
   e.aim = Math.atan2(t.y - e.y, t.x - e.x);
   if (e.cooldown <= 0) {
     e.cooldown = s.cooldown;
+    if (s.antiAir) {   // SAM site: a homing missile
+      game.rockets.push({ x: e.x, y: e.y - 8, target: t.id, tx: t.x, ty: t.y, team: e.team, dmg: s.dmg, life: 2, fromX: e.x, fromY: e.y, src: e.id, srcType: e.type });
+      e.fired = game.time;
+      return;
+    }
     hurt(t, s.dmg * armour(e.type, t) * uphill(e.x, e.y, t), e.type, e.team);
     const muzzle = e.type === 'turret' ? 16 : 20;
     game.effects.push({ kind: 'shot', x: e.x + Math.cos(e.aim) * muzzle, y: e.y + Math.sin(e.aim) * muzzle - (e.type === 'turret' ? 2 : 6),
                         x2: t.x, y2: t.y, team: e.team, t: 0, heavy: e.type === 'tower' });
-    if (isCombat(t) && !t.order) t.order = { type: 'attack', target: e.id };   // units charge the tower
+    if (isCombat(t) && !t.order && canHit(t, e)) t.order = { type: 'attack', target: e.id };   // units charge the tower
   }
+}
+
+// ---------- Aircraft: attack helicopters ----------
+// Each one belongs to a Helipad. It flies straight over anything, fires its missiles, and flies home to land, reload and patch up.
+const padHeli = b => game.ents.find(h => h.air && h.hp > 0 && h.pad === b.id && h.team === b.team);
+const padOk = (b, team) => b && b.hp > 0 && b.type === 'helipad' && b.team === team && b.built;
+function padOf(e) {   // its own pad, or (if that's gone) any free one of its side
+  const p = e.pad && byId(e.pad);
+  if (padOk(p, e.team)) return p;
+  e.pad = null;
+  let best = null, bd = Infinity;
+  for (const b of game.ents) if (padOk(b, e.team) && !padHeli(b) && !b.queue) { const d = Math.hypot(b.x - e.x, b.y - e.y); if (d < bd) { bd = d; best = b; } }
+  if (best) e.pad = best.id;
+  return best;
+}
+function flyToward(e, x, y, dt) {
+  const dx = x - e.x, dy = y - e.y, d = Math.hypot(dx, dy), step = STATS[e.type].speed * dt;
+  e.movedAt = game.time;
+  if (d <= step) { e.x = x; e.y = y; return true; }
+  e.x += dx / d * step; e.y += dy / d * step; e.facing = Math.atan2(dy, dx);
+  return false;
+}
+function heliFire(e, t) {
+  const s = STATS[e.type];
+  e.facing = Math.atan2(t.y - e.y, t.x - e.x);
+  if (e.cooldown > 0 || e.ammo <= 0) return;
+  e.cooldown = s.cooldown; e.ammo--; e.side = -(e.side || 1);   // missiles leave from alternate sides
+  const px = -Math.sin(e.facing) * 7 * e.side, py = Math.cos(e.facing) * 7 * e.side;
+  game.rockets.push({ x: e.x + px, y: e.y - e.alt * HELI_LIFT + py, target: t.id, tx: t.x, ty: t.y, team: e.team, dmg: s.dmg, life: 1.5, fromX: e.x, fromY: e.y, src: e.id, srcType: e.type });
+  t.hitBy = e.id; t.hitAt = game.time;
+  if (isCombat(t) && !t.order && !t.landed && canHit(t, e)) t.order = { type: 'attack', target: e.id };
+}
+const goHome = e => { e.order = padOf(e) ? { type: 'return' } : null; };
+function updateHeli(e, dt) {
+  const s = STATS[e.type];
+  e.cooldown -= dt;
+  e.alt += ((e.landed ? 0 : 1) - e.alt) * Math.min(1, dt * 2.5);   // climbs off the pad, settles back onto it
+  const pad = padOf(e), o = e.order;
+  // keep apart from other aircraft
+  for (const h of game.ents) if (h !== e && h.air && h.hp > 0 && !h.landed && !e.landed) { const dx = e.x - h.x, dy = e.y - h.y, d = Math.hypot(dx, dy); if (d < 26 && d > 0.01) { e.x += dx / d * 20 * dt; e.y += dy / d * 20 * dt; } }
+  e.x = Math.min(W - 10, Math.max(10, e.x)); e.y = Math.min(H - 10, Math.max(10, e.y));
+  if (!o) {
+    if (e.landed) {
+      if (!pad || Math.hypot(e.x - pad.x, e.y - pad.y) > 3) { e.landed = false; return; }   // its pad is gone: back up into the air
+      if (e.ammo < s.ammo) { e.reloadT = (e.reloadT || 0) + dt; const per = s.reload / s.ammo; while (e.reloadT >= per && e.ammo < s.ammo) { e.reloadT -= per; e.ammo++; } }
+      else e.reloadT = 0;
+      e.hp = Math.min(e.maxHp, e.hp + s.repair * dt);
+      return;
+    }
+    if (pad) { e.order = { type: 'return' }; return; }
+    const t = e.ammo > 0 && findEnemyNear(e, rangeOf(e));   // no pad to go home to: hover and fight with what's left
+    if (t) heliFire(e, t);
+    return;
+  }
+  e.landed = false;
+  if (o.type === 'return') {
+    if (!pad) { e.order = null; return; }
+    if (flyToward(e, pad.x, pad.y, dt)) { e.order = null; e.landed = true; e.reloadT = 0; }
+    return;
+  }
+  if (o.type === 'move' || o.type === 'attackmove') {   // fly there and hover, shooting what comes in range, until out of ammo or sent home
+    if (!o.arrived && flyToward(e, o.x, o.y, dt)) { o.arrived = true; if (o.face !== undefined) e.facing = o.face; }
+    if (e.ammo <= 0) { goHome(e); return; }
+    const t = findEnemyNear(e, rangeOf(e));
+    if (t) heliFire(e, t);
+    return;
+  }
+  if (o.type === 'attack') {
+    const t = byId(o.target);
+    if (!t || t.hp <= 0 || t.team === e.team || t.team === NEUTRAL || !canHit(e, t) || hiddenFrom(t, e.team) || e.ammo <= 0) { goHome(e); return; }
+    if (isUnit(t) && !visibleAt(t.x, t.y, e.team)) { e.order = { type: 'move', x: o.seenX !== undefined ? o.seenX : t.x, y: o.seenY !== undefined ? o.seenY : t.y }; return; }   // lost in the fog: hover where it was last seen
+    o.seenX = t.x; o.seenY = t.y;
+    if (edgeDist(e.x, e.y, t) > rangeOf(e) - 4) flyToward(e, t.x, t.y, dt);
+    else heliFire(e, t);
+    return;
+  }
+  e.order = null;
 }
 
 // a new unit rolls out of the building's door
@@ -1914,6 +2008,13 @@ function updateTower(e, dt) {
 const frontDoor = b => ({ x: b.x, y: b.y + b.size / 2 + 30 });
 
 function releaseUnit(b, type) {
+  if (type === 'heli') {   // a new helicopter sits on its pad, armed and ready
+    const u = spawn('heli', b.team, b.x, b.y);
+    u.pad = b.id; u.landed = true; u.facing = -Math.PI / 2;
+    if (game.stats[b.team]) game.stats[b.team].units++;
+    if (game.track && game.track.made[b.team]) { const m = game.track.made[b.team]; m.heli = (m.heli || 0) + 1; }
+    return u;
+  }
   const d = frontDoor(b);
   const u = spawn(type || PRODUCES[b.type][0], b.team, d.x, d.y - 10);
   if (game.stats[b.team]) game.stats[b.team].units++;
@@ -1946,7 +2047,7 @@ function waitSpot(ref, e) {
 
 // keep units from stacking on top of each other or driving through buildings
 function separate() {
-  const units = game.ents.filter(isUnit);
+  const units = game.ents.filter(e => isUnit(e) && !e.air);   // (aircraft fly over everything)
   for (const u of units) { u.px = u.x; u.py = u.y; }
   for (let i = 0; i < units.length; i++) {
     const a = units[i];
@@ -2239,7 +2340,7 @@ function defendBuildings() {
     for (const u of game.ents) {
       // anyone busy within 300 comes; units standing idle within 500
       const d = Math.hypot(u.x - b.x, u.y - b.y);
-      if (u.team !== b.team || !isCombat(u) || d > (u.order || u.role === 'wave' ? 300 : 500)) continue;   // (was 450 / 1000: units ran too far to help)
+      if (u.team !== b.team || !isCombat(u) || u.air || !canHit(u, foe) || d > (u.order || u.role === 'wave' ? 300 : 500)) continue;   // (was 450 / 1000: units ran too far to help)
       if ((u.role === 'hill' || u.role === 'garrison' || u.role === 'outpost') && d > 300) continue;
       if (!u.order && holdsGround(u) && d > rangeOf(u) + 60) continue;   // snipers and units on high ground stay put unless the fight is right there   // they hold their post unless the fight is right there
       const o = u.order;
@@ -2852,7 +2953,7 @@ function draw() {
   for (const o of game.ore) if (exploredAt(o.x, o.y)) drawOre(o);
 
   const sel = game.selected;
-  const ents = game.ents.filter(canSee).sort((a, b) => (isBuilding(b) - isBuilding(a)) || a.y - b.y);
+  const ents = game.ents.filter(canSee).sort((a, b) => (isBuilding(b) - isBuilding(a)) || (!!a.air - !!b.air) || a.y - b.y);   // buildings, then ground units, then aircraft on top
   for (const e of ents) {
     if (sel.has(e.id)) drawSelection(e);
     if (e.type === 'hq') drawHQ(e);
@@ -2876,12 +2977,15 @@ function draw() {
     else if (e.type === 'artillery') drawArtillery(e);
     else if (e.type === 'derrick') drawDerrick(e);
     else if (e.type === 'house') drawHouse(e);
+    else if (e.type === 'helipad') drawHelipad(e);
+    else if (e.type === 'sam') drawSam(e);
+    else if (e.air) drawHeli(e);
     else drawSoldier(e);
     if (e.ruin && !ruinWorks(e)) drawRuin(e);
   }
   for (const e of ents) if ((sel.has(e.id) || e.hp < e.maxHp) && e.type !== 'house') drawHealth(e);
   for (const e of ents) if (sel.has(e.id) && isBuilding(e)) drawNameTag(e);
-  for (const e of ents) if (sel.has(e.id) && (e.type === 'tower' || e.type === 'turret')) drawRange(e.x, e.y, rangeOf(e));
+  for (const e of ents) if (sel.has(e.id) && (e.type === 'tower' || e.type === 'turret' || e.type === 'sam')) drawRange(e.x, e.y, rangeOf(e));
   for (const e of ents) if (sel.has(e.id) && e.type === 'artillery' && e.team === 0) drawRange(e.x, e.y, rangeOf(e));
 
   for (const fx of game.effects) {
@@ -2955,7 +3059,7 @@ function draw() {
 
 function drawPlacement() {
   const type = game.placing.type, size = STATS[type].size;
-  const extra = isWallType(type) || type === 'tower' ? WALL_REACH : 0;
+  const extra = isWallType(type) || type === 'tower' || type === 'sam' ? WALL_REACH : 0;
   const areas = buildAreaSources(0);
   if (areas.length) {   // the build area: all the circles merged into one shape
     ctx.fillStyle = 'rgba(125,255,125,0.08)';
@@ -3061,8 +3165,9 @@ function drawSelection(e) {
 
 function drawHealth(e) {
   const w = isBuilding(e) ? halfX(e) * 2 : e.r * 2.6;
-  const top = isBuilding(e) ? e.y - halfY(e) - 10 : e.y - e.r - 9;
+  const top = isBuilding(e) ? e.y - halfY(e) - 10 : e.y - e.r - 9 - (e.air ? e.alt * HELI_LIFT : 0);
   const k = Math.max(0, e.hp / e.maxHp);
+  if (e.air && e.team === 0) for (let i = 0; i < STATS.heli.ammo; i++) { ctx.fillStyle = i < e.ammo ? '#ffd86b' : 'rgba(0,0,0,0.5)'; ctx.fillRect(e.x - w / 2 + i * (w / STATS.heli.ammo), top + 5, w / STATS.heli.ammo - 1, 3); }   // missiles left
   ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(e.x - w / 2 - 1, top - 1, w + 2, 6);
   ctx.fillStyle = k > 0.5 ? '#4ade80' : k > 0.25 ? '#facc15' : '#ef4444';
   ctx.fillRect(e.x - w / 2, top, w * k, 4);
@@ -3596,6 +3701,94 @@ function hqHeli(x, y, ang, alt, t) {   // a small team helicopter seen from abov
   for (let k = 0; k < 2; k++) { const a = spin + k * Math.PI / 2; ctx.beginPath(); ctx.moveTo(-Math.cos(a) * 13, -Math.sin(a) * 13); ctx.lineTo(Math.cos(a) * 13, Math.sin(a) * 13); ctx.stroke(); }
   if (alt > 0) { ctx.fillStyle = 'rgba(40,40,40,0.18)'; ctx.beginPath(); ctx.arc(0, 0, 13, 0, Math.PI * 2); ctx.fill(); }   // rotor blur
   ctx.restore();
+}
+const HELI_LIFT = 16;   // how far up a flying helicopter is drawn above its shadow
+// Attack helicopter, seen from above: shadow on the ground, body lifted by its height; missiles on the stub wings show what it has left
+function drawHeli(e) {
+  const c = TEAMS[e.team], t = performance.now() / 1000, alt = e.alt || 0, lift = alt * HELI_LIFT;
+  ctx.fillStyle = `rgba(0,0,0,${0.38 - alt * 0.14})`;
+  ctx.save(); ctx.translate(e.x + 2 + alt * 8, e.y + 3 + alt * 4); ctx.rotate(e.facing);
+  ctx.beginPath(); ctx.ellipse(-2, 0, 15, 5.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillRect(-26, -1.5, 14, 3);
+  ctx.restore();
+  ctx.save(); ctx.translate(e.x, e.y - lift); ctx.rotate(e.facing);
+  const sc = 1 + alt * 0.08; ctx.scale(sc, sc);
+  // tail boom, fin and tail rotor
+  ctx.fillStyle = '#3d4a33'; ctx.fillRect(-27, -2, 18, 4);
+  ctx.fillStyle = c.dark; ctx.fillRect(-29, -6, 4, 12);
+  ctx.strokeStyle = 'rgba(20,20,20,0.8)'; ctx.lineWidth = 1.2;
+  const ts = t * (alt > 0.1 ? 50 : 4); ctx.beginPath(); ctx.moveTo(-27, -6 * Math.cos(ts)); ctx.lineTo(-27, 6 * Math.cos(ts)); ctx.stroke();
+  // stub wings with missile pods (3 a side)
+  ctx.fillStyle = '#2f3a28'; ctx.fillRect(-4, -13, 6, 26);
+  for (let i = 0; i < 6; i++) {
+    const side = i % 2 ? 1 : -1, k = Math.floor(i / 2), y = side * (8 + k * 2.4);
+    ctx.fillStyle = i < e.ammo ? '#e8e4d8' : 'rgba(0,0,0,0.35)'; ctx.fillRect(-3, y - 0.9, 9, 1.8);
+    if (i < e.ammo) { ctx.fillStyle = '#d33'; ctx.fillRect(5, y - 0.9, 1.6, 1.8); }
+  }
+  // fuselage
+  ctx.fillStyle = '#4c5a3c'; ctx.beginPath(); ctx.ellipse(0, 0, 13, 5.6, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = c.color; ctx.fillRect(-9, -5, 5, 10);   // team band
+  ctx.fillStyle = '#26301f'; ctx.beginPath(); ctx.moveTo(13, 0); ctx.lineTo(18, -1.5); ctx.lineTo(18, 1.5); ctx.closePath(); ctx.fill();   // nose gun
+  ctx.fillStyle = '#9fd6ff'; ctx.beginPath(); ctx.ellipse(6, 0, 4.2, 3, 0, 0, Math.PI * 2); ctx.fill();   // front cockpit
+  ctx.fillStyle = '#7fb8e0'; ctx.beginPath(); ctx.ellipse(0.5, 0, 3.4, 2.6, 0, 0, Math.PI * 2); ctx.fill();   // rear cockpit
+  ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.fillRect(5, -2, 2.5, 1.2);
+  // main rotor: four blades, a blur when it's flying
+  const spin = t * (alt > 0.1 ? 34 : e.ammo < STATS.heli.ammo || e.hp < e.maxHp ? 3 : 0.6);
+  if (alt > 0.1) { ctx.fillStyle = 'rgba(30,30,30,0.16)'; ctx.beginPath(); ctx.arc(0, 0, 20, 0, Math.PI * 2); ctx.fill(); }
+  ctx.strokeStyle = alt > 0.1 ? 'rgba(25,25,25,0.55)' : 'rgba(25,25,25,0.9)'; ctx.lineWidth = 2;
+  for (let k = 0; k < 4; k++) { const a = spin + k * Math.PI / 2; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * 20, Math.sin(a) * 20); ctx.stroke(); }
+  ctx.fillStyle = '#222'; ctx.beginPath(); ctx.arc(0, 0, 2.2, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+// Helipad: a concrete pad with the big H, landing lights in your colour and a small control hut
+function drawHelipad(e) {
+  if (!e.built) return drawConstruction(e);
+  const c = TEAMS[e.team], h = e.size / 2, t = animT(e);
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(e.x - h + 5, e.y - h + 6, e.size, e.size);
+  ctx.fillStyle = '#8d8f8a'; ctx.fillRect(e.x - h, e.y - h, e.size, e.size);
+  ctx.strokeStyle = '#5f615c'; ctx.lineWidth = 1;
+  for (let k = 1; k < 4; k++) { ctx.beginPath(); ctx.moveTo(e.x - h + k * e.size / 4, e.y - h); ctx.lineTo(e.x - h + k * e.size / 4, e.y + h); ctx.stroke(); ctx.beginPath(); ctx.moveTo(e.x - h, e.y - h + k * e.size / 4); ctx.lineTo(e.x + h, e.y - h + k * e.size / 4); ctx.stroke(); }
+  ctx.strokeStyle = '#4b4d48'; ctx.lineWidth = 3; ctx.strokeRect(e.x - h + 1.5, e.y - h + 1.5, e.size - 3, e.size - 3);
+  ctx.strokeStyle = '#f2c94c'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(e.x, e.y, h - 9, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = '#f4f1e8'; const hw = 4, hh = 13, hs = 8;
+  ctx.fillRect(e.x - hs - hw / 2, e.y - hh, hw, hh * 2); ctx.fillRect(e.x + hs - hw / 2, e.y - hh, hw, hh * 2); ctx.fillRect(e.x - hs, e.y - hw / 2, hs * 2, hw);
+  // landing lights round the edge, chasing in your colour
+  for (let k = 0; k < 8; k++) {
+    const a = k / 8 * Math.PI * 2, on = Math.floor(t * 4) % 8 === k;
+    ctx.fillStyle = on ? c.light : c.dark; ctx.beginPath(); ctx.arc(e.x + Math.cos(a) * (h - 4), e.y + Math.sin(a) * (h - 4), on ? 2.6 : 1.8, 0, Math.PI * 2); ctx.fill();
+  }
+  // control hut and wind sock in the corner
+  ctx.fillStyle = '#5b5e57'; ctx.fillRect(e.x + h - 15, e.y - h - 6, 16, 12);
+  ctx.fillStyle = c.color; ctx.fillRect(e.x + h - 15, e.y - h - 6, 16, 4);
+  ctx.fillStyle = '#9fd6ff'; ctx.fillRect(e.x + h - 12, e.y - h - 1, 10, 3);
+  ctx.strokeStyle = '#ddd'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(e.x - h + 4, e.y - h + 4); ctx.lineTo(e.x - h + 4, e.y - h - 10); ctx.stroke();
+  const flap = Math.sin(t * 3) * 0.25;
+  ctx.save(); ctx.translate(e.x - h + 4, e.y - h - 9); ctx.rotate(flap); ctx.fillStyle = '#f97316'; ctx.beginPath(); ctx.moveTo(0, -2); ctx.lineTo(10, -1); ctx.lineTo(10, 1); ctx.lineTo(0, 2); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.fillRect(4, -1.5, 2, 3); ctx.restore();
+}
+// SAM site: a concrete ring with a turning launcher of four missiles that points at its target
+function drawSam(e) {
+  if (!e.built) return drawConstruction(e);
+  const c = TEAMS[e.team], h = e.size / 2;
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.arc(e.x + 4, e.y + 5, h, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#9a9a92'; ctx.beginPath(); ctx.arc(e.x, e.y, h, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#6c6c65'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(e.x, e.y, h - 3, 0, Math.PI * 2); ctx.stroke();
+  for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2 + Math.PI / 8; ctx.fillStyle = k % 2 ? '#f2c94c' : '#2a2a2a'; ctx.beginPath(); ctx.arc(e.x, e.y, h - 3, a, a + Math.PI / 8); ctx.arc(e.x, e.y, h - 7, a + Math.PI / 8, a, true); ctx.fill(); }
+  ctx.fillStyle = '#55574f'; ctx.beginPath(); ctx.arc(e.x, e.y, h - 9, 0, Math.PI * 2); ctx.fill();
+  const a = e.aim !== undefined ? e.aim : (e.team === 0 ? -Math.PI / 2 : Math.PI / 2);
+  ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(a);
+  ctx.fillStyle = c.dark; ctx.fillRect(-8, -10, 14, 20);   // launcher frame
+  ctx.fillStyle = c.color; ctx.fillRect(-6, -8, 4, 16);
+  const recent = e.fired && game.time - e.fired < 1.2;
+  for (let k = 0; k < 4; k++) {
+    const y = -7.5 + k * 5;
+    if (recent && k === 0) continue;   // one has just gone
+    ctx.fillStyle = '#ecebe4'; ctx.fillRect(-3, y - 1.6, 17, 3.2);
+    ctx.fillStyle = '#c62828'; ctx.beginPath(); ctx.moveTo(14, y - 1.6); ctx.lineTo(18, y); ctx.lineTo(14, y + 1.6); ctx.fill();
+    ctx.fillStyle = '#777'; ctx.fillRect(-3, y - 2.6, 3, 1); ctx.fillRect(-3, y + 1.6, 3, 1);
+  }
+  ctx.restore();
+  ctx.fillStyle = '#ddd'; ctx.beginPath(); ctx.arc(e.x - h + 8, e.y + h - 8, 3, 0, Math.PI * 2); ctx.fill();   // radar dish
+  ctx.strokeStyle = '#7dff7d'; ctx.lineWidth = 1; const sw = performance.now() / 300; ctx.beginPath(); ctx.moveTo(e.x - h + 8, e.y + h - 8); ctx.lineTo(e.x - h + 8 + Math.cos(sw) * 5, e.y + h - 8 + Math.sin(sw) * 5); ctx.stroke();
 }
 function drawHQArt(e) {
   const c = TEAMS[e.team], t = performance.now() / 1000 + (e.id || 0) * 3.7;
@@ -4260,7 +4453,7 @@ function hitTest(x, y) {
   let best = null, bestScore = Infinity;
   for (const e of game.ents) {
     if (!canSee(e)) continue;
-    const d = edgeDist(x, y, e);
+    const d = e.air ? Math.max(0, Math.hypot(x - e.x, y - (e.y - e.alt * HELI_LIFT)) - e.r) : edgeDist(x, y, e);
     if (d <= (isBuilding(e) ? 0.01 : slop)) {
       const score = (isUnit(e) ? 0 : 1000) + d;   // prefer units over buildings
       if (score < bestScore) { bestScore = score; best = e; }
@@ -4326,6 +4519,12 @@ function handleTap(x, y) {
     const crew = myUnits.filter(isInfantry).sort((a, b) => Math.hypot(a.x - hit.x, a.y - hit.y) - Math.hypot(b.x - hit.x, b.y - hit.y))[0];
     if (crew) { crew.order = { type: 'man', target: hit.id }; game.effects.push({ kind: 'marker', x: hit.x, y: hit.y, t: 0, color: '#7dff7d' }); return; }
   }
+  const helis = myUnits.filter(e => e.air);
+  if (hit && hit.team === 0 && hit.type === 'helipad' && helis.length) {   // helicopters selected + your Helipad tapped = fly home to land
+    for (const h of helis) { const own = byId(h.pad); if (!padOk(own, 0) && hit.built && !padHeli(hit)) h.pad = hit.id; h.order = { type: 'return' }; }
+    game.effects.push({ kind: 'marker', x: hit.x, y: hit.y, t: 0, color: '#7dff7d' });
+    if (myUnits.length === helis.length) return;
+  }
   if (hit && hit.team === 0) {
     // engineers selected + one of your damaged buildings tapped = repair it
     if (engineers.length && isBuilding(hit) && !isWallType(hit.type) && hit.hp < hit.maxHp) {
@@ -4334,8 +4533,8 @@ function handleTap(x, y) {
       return;
     }
     // units selected + your Medbay tapped = go and stand on it to heal
-    if (hit.type === 'medbay' && hit.built && myUnits.length) {
-      medbaySend(myUnits, hit);
+    if (hit.type === 'medbay' && hit.built && myUnits.some(u => !u.air)) {
+      medbaySend(myUnits.filter(u => !u.air), hit);
       game.effects.push({ kind: 'marker', x: hit.x, y: hit.y, t: 0, color: '#7dff7d' });
       return;
     }
@@ -4344,7 +4543,7 @@ function handleTap(x, y) {
   }
 
   if (hit && hit.team === 1) {
-    const soldiers = myUnits.filter(isCombat);
+    const soldiers = myUnits.filter(u => isCombat(u) && canHit(u, hit));   // (only Rocket Soldiers can go after an aircraft)
     for (const s of soldiers) s.order = { type: 'attack', target: hit.id };
     if (engineers.length && canCapture(hit)) {
       // send the nearest engineer in to capture it; any others follow along as backups
@@ -4421,7 +4620,7 @@ const $ = id => document.getElementById(id);
 const ui = {
   credits: $('credits'), clock: $('clock'), info: $('info'), powerChip: $('powerChip'), sell: $('btnSell'),
   deploy: $('btnDeploy'), radar: $('btnRadar'), medbay: $('btnMedbay'), barracks: $('btnBarracks'), refinery: $('btnRefinery'), tower: $('btnTower'), power: $('btnPower'), factory: $('btnFactory'), tech: $('btnTech'), wall: $('btnWall'), gate: $('btnGate'), rotate: $('btnRotate'), 
-  harvest: $('btnHarvest'), turret: $('btnTurret'), unload: $('btnUnload'), place: $('btnPlace'), cancel: $('btnCancel'), deselect: $('btnDeselect'),
+  harvest: $('btnHarvest'), turret: $('btnTurret'), helipad: $('btnHelipad'), sam: $('btnSam'), heliHome: $('btnReturn'), unload: $('btnUnload'), place: $('btnPlace'), cancel: $('btnCancel'), deselect: $('btnDeselect'),
   box: $('btnBox'), all: $('btnAll'), pause: $('btnPause'), map: $('btnMap'),
   overlay: $('overlay'), ovTitle: $('ovTitle'), ovText: $('ovText'), ovBtn: $('ovBtn'),
 };
@@ -4454,6 +4653,9 @@ ui.turret.addEventListener('click', () => {   // every selected Engineer builds 
 ui.power.addEventListener('click', () => startPlacing('power'));
 ui.radar.addEventListener('click', () => startPlacing('radar'));
 ui.medbay.addEventListener('click', () => startPlacing('medbay'));
+ui.helipad.addEventListener('click', () => startPlacing('helipad'));
+ui.sam.addEventListener('click', () => startPlacing('sam'));
+ui.heliHome.addEventListener('click', () => { for (const h of selectedOfType('heli')) h.order = padOf(h) ? { type: 'return' } : h.order; });
 ui.factory.addEventListener('click', () => startPlacing('factory'));
 ui.tech.addEventListener('click', () => startPlacing('tech'));
 ui.wall.addEventListener('click', () => startPlacing('wall'));
@@ -4639,6 +4841,9 @@ function updateHUD() {
   show(ui.power, !!hq && !placing);
   show(ui.radar, !!hq && !placing);
   show(ui.medbay, !!hq && !placing);
+  show(ui.helipad, !!hq && !placing);
+  show(ui.sam, !!hq && !placing);
+  show(ui.heliHome, sel.some(e => e.air && e.team === 0 && !e.landed) && !placing);
   show(ui.wall, !!hq && !placing);
   show(ui.gate, !!hq && !placing);
   syncProduceButtons(producer && !placing ? producer.type : null);
@@ -4667,7 +4872,7 @@ function updateHUD() {
   ui.powerChip.style.display = boost > 1 ? '' : 'none';
   ui.powerChip.textContent = `⚡ +${Math.round((boost - 1) * 100)}%`;
   // locked buildings say what they still need
-  for (const [btn, type] of [[ui.factory, 'factory'], [ui.tech, 'tech'], [ui.radar, 'radar'], [ui.medbay, 'medbay']]) {
+  for (const [btn, type] of [[ui.factory, 'factory'], [ui.tech, 'tech'], [ui.radar, 'radar'], [ui.medbay, 'medbay'], [ui.helipad, 'helipad'], [ui.sam, 'sam']]) {
     const miss = missingFor(0, type);
     btn.textContent = miss.length ? `${NAMES[type]}: needs ${miss.map(t => NAMES[t]).join(' + ')}` : `${NAMES[type]} $${COST[type]}`;
     btn.disabled = miss.length > 0 || game.credits[0] < COST[type];
@@ -4684,9 +4889,10 @@ function updateHUD() {
     for (const btn of produceBox.children) {
       const unit = btn.dataset.unit;
       const miss = missingFor(0, unit);
-      const label = miss.length ? `${SHORT[unit] || NAMES[unit]}: needs ${miss.map(t => NAMES[t]).join(' + ')}` : `${SHORT[unit] || NAMES[unit]} $${COST[unit]}`;
+      const docked = unit === 'heli' && padHeli(producer);
+      const label = miss.length ? `${SHORT[unit] || NAMES[unit]}: needs ${miss.map(t => NAMES[t]).join(' + ')}` : docked ? 'Helicopter: this pad has one' : `${SHORT[unit] || NAMES[unit]} $${COST[unit]}`;
       if (btn.textContent !== label) btn.textContent = label;
-      btn.disabled = miss.length > 0 || !producer.built || producer.queue >= STATS[producer.type].maxQueue || game.credits[0] < COST[unit];
+      btn.disabled = miss.length > 0 || !!docked || !producer.built || producer.queue >= STATS[producer.type].maxQueue || game.credits[0] < COST[unit];
     }
   }
 
@@ -4715,6 +4921,13 @@ function updateHUD() {
   else if (sel.length === 1 && sel[0].type === 'turret') text = !sel[0].built ? `Turret: being built (${Math.floor(sel[0].progress * 100)}%)`
     : sel[0].crew ? `Turret — manned by a ${NAMES[sel[0].crew.type]}: a machine gun, strong against infantry, half damage to tanks`
     : 'Turret — empty. Select infantry and tap it to man the gun (anyone can man an empty Turret, the enemy too)';
+  else if (sel.length === 1 && sel[0].type === 'sam') text = sel[0].built ? 'SAM Site — shoots down enemy aircraft in range (nothing else)' : `SAM Site: ${Math.floor(sel[0].progress * 100)}% built`;
+  else if (sel.length === 1 && sel[0].type === 'helipad' && sel[0].built && padHeli(sel[0])) { const h = padHeli(sel[0]); text = `Helipad — its helicopter is ${h.landed ? 'docked here (' + h.ammo + '/' + STATS.heli.ammo + ' missiles)' : 'out flying'}`; }
+  else if (sel.length === 1 && sel[0].air) {
+    const h = sel[0], o = h.order;
+    text = `Attack Helicopter: ${h.ammo}/${STATS.heli.ammo} missiles — ` + (h.landed ? (h.ammo < STATS.heli.ammo ? 'reloading on its pad' : 'docked. Tap an enemy to attack, or ground to hover there')
+      : o && o.type === 'return' ? 'flying home' : !padOf(h) ? 'no Helipad to land on: build one to reload' : o && o.type === 'attack' ? 'attacking' : 'hovering. Tap its Helipad (or Return) to send it home');
+  }
   else if (producer) text = producer.built ? `${NAMES[producer.type]}${producer.queue ? ' — making ×' + producer.queue : ''}` : `${NAMES[producer.type]}: ${Math.floor(producer.progress * 100)}% built`;
   else if (extractors.length === 1 && sel.length === 1) text = extractorStatus(extractors[0]);
   else if (sel.length === 1 && sel[0].type === 'engineer') {
@@ -4723,7 +4936,7 @@ function updateHUD() {
   } else if (sel.length) {
     const counts = {};
     for (const e of sel) counts[e.type] = (counts[e.type] || 0) + 1;
-    const plural = { soldier: 'soldiers', buggy: 'buggies', extractor: 'extractors', grenadier: 'grenadiers', rocket: 'rocket soldiers', sniper: 'snipers', light: 'light tanks', heavy: 'heavy tanks', artillery: 'artillery', engineer: 'engineers', settler: 'settlers', civilian: 'civilians' };
+    const plural = { soldier: 'soldiers', buggy: 'buggies', extractor: 'extractors', grenadier: 'grenadiers', rocket: 'rocket soldiers', sniper: 'snipers', light: 'light tanks', heavy: 'heavy tanks', artillery: 'artillery', engineer: 'engineers', settler: 'settlers', civilian: 'civilians', heli: 'helicopters' };
     const parts = Object.entries(counts).map(([t, n]) => `${n} ${n > 1 ? plural[t] || t + 's' : (SHORT[t] || NAMES[t]).toLowerCase()}`);
     text = parts.join(', ') + ' — tap to move';
   } else text = hqOf(0) ? 'Drag to scroll, pinch to zoom' : 'Tap your settler to begin';
