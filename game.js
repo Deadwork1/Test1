@@ -2399,10 +2399,10 @@ function runAI(dt) {
   const building = game.time < (ai.buildUntil || 0) && !extrasDone;
   if (refineries.length === 0) aiPlaceRefinery(hq);
   else if (barracks.length === 0) aiPlace(hq, 'barracks');
+  else if (wantSam && cash >= COST.sam) aiPlaceSam(hq, refineries);   // your aircraft are about: a SAM Site first
   else if (of('power').length < D.plants && cash >= COST.power) aiPlace(hq, 'power');
   else if (refineries.length < reqRefineries && cash >= COST.refinery && !aiBlocked('refinery')) aiPlaceRefinery(hq);
   else if (of('tower').length < wantTowers && cash >= COST.tower && !aiBlocked('tower')) aiPlaceTower(hq);
-  else if (wantSam && cash >= COST.sam) aiPlaceSam(hq, refineries);
   else if (barracks.length < D.barracks && cash >= 900) aiPlace(hq, 'barracks');
   else if (wantFactory && cash >= COST.factory) aiPlace(hq, 'factory');
   else if (wantTech && cash >= COST.tech) aiPlace(hq, 'tech');
@@ -2455,6 +2455,7 @@ function runAI(dt) {
     if (refineries.length < reqRefineries && !aiBlocked('refinery')) reserve += COST.refinery;
     else if (of('tower').length < wantTowers && !aiBlocked('tower')) reserve += COST.tower;
   }
+  if (wantSam && defended) reserve += COST.sam;   // your aircraft are about: a SAM Site comes before more troops and tanks
   const heliDue = of('helipad').some(p => p.built && !padHeli(p) && !p.queue);   // an empty Helipad: its helicopter comes before more tanks
   const vReserve = reserve + (heliDue ? COST.heli : 0);   // vehicles don't wait for the Tech Centre savings
   // the War Factory (and later the Tech Centre) are worth saving for whenever home is safe
@@ -2462,7 +2463,7 @@ function runAI(dt) {
   if (defended && (!building || otherExtrasDone)) reserve += wantFactory ? COST.factory : wantTech ? COST.tech : wantPad ? COST.helipad : 0;
   // an attack is due but there aren't enough troops yet: troops come first, savings wait (it never stops attacking)
   const waveDue = game.time >= D.attackAfter && game.time >= (ai.nextWave || 0);
-  if (waveDue && army.filter(u => !u.role).length < D.minWave + 4) reserve = Math.min(reserve, extractors.length + qx < wantExtractors ? COST.extractor : 0);
+  if (waveDue && army.filter(u => !u.role).length < D.minWave + 4) reserve = Math.min(reserve, (extractors.length + qx < wantExtractors ? COST.extractor : 0) + (wantSam && defended ? COST.sam : 0));   // (a SAM Site it needs still comes first)
   const queued = barracks.reduce((n, b) => n + b.queue, 0) + of('factory').reduce((n, f) => n + f.queue, 0);
   const qBuggies = of('factory').reduce((n, b) => n + b.qTypes.filter(t => t === 'buggy').length, 0);
   const wantBuggy = D.buggies && unlocked(1, 'buggy') && of('buggy').length + qBuggies < (of('soldier').length + 2) / ((game.ai.seen && game.ai.seen.snipers >= 3) ? 1.3 : 2);   // ~1 per 2 soldiers, more if you field snipers/grenadiers
@@ -2478,7 +2479,9 @@ function runAI(dt) {
   ai.seen = ai.seen || { infantry: 0, vehicles: 0, snipers: 0 };
   for (const k in seenNow) ai.seen[k] = Math.max(ai.seen[k], seenNow[k]);
   ai.seenBuggies = Math.max(ai.seenBuggies || 0, game.ents.filter(v => v.team === 0 && (v.type === 'buggy' || isTank(v) || v.air) && visibleAt(v.x, v.y, 1)).length);
-  if (game.ents.some(v => v.team === 0 && v.air && visibleAt(v.x, v.y, 1))) ai.seenAir = true;   // it has seen your aircraft: time for SAM Sites
+  // your aircraft: once it has seen one it builds SAM Sites, and it keeps a heat map of where they fly (squares of 150) to put them under the busiest spots
+  ai.airHeat = ai.airHeat || {};
+  for (const v of game.ents) if (v.team === 0 && v.air && !v.landed && visibleAt(v.x, v.y, 1)) { ai.seenAir = true; const k = Math.floor(v.x / AIR_HEAT) + ',' + Math.floor(v.y / AIR_HEAT); ai.airHeat[k] = (ai.airHeat[k] || 0) + 1; }
   // Hard sizes its answer to your vehicles by what it has seen of them (still alive), heavier ones counting for more:
   // one Rocket Soldier per point (Buggy or Artillery 1, Light Tank 1.5, Heavy Tank 2.5), up to antiArmor; Normal keeps the simple rule
   ai.seenVeh = ai.seenVeh || {};
@@ -2939,9 +2942,21 @@ function aiTurretSpot(hq) {
 }
 
 // towers go near its gate (if it has one) or toward the middle from the HQ
-// SAM Site: beside a Refinery (where your helicopters come raiding), the one nearest you first, else by its HQ
+// SAM Site: under the busiest spot on its heat map of your aircraft that it can build on (or close enough to cover it),
+// skipping spots another of its SAM Sites already covers; with nothing on the heat map yet, beside a Refinery (the one nearest you first), else by its HQ
+const AIR_HEAT = 150;
 function aiPlaceSam(hq, refineries) {
   const have = game.ents.filter(e => e.team === 1 && e.type === 'sam');
+  const hot = Object.entries(game.ai.airHeat || {}).map(([k, n]) => { const [c, r] = k.split(',').map(Number); return { x: (c + 0.5) * AIR_HEAT, y: (r + 0.5) * AIR_HEAT, n }; })
+    .filter(h => !have.some(s => Math.hypot(s.x - h.x, s.y - h.y) < STATS.sam.range * 0.8) && inBuildArea(1, h.x, h.y, WALL_REACH + STATS.sam.range * 0.7)).sort((a, b) => b.n - a.n);   // (only spots it could cover from where it can build)
+  for (const h of hot.slice(0, 6)) {   // from the hot spot, walk toward its HQ until there's room to build, as long as the spot stays in reach
+    const d = Math.hypot(hq.x - h.x, hq.y - h.y) || 1, ux = (hq.x - h.x) / d, uy = (hq.y - h.y) / d;
+    for (let along = 0; along <= STATS.sam.range * 0.7; along += 20)
+      for (const side of [0, 30, -30, 60, -60]) {
+        const x = h.x + ux * along - uy * side, y = h.y + uy * along + ux * side;
+        if (placeBuilding(1, 'sam', x, y)) return true;
+      }
+  }
   const yours = hqOf(0) || { x: W / 2, y: H / 2 };
   const refs = refineries.filter(r => r.built && !have.some(s => Math.hypot(s.x - r.x, s.y - r.y) < 200)).sort((a, b) => Math.hypot(a.x - yours.x, a.y - yours.y) - Math.hypot(b.x - yours.x, b.y - yours.y));
   for (const r of refs) for (let tries = 0; tries < 25; tries++) {

@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.49.1', date: '19 Nov 2026', title: 'SAM Sites where you fly',
+    changes: [
+      'The computer now keeps a heat map of where it sees your aircraft flying, and builds its SAM Sites under the busiest spots it can cover from its base, skipping spots one of its SAM Sites already covers. Before any heat builds up, it still puts them beside its Refineries.',
+      'Once it needs a SAM Site it saves up for one before more troops and tanks, so it answers your helicopters sooner (on Hard usually within one to one and a half minutes).',
+    ],
+  },
+  {
     version: '5.49', date: '19 Nov 2026', title: 'Enemy helicopters',
     changes: [
       'Normal and Hard: the computer now builds Helipads and Attack Helicopters: 1 on Normal, 2 on Hard. It puts its Helipad down once it has a War Factory and has sent two waves (or after about 8 minutes), and saves up for each helicopter before buying more tanks.',
