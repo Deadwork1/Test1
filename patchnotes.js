@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.49.3', date: '20 Nov 2026', title: 'Hard flies helicopters',
+    changes: [
+      'Hard no longer needs spare money for its helicopters (Normal still needs $300 to spare). While one of its Helipads stands empty, its Barracks hold off so it can afford the helicopter, even while it gathers a wave, but its War Factories keep building tanks.',
+      'In 450 test games across every map and level, Hard flew helicopters in about 1 game in 5 and the computer won 52% (Classic), 46% (Large) and 60% (Huge) on Hard.',
+    ],
+  },
+  {
     version: '5.49.2', date: '19 Nov 2026', title: 'Stronger helicopters',
     changes: [
       'Attack Helicopters now carry 8 missiles of 45 damage (were 6 of 35): 67 against vehicles, so one load kills a Light Tank or a Power Plant. Price, health and reload time are unchanged, and SAM Sites are as they were.',
