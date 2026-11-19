@@ -1,6 +1,6 @@
 import sys, http.server, threading, functools, json, time, random
 from playwright.sync_api import sync_playwright
-root, port, out, plan = sys.argv[1], int(sys.argv[2]), sys.argv[3], json.loads(sys.argv[4])
+root, port, out, plan = sys.argv[1], int(sys.argv[2]), sys.argv[3], json.loads(open(sys.argv[4][1:]).read() if sys.argv[4].startswith('@') else sys.argv[4])   # '@file.json' reads the plan from a file (big batches are too long for the command line)
 class Q(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *a): pass
 srv = http.server.ThreadingHTTPServer(('127.0.0.1', port), functools.partial(Q, directory=root))
