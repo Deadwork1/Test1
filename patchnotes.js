@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.46.1', date: '19 Nov 2026', title: 'Game reports',
+    changes: [
+      'New: Save game report, in the pause menu and on the results screen. It saves a small file with your game\'s numbers for both sides: money earned and spent, units and buildings made and lost by type, captures, Derricks, ruins, Turrets, the computer\'s attack waves, and a snapshot every 30 seconds.',
+      'On a phone it opens the share sheet, so you can save the file or send it straight on; on a computer it downloads.',
+    ],
+  },
+  {
     version: '5.46', date: '18 Nov 2026', title: 'Cheaper Engineers, steadier enemy',
     changes: [
       'Engineers now cost $100 (was $125). Turrets still cost $125 to build.',

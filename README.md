@@ -27,6 +27,7 @@ A small real-time strategy game inspired by classic 90s RTS games, built step by
 
 ## Controls (touch or mouse)
 - Drag to scroll, pinch (or mouse wheel) to zoom, tap the minimap to jump.
+- **Save game report** (pause menu or results screen) saves a file with the game's numbers for both sides and a snapshot every 30 seconds, to keep or share.
 - Your money is shown just above the bottom bar. The pause menu has Resume, Restart, **Exit Game** (both tap twice) and the patch notes.
 - Tap a unit or building to select it. **Box select**, then drag, to select several units.
 - **Engineers** ($100) can **build a Turret** where they stand ($125, the Engineer is used up). A Turret is empty until infantry climb in to **man** it (select infantry, tap the Turret); then it's a machine gun (300 health, range 140, strong against infantry, half damage to tanks). **Unload** lets the gunner out; if a manned Turret is destroyed, the gunner dies. Anyone can man an empty Turret, the enemy too. Turrets can't be sold or captured.
