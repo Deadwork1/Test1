@@ -835,6 +835,7 @@ function newGame() {
     effects: [],
     over: null, paused: false,
     ai: { timer: 0, attacking: false, known: new Map(), scout: null, exploreTarget: null },
+    track: { made: [{}, {}], lost: [{}, {}], timeline: [], nextSample: 0 },   // for the game report: what each side made and lost, and a snapshot every 30 s
   };
   for (const f of fog) { f.vis.fill(0); f.exp.fill(0); }
   { const box = document.getElementById('results'); if (box) box.style.display = 'none'; }
@@ -1443,6 +1444,7 @@ function update(dt) {
   if (game.over || game.paused) return;
 
   game.time += dt;
+  if (game.track && game.time >= game.track.nextSample) { game.track.timeline.push(reportSnapshot()); game.track.nextSample += 30; }
   game.credits[0] += INCOME * dt;
   game.credits[1] += INCOME * dt;
   if (bldDirty) rebuildBuildingGrid();
@@ -1482,6 +1484,7 @@ function update(dt) {
       if (!e.deployed && !e.sold && (e.team === 0 || e.team === 1) && !isWallType(e.type)) {
         const mine = game.stats[e.team], theirs = game.stats[1 - e.team];
         if (isBuilding(e)) { mine.buildingsLost++; theirs.destroyed++; } else { mine.unitsLost++; theirs.kills++; }
+        if (game.track) game.track.lost[e.team][e.type] = (game.track.lost[e.team][e.type] || 0) + 1;
         if (e.type === 'turret' && e.crew) { mine.unitsLost++; theirs.kills++; }   // the gunner goes down with it
         if (e.type === 'turret' && e.team === 1) game.ai.turretLostAt = game.time;
       }
@@ -1896,6 +1899,7 @@ function releaseUnit(b, type) {
   const d = frontDoor(b);
   const u = spawn(type || PRODUCES[b.type][0], b.team, d.x, d.y - 10);
   if (game.stats[b.team]) game.stats[b.team].units++;
+  if (game.track && game.track.made[b.team]) { const m = game.track.made[b.team], k = type || PRODUCES[b.type][0]; m[k] = (m[k] || 0) + 1; }
   u.facing = Math.PI / 2;
   u.order = { type: 'move', x: d.x + (Math.random() - .5) * 70, y: d.y + 28 };
   return u;
@@ -4515,7 +4519,9 @@ ui.all.addEventListener('click', () => {
   game.selected = new Set(soldiers.map(e => e.id));
 });
 // ---------- Pause menu ----------
-const pm = { menu: $('pauseMenu'), resume: $('pmResume'), restart: $('pmRestart'), toMenu: $('pmMenu'), notes: $('pmNotes') };
+const pm = { menu: $('pauseMenu'), resume: $('pmResume'), restart: $('pmRestart'), toMenu: $('pmMenu'), notes: $('pmNotes'), report: $('pmReport') };
+pm.report.addEventListener('click', () => saveReport());
+$('ovReport').addEventListener('click', () => saveReport());
 let restartArmed = false, menuArmed = false;
 function setPaused(on) {
   game.paused = on;
@@ -4585,6 +4591,7 @@ showDifficulty();
 
 ui.ovBtn.addEventListener('click', () => {
   if (game.over) newGame();
+  $('ovReport').style.display = 'none';
   game.paused = false; ui.overlay.style.display = 'none'; ui.pause.textContent = '❚❚';
 });
 
@@ -4722,8 +4729,45 @@ function endGame(won) {
   ui.ovText.textContent = won ? 'You ' + how + ' the enemy Headquarters.' : 'Your Headquarters was ' + how + '.';
   showResults();
   ui.ovBtn.textContent = 'Play again';
+  $('ovReport').style.display = '';   // the finished game's report can still be saved from here
   ui.overlay.style.display = 'flex';
 }
+// ---------- Game report: a file you can save or share, with the whole game's numbers ----------
+function reportSnapshot() {   // where both sides stand right now
+  const side = team => {
+    const mine = game.ents.filter(e => e.team === team && e.hp > 0), army = {};
+    for (const u of mine) if (isCombat(u) || u.type === 'engineer') army[u.type] = (army[u.type] || 0) + 1;
+    const st = game.stats[team];
+    return { money: Math.round(game.credits[team]), earned: Math.round(st.earned), spent: Math.round(st.spent),
+      army: Object.values(army).reduce((a, b) => a + b, 0), armyByType: army,
+      buildings: mine.filter(e => isBuilding(e) && !isWallType(e.type)).length, walls: mine.filter(e => isWallType(e.type)).length,
+      extractors: mine.filter(e => e.type === 'extractor').length, derricks: mine.filter(e => e.type === 'derrick').length,
+      ruinsWorking: mine.filter(e => e.ruin && ruinWorks(e)).length, ruinsBroken: mine.filter(e => e.ruin && !ruinWorks(e)).length,
+      turrets: mine.filter(e => e.type === 'turret').length, turretsManned: mine.filter(e => e.type === 'turret' && e.crew).length };
+  };
+  return { t: Math.round(game.time), you: side(0), enemy: side(1), enemyWavesSent: game.ai.wavesSent || 0 };
+}
+function buildReport() {
+  return {
+    game: 'Mini RTS', version: (typeof PATCH_NOTES !== 'undefined' && PATCH_NOTES[0].version) || '?', saved: new Date().toISOString(),
+    map: mapChoice, difficulty: difficulty, secondsPlayed: Math.round(game.time), result: game.over || 'in progress',
+    stats: { you: game.stats[0], enemy: game.stats[1] },
+    made: { you: game.track.made[0], enemy: game.track.made[1] }, lost: { you: game.track.lost[0], enemy: game.track.lost[1] },
+    now: reportSnapshot(),
+    enemyAI: { wavesSent: game.ai.wavesSent || 0, nextWaveSize: game.ai.waveSize || 0, turretsBuilt: game.ai.turretsBuilt || 0 },
+    timeline: game.track.timeline,
+  };
+}
+async function saveReport() {
+  const r = buildReport(), name = 'mini-rts-report-' + r.map + '-' + r.difficulty + '-' + r.saved.slice(0, 16).replace(/[:T]/g, '-') + '.json';
+  const file = new File([JSON.stringify(r, null, 1)], name, { type: 'application/json' });
+  try {   // on phones: the share sheet (save it to Files, or send it straight on)
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Mini RTS game report' }); return; }
+  } catch (err) { if (err && err.name === 'AbortError') return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = name;   // otherwise: download it
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
 // the results table: you and the enemy side by side
 function showResults() {
   const box = document.getElementById('results'); if (!box) return;
