@@ -3,11 +3,12 @@
 const U = window.update; window.update = () => {}; window.draw = () => {};   // stop the real-time loop; we drive the clock
 const STRATS = {
   infantry: { order: ['barracks','tower','wall','tower','power','refinery2'], bar: {soldier:5, grenadier:2.5, rocket:1.5, sniper:1}, fac: null, wave: 10 },
-  tanks:    { order: ['barracks','tower','wall','tower','factory','power','tech','refinery2'], bar: {soldier:3, rocket:1}, fac: {light:6, heavy:4}, wave: 8 },
+  tanks:    { order: ['barracks','tower','wall','tower','factory','power','tech','refinery2','helipad'], bar: {soldier:3, rocket:1}, fac: {light:6, heavy:4}, wave: 8 },
   buggy:    { order: ['barracks','tower','wall','tower','factory','refinery2'], bar: {soldier:1}, fac: {buggy:8, light:2}, wave: 8 },
-  mixed:    { order: ['barracks','tower','wall','tower','power','factory','refinery2','tech'], bar: {soldier:4, grenadier:2, rocket:2, sniper:1, engineer:0.15}, fac: {buggy:2, light:3, heavy:2, artillery:1}, wave: 12 },
+  mixed:    { order: ['barracks','tower','wall','tower','power','factory','refinery2','helipad','tech'], bar: {soldier:4, grenadier:2, rocket:2, sniper:1, engineer:0.15}, fac: {buggy:2, light:3, heavy:2, artillery:1}, wave: 12 },
   heavy:    { order: ['barracks','tower','wall','tower','factory','tech','power','refinery2'], bar: {soldier:3, rocket:1}, fac: {heavy:8, light:2}, wave: 6 },
   heavyless:{ order: ['barracks','tower','wall','tower','factory','tech','power','refinery2'], bar: {soldier:3, rocket:1}, fac: {light:10}, wave: 6 },
+  air:      { order: ['barracks','tower','wall','tower','power','factory','helipad','refinery2','helipad'], bar: {soldier:3, rocket:1.5, grenadier:1}, fac: {light:3, buggy:1}, wave: 10 },   // (since v5.49: a helicopter-heavy plan, not in the standard test set)
   turtle:   { order: ['barracks','tower','wall','tower','tower','power','tower','factory','refinery2','tech'], bar: {soldier:3, rocket:2, grenadier:1}, fac: {light:3, heavy:3, artillery:2}, wave: 16 },
 };
 const pick = w => { const ks = Object.keys(w).filter(k => unlocked(0, k)); if (!ks.length) return null; let t = ks.reduce((s, k) => s + w[k], 0) * Math.random(); for (const k of ks) { t -= w[k]; if (t <= 0) return k; } return ks[0]; };
@@ -56,7 +57,7 @@ function putRefineryNearOre() {
   return put('refinery');
 }
 window.runSim = function (strategy, maxMinutes) {
-  const S = STRATS[strategy]; newGame(); window.botHills = null; wallPlan = []; gatesLeft = null; allPlans = null; retryGates = []; lastGateRetry = 0; game.paused = false;
+  const S = STRATS[strategy]; newGame(); window.botHills = null; window.botSawAir = false; window.botSamTry = -99; wallPlan = []; gatesLeft = null; allPlans = null; retryGates = []; lastGateRetry = 0; game.paused = false;
   const st = { strategy, difficulty, map: mapChoice, produced: [{}, {}], died: [{}, {}], kills: {}, killValue: {}, spent: [{}, {}], captures: [0, 0], derrickSecs: [0, 0], firstDerrick: [null, null], highUnitSecs: [0, 0], firstOnHigh: [null, null], stuckEvents: 0, stuckTypes: {},
                peakExtractors: [0, 0], idleCashSamples: [], crushes: 0, firstTank: [null, null], firstAttackOnPlayerBase: null, aiWaves: 0, errors: [] };
   const P0 = window.produce;
@@ -78,7 +79,7 @@ window.runSim = function (strategy, maxMinutes) {
         else if (orderIdx < S.order.length && game.time - lastBuildTry > 3 && (S.order[orderIdx] === 'barracks' || mine.filter(isCombat).length >= 5 || game.credits[0] > 900)) {
           const want = S.order[orderIdx]; lastBuildTry = game.time;
           const type = want === 'refinery2' ? 'refinery' : want === 'wall' ? 'gate' : want;
-          const have = want === 'wall' ? (gatesLeft && !gatesLeft.length && !wallPlan.length) : want === 'refinery2' ? refs.length >= 2 : want === 'tower' ? of('tower').length >= S.order.slice(0, orderIdx + 1).filter(t => t === 'tower').length : of(type).length > 0;
+          const have = want === 'wall' ? (gatesLeft && !gatesLeft.length && !wallPlan.length) : want === 'refinery2' ? refs.length >= 2 : want === 'tower' || want === 'helipad' ? of(want).length >= S.order.slice(0, orderIdx + 1).filter(t => t === want).length : of(type).length > 0;
           if (have) orderIdx++;
           else if (unlocked(0, type) && game.credits[0] >= COST[type] + 50) { if (want === 'refinery2' ? putRefineryNearOre() : want === 'wall' ? wallOffEntrance() : type === 'tower' ? putAtEntrance('tower') : put(type)) orderIdx++; }
           else if (!unlocked(0, type) && game.time > 600) orderIdx++;   // give up on it
@@ -99,9 +100,32 @@ window.runSim = function (strategy, maxMinutes) {
         // the factory picks its next vehicle and keeps it until it can afford it; the barracks hold back meanwhile
         for (const f of of('factory')) if (S.fac && f.built && !f.want) f.want = pick(S.fac);
         const facWait = !(nextB && unlocked(0, nextB)) && S.fac && of('factory').some(f => f.built && f.queue < 1 && f.want && game.credits[0] < COST[f.want]) && mine.filter(isCombat).length >= 5;
-        const saving = wallPlan.length > 0 || (nextB && unlocked(0, nextB) && mine.filter(isCombat).length >= 5 && game.credits[0] < COST[nextB] + 50) || facWait;
-        for (const b of of('barracks')) if (!saving && b.built && b.queue < 2) { let u = pick(S.bar); if (u === 'engineer' && of('engineer').length >= 2) u = 'soldier'; if (u && game.credits[0] >= COST[u]) window.produce(b, u); }
+        const heliDue = of('helipad').some(p => p.built && !padHeli(p) && !p.queue);   // an empty Helipad: save for its helicopter
+        const saving = wallPlan.length > 0 || heliDue || (nextB && unlocked(0, nextB) && mine.filter(isCombat).length >= 5 && game.credits[0] < COST[nextB] + 50) || facWait;
+        const bar = window.botSawAir ? { ...S.bar, rocket: (S.bar.rocket || 0) + 2 } : S.bar;   // enemy aircraft about: more Rocket Soldiers
+        for (const b of of('barracks')) if (!saving && b.built && b.queue < 2) { let u = pick(bar); if (u === 'engineer' && of('engineer').length >= 2) u = 'soldier'; if (u && game.credits[0] >= COST[u]) window.produce(b, u); }
         if (S.fac) for (const f of of('factory')) if ((!saving || facWait) && f.built && f.queue < 1 && f.want) { if (!unlocked(0, f.want)) f.want = pick(S.fac); else if (game.credits[0] >= COST[f.want] && window.produce(f, f.want)) f.want = null; }
+        // helicopters (since v5.49): each Helipad keeps one; fully armed, it raids an enemy Extractor it can see, else an enemy Refinery
+        // (like its waves, the bot knows where the buildings are), keeping clear of enemy SAM Sites; badly hurt, it flies home
+        for (const p of of('helipad')) if (p.built && !padHeli(p) && !p.queue && game.credits[0] >= COST.heli) window.produce(p, 'heli');
+        const eSams = game.ents.filter(e => e.team === 1 && e.type === 'sam');
+        const safeAir = (x, y) => !eSams.some(sm => Math.hypot(sm.x - x, sm.y - y) < STATS.sam.range + 60);
+        for (const h of of('heli')) {
+          if (!h.landed && h.hp < h.maxHp * 0.4 && padOf(h)) { if (!h.order || h.order.type !== 'return') h.order = { type: 'return' }; continue; }
+          if (!h.landed || h.order || h.ammo < STATS.heli.ammo || h.hp < h.maxHp * 0.8) continue;
+          const pool = [...game.ents.filter(e => e.team === 1 && e.type === 'extractor' && visibleAt(e.x, e.y, 0)), ...game.ents.filter(e => e.team === 1 && (e.type === 'refinery' || e.type === 'power'))].filter(e => safeAir(e.x, e.y));
+          const t = pool.sort((a, b) => (a.type === 'extractor' ? 0 : a.type === 'refinery' ? 1 : 2) - (b.type === 'extractor' ? 0 : b.type === 'refinery' ? 1 : 2) || Math.hypot(a.x - h.x, a.y - h.y) - Math.hypot(b.x - h.x, b.y - h.y))[0];
+          if (t) h.order = { type: 'attack', target: t.id };
+        }
+        // enemy aircraft about: up to 2 SAM Sites beside the Refineries (then the HQ), and more Rocket Soldiers
+        if (game.ents.some(e => e.team === 1 && e.air && visibleAt(e.x, e.y, 0))) window.botSawAir = true;
+        if (window.botSawAir && of('sam').length < 2 && unlocked(0, 'sam') && game.credits[0] >= COST.sam && game.time - (window.botSamTry || -99) > 10) {
+          window.botSamTry = game.time; let ok = false;
+          for (const r of [...refs, hq].filter(b => b.built !== false && !of('sam').some(sm => Math.hypot(sm.x - b.x, sm.y - b.y) < 200))) {
+            for (let k = 0; k < 20 && !ok; k++) { const a = Math.random() * 6.28, d = r.size / 2 + 40 + Math.random() * 70; ok = clearOfWall('sam', r.x + Math.cos(a) * d, r.y + Math.sin(a) * d) && placeBuilding(0, 'sam', r.x + Math.cos(a) * d, r.y + Math.sin(a) * d); }
+            if (ok) break;
+          }
+        }
         // win back buildings an enemy engineer took: an engineer with a few escorts
         const retake = game.lost[0].map(byId).filter(b => b && b.team === 1 && canCapture(b));
         if (game.time > 120) for (const d of game.ents) if (d.type === 'derrick' && d.team !== 0 && !retake.includes(d)) retake.push(d);   // Oil Derricks too (a player knows where the villages are)
@@ -120,7 +144,7 @@ window.runSim = function (strategy, maxMinutes) {
         if (!window.botHills || (!botHills.length && hq)) window.botHills = aiHillSpots(0).flatMap(h => h.spots);
         const snipers = of('sniper');
         if (botHills.length) snipers.forEach((u, k) => { const p = botHills[k % botHills.length]; if (!u.order && Math.hypot(u.x - p.x, u.y - p.y) > 30) u.order = { type: 'move', x: p.x, y: p.y }; });
-        const army = mine.filter(e => isCombat(e) && !(e.type === 'sniper' && botHills.length));
+        const army = mine.filter(e => isCombat(e) && !e.air && !(e.type === 'sniper' && botHills.length));   // (helicopters fly their own raids)
         for (const e of army) if (e.inWave && !e.order) e.inWave = false;   // a wave unit with nothing left to do is back in the pool (it used to stay flagged and never attack again)
         const idle = army.filter(e => !e.order || (e.order.type === 'move' && !e.inWave));   // waiting at home (including walking to a guard spot)
         const ents = findEntrances(0);
@@ -136,9 +160,9 @@ window.runSim = function (strategy, maxMinutes) {
     }
     // ---- record who fires at what (for kill credit) ----
     for (const e of game.ents) {
-      if (!(isCombat(e) || e.type === 'tower')) continue;
+      if (!(isCombat(e) || e.type === 'tower' || e.type === 'sam')) continue;
       const pc = prevCd.get(e.id); prevCd.set(e.id, e.cooldown);
-      if (pc !== undefined && e.cooldown > pc + 0.01) { const t = byId(e.type === 'tower' ? e.target : e.order && e.order.target); if (t) t.lastHit = e.type; }
+      if (pc !== undefined && e.cooldown > pc + 0.01) { const t = byId(e.type === 'tower' || e.type === 'sam' ? e.target : e.order && e.order.target); if (t) t.lastHit = e.type; }
     }
     const before = new Map(game.ents.map(e => [e.id, e]));
     const teamsBefore = new Map(game.ents.filter(isBuilding).map(e => [e.id, e.team]));
@@ -159,7 +183,7 @@ window.runSim = function (strategy, maxMinutes) {
     // ---- stuck units: has a move-type order but hasn't moved 6px in 15s ----
     if (step % 20 === 0) {
       for (const e of game.ents) {
-        if (!isUnit(e) || !e.order || !['move', 'attackmove'].includes(e.order.type) || (e.holdUntil || 0) > game.time) { lastPos.delete(e.id); continue; }
+        if (!isUnit(e) || e.air || !e.order || !['move', 'attackmove'].includes(e.order.type) || (e.holdUntil || 0) > game.time) { lastPos.delete(e.id); continue; }
         const lp = lastPos.get(e.id);
         if (!lp) { lastPos.set(e.id, { x: e.x, y: e.y, t: game.time, flagged: false }); continue; }
         if (Math.hypot(e.x - lp.x, e.y - lp.y) > 6) { lastPos.set(e.id, { x: e.x, y: e.y, t: game.time, flagged: false }); }
