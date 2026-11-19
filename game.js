@@ -2382,7 +2382,9 @@ function runAI(dt) {
   // ---- base building (army comes first: extras only once it has a decent force) ----
   ai.waveSize = ai.waveSize || D.attackAt;
   // After each wave goes out it spends ~45s investing (refinery, towers, walls) before saving for the next wave.
-  const sent = ai.wavesSent || 0;
+  // how far along its building plan is: by waves sent, or on Normal and Hard by time too (as if it had sent its first wave after 5 minutes and its second after 8),
+  // so waiting to gather a full wave doesn't hold up its War Factory, Radar, Medbay, walls and second Refinery
+  const sent = Math.max(ai.wavesSent || 0, D.walls ? (game.time > 480 ? 2 : game.time > 300 ? 1 : 0) : 0);
   const wantTowers = sent === 0 ? (D.towers && barracks.some(b => b.built) && extractors.length >= 3 && game.time > 150 ? 1 : 0) : sent === 1 ? Math.min(1, D.towers) : D.towers;   // first tower early, at the choke point
   // Hard puts down a second refinery straight away (after a minute); everyone builds the rest once its economy and first wave are going
   const reqRefineries = extractors.length >= 3 && sent >= 1 ? D.refineries : D.earlyRefinery && game.time > 60 ? 2 : 1;
