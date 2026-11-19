@@ -166,10 +166,10 @@ const DIFFICULTY = {
             guard: 1, maxWave: 6, extractors: 2, refineries: 1, walls: false, grenadiers: false, engineers: 0, rockets: false, snipers: 0, factory: false, tanks: 0, heavyTanks: false, artillery: 0, raidEvery: 0, waveEvery: 240, minWave: 3, focus: 'nearest',
             derricks: true, derrickAfter: 480, ruinAfter: 540, turrets: 1, turretsTotal: 2, engineerCap: 2, escort: 2, garrison: 1, hill: 0, hillSize: 0, hillAfter: 0 },
   normal: { label: 'Normal', think: 1.5, slow: 1, income: 1, attackAt: 8, attackAfter: 180, barracks: 1, maxArmy: 36, towers: 2, buggies: true, plants: 1,
-            guard: 3, maxWave: 22, extractors: 6, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 1, factory: true, tanks: 0.25, heavyTanks: false, artillery: 1, raidEvery: 600, hqGuard: 2, waveEvery: 180, minWave: 8, waveGrow: 3, waveWait: 60, focus: 'economy',
+            guard: 3, maxWave: 22, extractors: 6, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 1, factory: true, tanks: 0.25, heavyTanks: false, artillery: 1, raidEvery: 600, hqGuard: 2, helis: 1, sams: 1, waveEvery: 180, minWave: 8, waveGrow: 3, waveWait: 60, focus: 'economy',
             derricks: true, derrickAfter: 360, ruinAfter: 420, turrets: 1, turretsTotal: 2, engineerCap: 2, escort: 3, garrison: 2, hill: 1, hillSize: 3, hillAfter: 420 },
   hard:   { label: 'Hard',   think: 1,   slow: 0.9,  income: 1.12,    attackAt: 12, attackAfter: 0,   barracks: 3, factories: 2, maxArmy: Infinity, towers: 3, buggies: true, plants: 2,
-            guard: 4, maxWave: 36, extractors: 8, refineries: 3, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true, artillery: 2, raidEvery: 480, hqGuard: 3, earlyRefinery: true, expandAt: 1500, antiArmor: 12, waveEvery: 120, minWave: 12, waveGrow: 3, waveWait: 60, focus: 'defences',
+            guard: 4, maxWave: 36, extractors: 8, refineries: 3, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true, artillery: 2, raidEvery: 480, hqGuard: 3, helis: 2, sams: 2, earlyRefinery: true, expandAt: 1500, antiArmor: 12, waveEvery: 120, minWave: 12, waveGrow: 3, waveWait: 60, focus: 'defences',
             derricks: true, derrickAfter: 300, ruinAfter: 360, turrets: 1, turretsTotal: 2, engineerCap: 3, escort: 3, garrison: 3, hill: 2, hillSize: 3, hillAfter: 360 },
 };
 let difficulty = 'normal';
@@ -2369,7 +2369,7 @@ function runAI(dt) {
   const of = t => mine.filter(e => e.type === t && !e.ruin);   // (a captured ruin is a bonus: it doesn't stand in for the buildings it makes at home)
   const settler = of('settler')[0], hq = of('hq')[0];
   const barracks = of('barracks'), refineries = of('refinery'), extractors = of('extractor');
-  const army = mine.filter(isCombat);   // soldiers and buggies
+  const army = mine.filter(e => isCombat(e) && !e.air);   // soldiers, buggies and tanks (its helicopters fly their own raids: aiHelis)
   const cash = game.credits[1];
 
   // remember any of your buildings it has seen; forget ones it sees are gone
@@ -2393,6 +2393,8 @@ function runAI(dt) {
   const wantTech = D.heavyTanks && sent >= 2 && of('factory').some(f => f.built) && !of('tech').length && unlocked(1, 'tech') && !aiBlocked('tech');
   const wantRadar = D.walls && sent >= 1 && !of('radar').length && unlocked(1, 'radar') && !aiBlocked('radar');   // Normal and Hard
   const wantMedbay = D.walls && sent >= 1 && !of('medbay').length && unlocked(1, 'medbay') && !aiBlocked('medbay');   // Normal and Hard: somewhere to patch up the wounded
+  const wantPad = D.helis && sent >= 2 && of('factory').some(f => f.built) && of('helipad').length < D.helis && unlocked(1, 'helipad') && !aiBlocked('helipad');   // 1 on Normal, 2 on Hard
+  const wantSam = D.sams && ai.seenAir && of('sam').length < D.sams && unlocked(1, 'sam') && !aiBlocked('sam');
   const extrasDone = (refineries.length >= reqRefineries || aiBlocked('refinery')) && (of('tower').length >= wantTowers || aiBlocked('tower')) && !wantFactory && !wantTech;
   const building = game.time < (ai.buildUntil || 0) && !extrasDone;
   if (refineries.length === 0) aiPlaceRefinery(hq);
@@ -2400,11 +2402,13 @@ function runAI(dt) {
   else if (of('power').length < D.plants && cash >= COST.power) aiPlace(hq, 'power');
   else if (refineries.length < reqRefineries && cash >= COST.refinery && !aiBlocked('refinery')) aiPlaceRefinery(hq);
   else if (of('tower').length < wantTowers && cash >= COST.tower && !aiBlocked('tower')) aiPlaceTower(hq);
+  else if (wantSam && cash >= COST.sam) aiPlaceSam(hq, refineries);
   else if (barracks.length < D.barracks && cash >= 900) aiPlace(hq, 'barracks');
   else if (wantFactory && cash >= COST.factory) aiPlace(hq, 'factory');
   else if (wantTech && cash >= COST.tech) aiPlace(hq, 'tech');
   else if (wantMedbay && cash >= COST.medbay) aiPlace(hq, 'medbay');
   else if (wantRadar && cash >= COST.radar + 150) aiPlace(hq, 'radar');
+  else if (wantPad && cash >= COST.helipad + 150) aiPlace(hq, 'helipad');
 
   // expand toward fresh ore once the ore by its refineries is running out
   const expanding = aiExpand(hq, refineries, sent);
@@ -2451,10 +2455,11 @@ function runAI(dt) {
     if (refineries.length < reqRefineries && !aiBlocked('refinery')) reserve += COST.refinery;
     else if (of('tower').length < wantTowers && !aiBlocked('tower')) reserve += COST.tower;
   }
-  const vReserve = reserve;   // vehicles don't wait for the Tech Centre savings
+  const heliDue = of('helipad').some(p => p.built && !padHeli(p) && !p.queue);   // an empty Helipad: its helicopter comes before more tanks
+  const vReserve = reserve + (heliDue ? COST.heli : 0);   // vehicles don't wait for the Tech Centre savings
   // the War Factory (and later the Tech Centre) are worth saving for whenever home is safe
   const otherExtrasDone = (refineries.length >= reqRefineries || aiBlocked('refinery')) && (of('tower').length >= wantTowers || aiBlocked('tower'));
-  if (defended && (!building || otherExtrasDone)) reserve += wantFactory ? COST.factory : wantTech ? COST.tech : 0;
+  if (defended && (!building || otherExtrasDone)) reserve += wantFactory ? COST.factory : wantTech ? COST.tech : wantPad ? COST.helipad : 0;
   // an attack is due but there aren't enough troops yet: troops come first, savings wait (it never stops attacking)
   const waveDue = game.time >= D.attackAfter && game.time >= (ai.nextWave || 0);
   if (waveDue && army.filter(u => !u.role).length < D.minWave + 4) reserve = Math.min(reserve, extractors.length + qx < wantExtractors ? COST.extractor : 0);
@@ -2472,13 +2477,14 @@ function runAI(dt) {
   }
   ai.seen = ai.seen || { infantry: 0, vehicles: 0, snipers: 0 };
   for (const k in seenNow) ai.seen[k] = Math.max(ai.seen[k], seenNow[k]);
-  ai.seenBuggies = Math.max(ai.seenBuggies || 0, game.ents.filter(v => v.team === 0 && (v.type === 'buggy' || isTank(v)) && visibleAt(v.x, v.y, 1)).length);
+  ai.seenBuggies = Math.max(ai.seenBuggies || 0, game.ents.filter(v => v.team === 0 && (v.type === 'buggy' || isTank(v) || v.air) && visibleAt(v.x, v.y, 1)).length);
+  if (game.ents.some(v => v.team === 0 && v.air && visibleAt(v.x, v.y, 1))) ai.seenAir = true;   // it has seen your aircraft: time for SAM Sites
   // Hard sizes its answer to your vehicles by what it has seen of them (still alive), heavier ones counting for more:
   // one Rocket Soldier per point (Buggy or Artillery 1, Light Tank 1.5, Heavy Tank 2.5), up to antiArmor; Normal keeps the simple rule
   ai.seenVeh = ai.seenVeh || {};
-  for (const v of game.ents) if (v.team === 0 && (v.type === 'buggy' || isTank(v) || v.type === 'artillery') && visibleAt(v.x, v.y, 1)) ai.seenVeh[v.id] = v.type;
+  for (const v of game.ents) if (v.team === 0 && (v.type === 'buggy' || isTank(v) || v.type === 'artillery' || v.air) && visibleAt(v.x, v.y, 1)) { ai.seenVeh[v.id] = v.type; if (v.air) ai.seenAir = true; }
   for (const id in ai.seenVeh) { const v = byId(+id); if (!v || v.hp <= 0 || v.team !== 0) delete ai.seenVeh[id]; }
-  const armour = Object.values(ai.seenVeh).reduce((s, t) => s + (t === 'heavy' ? 2.5 : t === 'light' ? 1.5 : 1), 0);
+  const armour = Object.values(ai.seenVeh).reduce((s, t) => s + (t === 'heavy' ? 2.5 : t === 'heli' ? 2 : t === 'light' ? 1.5 : 1), 0);   // (a helicopter counts 2)
   const tanksSeen = Object.values(ai.seenVeh).filter(t => t === 'light' || t === 'heavy').length;
   const wantRocket = D.rockets && unlocked(1, 'rocket') && (D.antiArmor
     ? armour > 0 && of('rocket').length + qOf('rocket') < Math.min(D.antiArmor, Math.ceil(armour))
@@ -2527,6 +2533,8 @@ function runAI(dt) {
     if (game.credits[1] >= COST[vehicle] + vReserve) produce(f, vehicle);
   }
   if (vehicle && defended && !of('factory').some(f => f.queue > 0)) reserve += COST[vehicle];
+  if (heliDue) reserve += COST.heli;   // save up for a helicopter for an empty pad
+  aiHelis(D);
   for (const b of barracks) {
     if (b.queue >= 2) continue;
     if (wantEngineer && game.credits[1] >= COST.engineer && produce(b, 'engineer')) {
@@ -2931,6 +2939,37 @@ function aiTurretSpot(hq) {
 }
 
 // towers go near its gate (if it has one) or toward the middle from the HQ
+// SAM Site: beside a Refinery (where your helicopters come raiding), the one nearest you first, else by its HQ
+function aiPlaceSam(hq, refineries) {
+  const have = game.ents.filter(e => e.team === 1 && e.type === 'sam');
+  const yours = hqOf(0) || { x: W / 2, y: H / 2 };
+  const refs = refineries.filter(r => r.built && !have.some(s => Math.hypot(s.x - r.x, s.y - r.y) < 200)).sort((a, b) => Math.hypot(a.x - yours.x, a.y - yours.y) - Math.hypot(b.x - yours.x, b.y - yours.y));
+  for (const r of refs) for (let tries = 0; tries < 25; tries++) {
+    const a = Math.random() * Math.PI * 2, d = r.size / 2 + 40 + Math.random() * 70;
+    if (placeBuilding(1, 'sam', r.x + Math.cos(a) * d, r.y + Math.sin(a) * d)) return true;
+  }
+  return aiPlace(hq, 'sam');
+}
+// The computer's helicopters: each Helipad keeps one. Fully armed and patched up, it raids your Extractors or Artillery
+// that it can see, else a Refinery it knows of (or failing that another building), keeping clear of SAM Sites it has spotted; badly hurt, it flies home.
+function aiHelis(D) {
+  if (!D.helis) return;
+  for (const p of game.ents) if (p.team === 1 && p.type === 'helipad' && p.built && !padHeli(p) && !p.queue && game.credits[1] >= COST.heli) produce(p, 'heli');
+  const sams = [...game.ai.known.values()].filter(k => k.type === 'sam');
+  const safe = (x, y) => !sams.some(k => Math.hypot(k.x - x, k.y - y) < STATS.sam.range + 60);
+  for (const h of game.ents) {
+    if (h.team !== 1 || !h.air || h.hp <= 0) continue;
+    if (!h.landed && h.hp < h.maxHp * 0.4 && padOf(h)) { if (!h.order || h.order.type !== 'return') h.order = { type: 'return' }; continue; }
+    if (!h.landed || h.order || h.ammo < STATS.heli.ammo || h.hp < h.maxHp * 0.8) continue;
+    let best = null, bd = Infinity;
+    for (const e of game.ents) if (e.team === 0 && (e.type === 'extractor' || e.type === 'artillery') && visibleAt(e.x, e.y, 1) && safe(e.x, e.y)) { const d = Math.hypot(e.x - h.x, e.y - h.y); if (d < bd) { bd = d; best = e; } }
+    for (const pass of ['refinery', 'any']) {   // else a Refinery it knows of, and failing that any other building of yours (never the HQ or walls)
+      if (best) break;
+      for (const [id, k] of game.ai.known) if ((pass === 'refinery' ? k.type === 'refinery' : k.type !== 'hq' && !isWallType(k.type)) && safe(k.x, k.y)) { const b = byId(id); const d = Math.hypot(k.x - h.x, k.y - h.y); if (b && b.team === 0 && d < bd) { bd = d; best = b; } }
+    }
+    if (best) h.order = { type: 'attack', target: best.id };
+  }
+}
 function aiPlaceTower(hq) {
   // first choice: just inside the choke point, so it covers where attackers come in
   const ents = findEntrances(1), have = game.ents.filter(e => e.team === 1 && e.type === 'tower').length;

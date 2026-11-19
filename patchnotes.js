@@ -2,6 +2,15 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.49', date: '19 Nov 2026', title: 'Enemy helicopters',
+    changes: [
+      'Normal and Hard: the computer now builds Helipads and Attack Helicopters: 1 on Normal, 2 on Hard. It puts its Helipad down once it has a War Factory and has sent two waves (or after about 8 minutes), and saves up for each helicopter before buying more tanks.',
+      'Its helicopters raid your Extractors and Artillery when it can see them, otherwise a Refinery it knows about (or another building of yours, never the HQ). They keep clear of SAM Sites they have spotted, fly home to reload when out of missiles, and head home early when badly hurt.',
+      'Once it has seen one of your helicopters, it builds SAM Sites (1 on Normal, 2 on Hard) beside its Refineries, and counts your aircraft when deciding how many Rocket Soldiers to train.',
+      'Defend with Rocket Soldiers and SAM Sites: nothing else can hit aircraft.',
+    ],
+  },
+  {
     version: '5.48.1', date: '19 Nov 2026', title: 'Steadier enemy build-up',
     changes: [
       'Fixed: since v5.48 the computer waits to gather a full first wave, and on Normal that held up its War Factory, Radar, Medbay, walls and second Refinery, so it often never built a tank. On Normal and Hard its building plan now moves on with time too: after 5 minutes it builds as if it had sent its first wave, and after 8 as if it had sent its second.',
