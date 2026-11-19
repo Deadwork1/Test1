@@ -38,6 +38,7 @@ Example: `python3 rec/record.py .. 8801 large hard mixed 60`
 - `test_rock_fire.py` checks direct fire can't pass through rock (lobbed grenades can).
 - `test_building_edges.py` checks an Extractor leaving its Refinery and a tank attacking past its own buildings don't snag on building edges.
 - `test_back_to_menu.py` checks the pause menu's Exit Game button (two taps, fresh game on the start screen, Start plays again).
+- `test_heli.py` checks helicopters: Helipad builds one docked helicopter (one per pad), attack, flying home to land and reload, flying straight over rocks and river, only Rocket Soldiers and SAM Sites can hit it, SAM Sites shoot only aircraft, and docking at a new Helipad after losing its own. `pic_heli.py <game folder> <port> <out prefix>` pictures the Helipad, a helicopter in action and a SAM Site.
 - `test_turret.py` checks Turrets: an Engineer builds an empty one, infantry man it, Unload, enemy takeover of an empty one, the gunner lost with it.
 - `test_ruins.py` checks the ruined bases on every map: capture, repair, working only from half health, no selling, falling back to neutral when knocked out.
 - `test_ai_ruins.py <game folder> <port> <maps> <difficulties>` logs when the computer captures and repairs each ruin.

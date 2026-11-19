@@ -5,7 +5,7 @@ A small real-time strategy game inspired by classic 90s RTS games, built step by
 **Current version:** 1v1 against the computer with terrain and fog of war, on the Classic, Large or Huge map.
 
 - Your **settler** deploys into a **Headquarters (HQ)**.
-- The HQ builds a **Refinery** ($400), a **Barracks** ($300, trains Soldiers, Grenadiers, Rocket Soldiers, Snipers and Engineers), a **War Factory** ($500, Scout Buggy, Light Tank, Artillery, Heavy Tank), a **Tech Centre** ($600, unlocks the Heavy Tank), a **Power Plant** ($200, +25% build and training speed each, up to double), a **Guard Tower** ($500), a **Radar** ($300, needs a Power Plant: reveals everything within 750, over rocks and cliffs), a **Medbay** ($400, needs a Barracks: units standing on it heal, up to 5 infantry or 1 vehicle at a time), **Walls** ($20 each) and **Gates** ($150, 3 tiles wide).
+- The HQ builds a **Refinery** ($400), a **Barracks** ($300, trains Soldiers, Grenadiers, Rocket Soldiers, Snipers and Engineers), a **War Factory** ($500, Scout Buggy, Light Tank, Artillery, Heavy Tank), a **Tech Centre** ($600, unlocks the Heavy Tank), a **Power Plant** ($200, +25% build and training speed each, up to double), a **Guard Tower** ($500), a **Radar** ($300, needs a Power Plant: reveals everything within 750, over rocks and cliffs), a **Medbay** ($400, needs a Barracks: units standing on it heal, up to 5 infantry or 1 vehicle at a time), a **Helipad** ($500, needs a War Factory: home of one Attack Helicopter), a **SAM Site** ($600, needs a Power Plant: shoots only at aircraft), **Walls** ($20 each) and **Gates** ($150, 3 tiles wide).
 - Some things need other buildings first (tech tree): Grenadier, Rocket Soldier and Artillery need a Power Plant, Sniper needs a Guard Tower, the War Factory needs a Barracks and a Refinery, the Tech Centre needs a War Factory.
 - Each Refinery comes with one free **Extractor** and can build more ($150). They wait until you tap some **ore**, then run back and forth automatically. When a patch runs out they go idle; **Auto-harvest** sends them to the nearest ore you've discovered.
 - The big ore field in the middle is the prize. Destroy or capture (with an Engineer) the enemy Headquarters to win; lose yours and you lose.
@@ -22,6 +22,8 @@ A small real-time strategy game inspired by classic 90s RTS games, built step by
 - **Plateaus** are high ground with cliffs and ramps: units up there see 25% further and shoot 20% further, can't be seen from below, and take only half damage from units below (Grenadiers and Artillery lob their shots and do full damage). On the Large and Huge maps two of them are **river lookouts** jutting out over the river by the middle island, with one ramp each facing away from the middle.
 - **Forests** stop tanks and extractors. Infantry walk through slowly and are hidden inside unless an enemy gets close or they open fire; the Scout Buggy can drive through slowly but can't hide. Anything standing in a forest only sees 70% as far.
 - Units find their own way around obstacles and buildings.
+
+- **Helicopters:** an Attack Helicopter ($800) starts docked on its Helipad, flies over everything, fires 6 missiles (strong against vehicles and buildings, weak against infantry), then flies home to reload. Tap an enemy to attack, the ground to hover there, or its Helipad (or Return) to send it home. Only Rocket Soldiers and SAM Sites can shoot aircraft.
 
 - **Crushing:** tanks and Extractors drive straight over enemy infantry and crush them.
 

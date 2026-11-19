@@ -2,6 +2,18 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.47', date: '19 Nov 2026', title: 'Helicopters',
+    changes: [
+      'New: Helipad ($500, needs a War Factory). It builds one Attack Helicopter ($800) and is its home: the helicopter starts docked on it, and each pad looks after one helicopter at a time.',
+      'Attack Helicopter: 300 health, speed 90, range 140. It flies straight over rivers, rocks, cliffs, forests and walls, and high ground makes no difference to it. It carries 6 missiles (35 damage each: 1.5x against vehicles, half against infantry).',
+      'Tap an enemy to attack it, or tap the ground to hover there and shoot whatever comes in range. When its target is gone or its missiles run out it flies home, lands, reloads (about 10 seconds) and patches up a little. Tap its Helipad, or Return, to send it home yourself.',
+      'If its Helipad is destroyed it keeps flying with the missiles it has left, and lands on the next free Helipad you build.',
+      'Only Rocket Soldiers (1.5x damage: 5 rockets bring one down) and the new SAM Site can hit aircraft. Soldiers, tanks, Grenadiers, Artillery, Guard Towers and Turrets can\'t.',
+      'New: SAM Site ($600, needs a Power Plant). Range 220, 50 damage every 1.5 seconds, shoots only at aircraft. Like Guard Towers, it can be built further out than other buildings.',
+      'The computer doesn\'t build helicopters or SAM Sites yet: that comes next. Its Rocket Soldiers will shoot at yours.',
+    ],
+  },
+  {
     version: '5.46.3', date: '19 Nov 2026', title: 'Who killed what',
     changes: [
       'The game report now records, for each unit type on both sides, how many kills it made, the value of what it killed, and the value of all the damage it did (the share of a target\'s health it took off, times the target\'s price). Units and buildings with no price, like Civilians and the Headquarters, count as $0.',
