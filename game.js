@@ -839,7 +839,7 @@ function newGame() {
     effects: [],
     over: null, paused: false,
     ai: { timer: 0, attacking: false, known: new Map(), scout: null, exploreTarget: null },
-    track: { made: [{}, {}], lost: [{}, {}], hits: [{}, {}], timeline: [], nextSample: 0 },   // for the game report: what each side made and lost, and a snapshot every 30 s
+    track: { made: [{}, {}], lost: [{}, {}], hits: [{}, {}], whoKilled: [{}, {}], timeline: [], nextSample: 0 },   // for the game report: what each side made and lost, and a snapshot every 30 s
   };
   for (const f of fog) { f.vis.fill(0); f.exp.fill(0); }
   { const box = document.getElementById('results'); if (box) box.style.display = 'none'; }
@@ -942,6 +942,10 @@ function creditKill(e, extra) {   // e has just died: its killer's unit type get
   if (!game.track || !e.lastHit || e.lastHitTeam === e.team) return;
   const k = game.track.hits[e.lastHitTeam][e.lastHit]; if (!k) return;
   k.kills += 1 + (extra || 0); k.killValue += COST[e.type] || 0;
+  // who killed whom: killer type -> what it killed -> how many (a Turret's gunner counts as its own kill)
+  const w = game.track.whoKilled[e.lastHitTeam], row = w[e.lastHit] || (w[e.lastHit] = {});
+  row[e.type] = (row[e.type] || 0) + 1;
+  if (extra && e.crew) row[e.crew.type] = (row[e.crew.type] || 0) + extra;
 }
 const isSolid = e => isBuilding(e) && !STATS[e.type].walkOn;   // the Medbay is a pad units walk onto, so it doesn't block movement
 const byId = id => game.ents.find(e => e.id === id);
@@ -4980,7 +4984,8 @@ function buildReport() {
     map: mapChoice, difficulty: difficulty, secondsPlayed: Math.round(game.time), result: game.over || 'in progress',
     stats: { you: game.stats[0], enemy: game.stats[1] },
     made: { you: game.track.made[0], enemy: game.track.made[1] }, lost: { you: game.track.lost[0], enemy: game.track.lost[1] },
-    byUnit: { you: reportHits(0), enemy: reportHits(1) },   // per unit type: kills, value of what it killed, value of the damage it did ($, from prices)
+    byUnit: { you: reportHits(0), enemy: reportHits(1) },
+    whoKilled: { you: game.track.whoKilled[0], enemy: game.track.whoKilled[1] },   // killer type -> { victim type: count }, for each side's killers   // per unit type: kills, value of what it killed, value of the damage it did ($, from prices)
     now: reportSnapshot(),
     enemyAI: { wavesSent: game.ai.wavesSent || 0, nextWaveSize: game.ai.waveSize || 0, turretsBuilt: game.ai.turretsBuilt || 0 },
     timeline: game.track.timeline,

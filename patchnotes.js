@@ -2,6 +2,12 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.47.1', date: '19 Nov 2026', title: 'Who killed whom',
+    changes: [
+      'The game report now lists, for each side, what each unit type killed: for example your Heavy Tanks killed 12 Rocket Soldiers, 8 Soldiers and 2 Refineries. Buildings count too, and a Turret\'s gunner counts as a kill of his own.',
+    ],
+  },
+  {
     version: '5.47', date: '19 Nov 2026', title: 'Helicopters',
     changes: [
       'New: Helipad ($500, needs a War Factory). It builds one Attack Helicopter ($800) and is its home: the helicopter starts docked on it, and each pad looks after one helicopter at a time.',
