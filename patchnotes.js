@@ -2,6 +2,12 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.46.2', date: '19 Nov 2026', title: 'No selling from the menu',
+    changes: [
+      'Fixed: the Sell button showed through the pause menu and could still sell a building while the game was paused. Menus now sit on top of everything, Sell is hidden while paused or after the game ends, and it can\'t sell at those times.',
+    ],
+  },
+  {
     version: '5.46.1', date: '19 Nov 2026', title: 'Game reports',
     changes: [
       'New: Save game report, in the pause menu and on the results screen. It saves a small file with your game\'s numbers for both sides: money earned and spent, units and buildings made and lost by type, captures, Derricks, ruins, Turrets, the computer\'s attack waves, and a snapshot every 30 seconds.',

@@ -4487,7 +4487,7 @@ function sellBuilding(b) {
 }
 ui.sell.addEventListener('click', () => {
   const sel = [...game.selected].map(byId).filter(Boolean), b = sel.length === 1 && sel[0];
-  if (!sellable(b)) return;
+  if (!sellable(b) || game.paused || game.over) return;   // never from behind the pause menu or the results screen
   const now = performance.now();
   if (now - sellShownAt < SELL_SETTLE) return;   // it only just appeared: this click was meant for whatever was here before
   if (sellArmed !== b.id) { sellArmed = b.id; sellArmedAt = now; return; }
@@ -4631,7 +4631,7 @@ function updateHUD() {
   show(ui.cancel, !!placing);
   show(ui.rotate, !!(placing && placing.type === 'gate'));
   show(ui.deselect, sel.length > 0 && !placing);
-  const toSell = sel.length === 1 && sellable(sel[0]) && !placing ? sel[0] : null;
+  const toSell = sel.length === 1 && sellable(sel[0]) && !placing && !game.paused && !game.over ? sel[0] : null;
   if ((toSell ? toSell.id : null) !== sellFor) { sellFor = toSell ? toSell.id : null; sellShownAt = performance.now(); }
   show(ui.sell, !!toSell);
   if (!toSell || sellArmed !== toSell.id) sellArmed = null;
