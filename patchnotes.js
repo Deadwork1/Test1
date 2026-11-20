@@ -2,6 +2,12 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.49.5', date: '20 Nov 2026', title: 'Turrets know whose side',
+    changes: [
+      'Fixed: a Turret or Guard Tower that was shooting at an enemy building kept shooting it after it changed hands, so your Turret could go on firing at an Oil Derrick you had just captured. Turrets and Guard Towers (and SAM Sites) now let go of a target as soon as it is no longer an enemy, and the same goes for a Turret the other side has taken over.',
+    ],
+  },
+  {
     version: '5.49.4', date: '20 Nov 2026', title: 'Helicopters and the fog',
     changes: [
       'Helicopters no longer fly into land you have never seen (black fog) on a move order: they stop at its edge and hover there. Only an attack takes a helicopter into the unknown, following its target and uncovering land on the way. Flying home is always allowed. Land you have seen before (grey fog) is no problem.',

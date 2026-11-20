@@ -1912,7 +1912,7 @@ function updateTower(e, dt) {
   if (e.type === 'turret' && !e.crew) { e.target = null; return; }   // nobody on the gun
   e.cooldown -= dt;
   let t = e.target && byId(e.target);
-  if (!t || t.hp <= 0 || !canHit(e, t) || hiddenFrom(t, e.team) || !visibleAt(t.x, t.y, e.team) || edgeDist(e.x, e.y, t) > rangeOf(e) || !canShoot(e, t)) { t = findEnemyNear(e, rangeOf(e)); e.target = t ? t.id : null; }
+  if (!t || t.hp <= 0 || t.team === e.team || t.team === NEUTRAL || !canHit(e, t) || hiddenFrom(t, e.team) || !visibleAt(t.x, t.y, e.team) || edgeDist(e.x, e.y, t) > rangeOf(e) || !canShoot(e, t)) { t = findEnemyNear(e, rangeOf(e)); e.target = t ? t.id : null; }
   if (!t) return;
   e.aim = Math.atan2(t.y - e.y, t.x - e.x);
   if (e.cooldown <= 0) {
