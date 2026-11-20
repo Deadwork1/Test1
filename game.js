@@ -1943,12 +1943,16 @@ function padOf(e) {   // its own pad, or (if that's gone) any free one of its si
   if (best) e.pad = best.id;
   return best;
 }
-function flyToward(e, x, y, dt) {
+// scout: false = it won't fly into land its side has never seen (black fog); it stops at the edge and returns 'edge'.
+// Only an attack takes a helicopter into the unknown (v5.49.4); flying home is always allowed.
+function flyToward(e, x, y, dt, scout = true) {
   const dx = x - e.x, dy = y - e.y, d = Math.hypot(dx, dy), step = STATS[e.type].speed * dt;
   e.movedAt = game.time;
-  if (d <= step) { e.x = x; e.y = y; return true; }
-  e.x += dx / d * step; e.y += dy / d * step; e.facing = Math.atan2(dy, dx);
-  return false;
+  e.facing = d > 0.01 ? Math.atan2(dy, dx) : e.facing;
+  const nx = d <= step ? x : e.x + dx / d * step, ny = d <= step ? y : e.y + dy / d * step;
+  if (!scout && !exploredAt(nx, ny, e.team)) return 'edge';
+  e.x = nx; e.y = ny;
+  return d <= step;
 }
 function heliFire(e, t) {
   const s = STATS[e.type];
@@ -1989,7 +1993,7 @@ function updateHeli(e, dt) {
     return;
   }
   if (o.type === 'move' || o.type === 'attackmove') {   // fly there and hover, shooting what comes in range, until out of ammo or sent home
-    if (!o.arrived && flyToward(e, o.x, o.y, dt)) { o.arrived = true; if (o.face !== undefined) e.facing = o.face; }
+    if (!o.arrived) { const r = flyToward(e, o.x, o.y, dt, false); if (r) { o.arrived = true; if (r === true && o.face !== undefined) e.facing = o.face; } }   // (a move stops at the edge of land it has seen)
     if (e.ammo <= 0) { goHome(e); return; }
     const t = findEnemyNear(e, rangeOf(e));
     if (t) heliFire(e, t);

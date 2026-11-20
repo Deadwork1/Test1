@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.49.4', date: '20 Nov 2026', title: 'Helicopters and the fog',
+    changes: [
+      'Helicopters no longer fly into land you have never seen (black fog) on a move order: they stop at its edge and hover there. Only an attack takes a helicopter into the unknown, following its target and uncovering land on the way. Flying home is always allowed. Land you have seen before (grey fog) is no problem.',
+      'The computer\'s helicopters follow the same rule.',
+    ],
+  },
+  {
     version: '5.49.3', date: '20 Nov 2026', title: 'Hard flies helicopters',
     changes: [
       'Hard no longer needs spare money for its helicopters (Normal still needs $300 to spare). While one of its Helipads stands empty, its Barracks hold off so it can afford the helicopter, even while it gathers a wave, but its War Factories keep building tanks.',

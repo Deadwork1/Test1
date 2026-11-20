@@ -9,7 +9,7 @@ class Q(http.server.SimpleHTTPRequestHandler):
 srv = http.server.ThreadingHTTPServer(('127.0.0.1', int(sys.argv[2])), functools.partial(Q, directory=sys.argv[1]))
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 JS = r'''(()=>{ const U=update; window.update=()=>{}; window.draw=()=>{}; const out={};
- newGame(); game.paused=false; runAI=()=>{}; game.ents=game.ents.filter(e=>e.type!=='settler'); for (const t of [0,1]) { const h=spawn('hq',t,START[t].x,START[t].y); h.built=true; } fog[0].vis.fill(1); fog[1].vis.fill(1); window.updateFog=()=>{};
+ newGame(); game.paused=false; runAI=()=>{}; game.ents=game.ents.filter(e=>e.type!=='settler'); for (const t of [0,1]) { const h=spawn('hq',t,START[t].x,START[t].y); h.built=true; } fog[0].vis.fill(1); fog[1].vis.fill(1); fog[0].exp.fill(1); fog[1].exp.fill(1); window.updateFog=()=>{};
  const run=(sec,until)=>{ let k=0; while(k<sec*20){ U(0.05); k++; if(until&&until()) break; } return +(k/20).toFixed(1); };
  const hq=hqOf(0); const mk=(type,dx,dy)=>{ const b=spawn(type,0,hq.x+dx,hq.y+dy); b.built=true; b.progress=1; b.hp=b.maxHp; return b; };
  mk('barracks',-260,0); mk('refinery',0,-400); mk('factory',260,-200); mk('power',-260,-250);
@@ -56,6 +56,14 @@ JS = r'''(()=>{ const U=update; window.update=()=>{}; window.draw=()=>{}; const 
  out.noPad={order: h3.order, landed: h3.landed};
  const pad2=mk('helipad',-100,260); const tDock=run(80,()=>h3.landed);
  out.newPad={sec:tDock, landed:h3.landed, onNewPad: Math.hypot(h3.x-pad2.x,h3.y-pad2.y)<1, padId: h3.pad===pad2.id};
+ // v5.49.4: no flying into land never seen (black fog) unless attacking. Forget everything but a circle of 300 round the helicopter.
+ h3.order=null; run(1); for (const f of [fog[0]]) for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++) f.exp[r*COLS+c] = Math.hypot((c+0.5)*CELL-h3.x,(r+0.5)*CELL-h3.y) < 300 ? 1 : 0;
+ const start={x:h3.x,y:h3.y}, far={x:Math.min(W-100,h3.x+900),y:h3.y};
+ h3.landed=false; h3.order={type:'move',x:far.x,y:far.y}; run(15);
+ out.moveIntoBlackFog={stoppedAfter:Math.round(Math.hypot(h3.x-start.x,h3.y-start.y)), stillOnSeenLand: exploredAt(h3.x,h3.y,0), arrived: !!(h3.order&&h3.order.arrived)};
+ const foe=spawn('light',1,far.x,far.y); foe.passive=true; foe.order={type:'move',x:foe.x,y:foe.y}; h3.ammo=STATS.heli.ammo;
+ h3.order={type:'attack',target:foe.id}; const tA=run(30,()=>foe.hp<=0);
+ out.attackIntoBlackFog={sec:tA, foeDead:foe.hp<=0, flewOut:Math.round(Math.hypot(h3.x-start.x,h3.y-start.y))};
  out.report=buildReport().byUnit;
  return out; })()
 '''
