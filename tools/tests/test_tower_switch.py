@@ -15,6 +15,11 @@ JS = r'''(()=>{ const U=update; window.update=()=>{}; window.draw=()=>{}; const 
  const tur=spawn('turret',0,der.x+der.size/2+60,der.y); tur.built=true; tur.progress=1; tur.crew={type:'soldier',hp:60};
  const hp0=der.hp; run(3); out.turretFiresAtEnemyDerrick = der.hp<hp0;
  captureBuilding(der,0); der.hp=der.maxHp; run(3); out.derrickCapturedHpAfter3s = Math.round(der.hp); out.turretStopped = der.hp===der.maxHp && tur.target!==der.id;
+ // your exact case: the enemy holds the Derrick, your Turret knocks it out (it falls back to neutral), then you take it back
+ der.team=1; der.hp=120; tur.target=der.id; let k=0; while(k<20*20 && der.team===1){ U(0.05); k++; }
+ out.knockedToNeutral = der.team===NEUTRAL;
+ run(2); out.turretLetGoOfNeutral = tur.target!==der.id;
+ captureBuilding(der,0); der.hp=der.maxHp; run(3); out.backToYoursHp = Math.round(der.hp); out.turretLeavesItAlone = der.hp===der.maxHp && tur.target!==der.id;
  // Guard Tower on an enemy Power Plant that then becomes yours
  const pp=spawn('power',1,der.x,der.y+260); pp.built=true; pp.progress=1; pp.hp=pp.maxHp;
  const tw=spawn('tower',0,pp.x+120,pp.y); tw.built=true; tw.progress=1; tw.hp=tw.maxHp;
@@ -26,6 +31,6 @@ with sync_playwright() as p:
     pg.goto(f'http://127.0.0.1:{sys.argv[2]}/index.html'); pg.evaluate("localStorage.setItem('mini-rts-map','large')"); pg.reload()
     pg.wait_for_timeout(3000); pg.click('#ovBtn')
     r = pg.evaluate(JS); print(json.dumps(r), 'errors', errs[:2])
-    print('PASS' if r['turretFiresAtEnemyDerrick'] and r['turretStopped'] and r['towerFiresAtEnemyPlant'] and r['towerStopped'] else 'FAIL')
+    print('PASS' if r['turretFiresAtEnemyDerrick'] and r['turretStopped'] and r['knockedToNeutral'] and r['turretLetGoOfNeutral'] and r['turretLeavesItAlone'] and r['towerFiresAtEnemyPlant'] and r['towerStopped'] else 'FAIL')
     b.close()
 srv.shutdown()
