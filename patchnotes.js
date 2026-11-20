@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.49.6', date: '20 Nov 2026', title: 'Fixes: gates and enemy Helipads',
+    changes: [
+      'Fixed: units told to attack a building headed for its middle. For a gate that is inside the wall, so they could drive all the way round through another entrance to reach it from the inside. They now go for the near side and shoot it from there.',
+      'Fixed: on Hard, an empty Helipad made the computer\'s Barracks save up for a helicopter that it often never afforded, so its army stayed small and it stopped attacking. It now saves for a helicopter only once it has a full wave\'s worth of troops, and it doesn\'t build a second Helipad while one stands empty.',
+    ],
+  },
+  {
     version: '5.49.5', date: '20 Nov 2026', title: 'Turrets know whose side',
     changes: [
       'Fixed: a Turret or Guard Tower that was shooting at an enemy building kept shooting it after it changed hands, so your Turret could go on firing at an Oil Derrick you had just captured. Turrets and Guard Towers (and SAM Sites) now let go of a target as soon as it is no longer an enemy, and the same goes for a Turret the other side has taken over.',

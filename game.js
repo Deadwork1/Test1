@@ -1735,7 +1735,12 @@ function updateSoldier(e, dt) {   // soldiers and buggies
     const seen = visibleAt(t.x, t.y, e.team) || (s.siege && isBuilding(t) && exploredAt(t.x, t.y, e.team));
     if (edgeDist(e.x, e.y, t) > rangeOf(e) || !seen || !canShoot(e, t)) {   // out of range, out of sight (e.g. up on a cliff) or rock in the way: close in
       // can't get to it (a building boxed in by others, say)? head for the nearest spot it can reach within range of it and shoot from there
-      if (navigate(e, o.ax !== undefined ? o.ax : t.x, o.ay !== undefined ? o.ay : t.y, dt) === 'fail') {
+      if (isBuilding(t) && o.ax === undefined && o.nx === undefined) {   // aim for a spot on this side of it, in range of its nearest edge
+        const cx = Math.max(t.x - halfX(t), Math.min(t.x + halfX(t), e.x)), cy = Math.max(t.y - halfY(t), Math.min(t.y + halfY(t), e.y));
+        const dx = e.x - cx, dy = e.y - cy, d = Math.hypot(dx, dy) || 1, k = Math.min(d, rangeOf(e) * 0.6);
+        o.nx = cx + dx / d * k; o.ny = cy + dy / d * k;
+      }
+      if (navigate(e, o.ax !== undefined ? o.ax : o.nx !== undefined ? o.nx : t.x, o.ay !== undefined ? o.ay : o.ny !== undefined ? o.ny : t.y, dt) === 'fail') {
         const ap = isBuilding(t) && !o.approachTried ? approachSpot(e, t) : null;
         o.approachTried = true;
         if (ap) { o.ax = ap.x; o.ay = ap.y; e.nav = null; } else e.order = o.resume || null;
@@ -2397,7 +2402,7 @@ function runAI(dt) {
   const wantTech = D.heavyTanks && sent >= 2 && of('factory').some(f => f.built) && !of('tech').length && unlocked(1, 'tech') && !aiBlocked('tech');
   const wantRadar = D.walls && sent >= 1 && !of('radar').length && unlocked(1, 'radar') && !aiBlocked('radar');   // Normal and Hard
   const wantMedbay = D.walls && sent >= 1 && !of('medbay').length && unlocked(1, 'medbay') && !aiBlocked('medbay');   // Normal and Hard: somewhere to patch up the wounded
-  const wantPad = D.helis && sent >= 2 && of('factory').some(f => f.built) && of('helipad').length < D.helis && unlocked(1, 'helipad') && !aiBlocked('helipad');   // 1 on Normal, 2 on Hard
+  const wantPad = D.helis && sent >= 2 && of('factory').some(f => f.built) && of('helipad').length < D.helis && !of('helipad').some(p => !padHeli(p))   /* no second pad while one stands empty */ && unlocked(1, 'helipad') && !aiBlocked('helipad');   // 1 on Normal, 2 on Hard
   const wantSam = D.sams && ai.seenAir && of('sam').length < D.sams && unlocked(1, 'sam') && !aiBlocked('sam');
   const extrasDone = (refineries.length >= reqRefineries || aiBlocked('refinery')) && (of('tower').length >= wantTowers || aiBlocked('tower')) && !wantFactory && !wantTech;
   const building = game.time < (ai.buildUntil || 0) && !extrasDone;
@@ -2459,7 +2464,7 @@ function runAI(dt) {
     if (refineries.length < reqRefineries && !aiBlocked('refinery')) reserve += COST.refinery;
     else if (of('tower').length < wantTowers && !aiBlocked('tower')) reserve += COST.tower;
   }
-  const padEmpty = D.heliSave && of('helipad').some(p => p.built && !padHeli(p) && !p.queue);   // Hard: an empty Helipad makes its Barracks wait (not its War Factories), so it can afford the helicopter
+  const padEmpty = D.heliSave && army.length >= D.minWave + D.guard && of('helipad').some(p => p.built && !padHeli(p) && !p.queue);   // Hard: an empty Helipad makes its Barracks wait (not its War Factories), so it can afford the helicopter, but only once it has a full wave's worth of troops (v5.49.6: it used to starve its army waiting)
   if (padEmpty) reserve += COST.heli;
   if (wantSam && defended) reserve += COST.sam;   // your aircraft are about: a SAM Site comes before more troops and tanks
   const vReserve = reserve - (padEmpty ? COST.heli : 0);   // vehicles don't wait for the Tech Centre savings, or for a helicopter
