@@ -120,7 +120,7 @@ const STATS = {
   // shells take a while to land, so moving units can dodge them.
   artillery: { hp: 120, speed: 28, r: 13, sight: 150, range: 250, minRange: 80, dmg: 45, cooldown: 4, siege: true, splash: 40, flight: 1.3, spread: 14, vsBuilding: 3, vsVehicle: 0.6 },
   sniper:    { hp: 45,  speed: 46, r: 9,  sight: 220, range: 160, dmg: 75, cooldown: 2.7, vsVehicle: 0.15, vsBuilding: 0.1, reveal: 0.5 },   // one-shots infantry from far away; useless vs vehicles
-  rocket:    { hp: 55,  speed: 45, r: 9,  sight: 170, range: 130, dmg: 40, cooldown: 2.5, rocket: true, vsVehicle: 2, vsHeavy: 1.5, vsBuilding: 2, vsInfantry: 0.4, vsAir: 1.5 },   // (and the only soldier that can hit aircraft)
+  rocket:    { hp: 55,  speed: 45, r: 9,  sight: 170, range: 130, dmg: 40, cooldown: 2.5, rocket: true, vsVehicle: 2, vsHeavy: 2, vsBuilding: 2, vsInfantry: 0.4, vsAir: 1.5 },   // (vsHeavy 1.5 until v5.50: Heavy Tanks were too hard to stop)   // (and the only soldier that can hit aircraft)
   // attack helicopter: flies over everything, fires 8 missiles (6 of 35 until v5.49.2), then goes home to its Helipad to reload (about 10 s) and patch up
   heli:      { hp: 300, speed: 90, r: 14, sight: 220, range: 140, dmg: 45, cooldown: 1.0, air: true, ammo: 8, reload: 10, repair: 3, vsVehicle: 1.5, vsBuilding: 1, vsInfantry: 0.5 },   // anti-vehicle: double vs vehicles & buildings, weak vs infantry
   grenadier: { hp: 55,  speed: 48, r: 9,  sight: 170, range: 95,  dmg: 16, cooldown: 2.0, splash: 38, flight: 0.55, vsVehicle: 0.5 },   // lobbed grenades: area damage, half vs vehicles
@@ -2380,6 +2380,15 @@ function runAI(dt) {
   const barracks = of('barracks'), refineries = of('refinery'), extractors = of('extractor');
   const army = mine.filter(e => isCombat(e) && !e.air);   // soldiers, buggies and tanks (its helicopters fly their own raids: aiHelis)
   const cash = game.credits[1];
+  // its Rocket Soldiers gang up on your Heavy Tanks: each one within 350 of a Heavy Tank it can see goes for the nearest (v5.50)
+  const yourHeavies = game.ents.filter(v => v.team === 0 && v.type === 'heavy' && v.hp > 0 && visibleAt(v.x, v.y, 1));
+  if (yourHeavies.length) for (const r of army) {
+    if (r.type !== 'rocket' || r.role === 'heal' || (r.order && r.order.type === 'man')) continue;
+    const cur = r.order && r.order.type === 'attack' ? byId(r.order.target) : null;
+    if (cur && cur.type === 'heavy' && cur.hp > 0) continue;
+    const h = yourHeavies.reduce((b, v) => Math.hypot(v.x - r.x, v.y - r.y) < Math.hypot(b.x - r.x, b.y - r.y) ? v : b);
+    if (Math.hypot(h.x - r.x, h.y - r.y) < 350) r.order = { type: 'attack', target: h.id, resume: r.order && r.order.type !== 'attack' ? r.order : (r.order && r.order.resume) || null };
+  }
 
   // remember any of your buildings it has seen; forget ones it sees are gone
   for (const e of game.ents) if (e.team === 0 && isBuilding(e) && !isWallType(e.type) && visibleAt(e.x, e.y, 1)) ai.known.set(e.id, { x: e.x, y: e.y, type: e.type });

@@ -43,6 +43,7 @@ Example: `python3 rec/record.py .. 8801 large hard mixed 60`
 - `test_sam_heat.py <game folder> <port> [difficulty] [maps]` hovers one of your helicopters over one spot by the computer's base, then another, and checks each of its SAM Sites goes up close enough to cover the spot (its heat map of your aircraft).
 - `test_tower_switch.py` checks Turrets and Guard Towers stop shooting a building once it's no longer an enemy (a captured Oil Derrick, a building that changes hands).
 - `test_gate_attack.py` checks tanks told to attack an enemy gate shoot it from their own side instead of driving round through the base's other entrance (Huge and Large).
+- `test_rocket_heavy.py <game folder> <port> [trials]` puts 12 enemy Rocket Soldiers (with the computer's brain running) against 3 of your Heavy Tanks and 4 Buggies, and reports what each side lost and when the first Heavy Tank fell.
 - `test_turret.py` checks Turrets: an Engineer builds an empty one, infantry man it, Unload, enemy takeover of an empty one, the gunner lost with it.
 - `test_ruins.py` checks the ruined bases on every map: capture, repair, working only from half health, no selling, falling back to neutral when knocked out.
 - `test_ai_ruins.py <game folder> <port> <maps> <difficulties>` logs when the computer captures and repairs each ruin.

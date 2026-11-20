@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.50', date: '20 Nov 2026', title: 'Rockets bite Heavy Tanks',
+    changes: [
+      'Rocket Soldiers now do double damage to Heavy Tanks, the same as to other vehicles (80 a rocket, was 60): 13 rockets destroy one instead of 17.',
+      'The computer\'s Rocket Soldiers gang up on your Heavy Tanks: every one of them within reach of a Heavy Tank it can see goes for the nearest one, instead of spreading their fire over everything else.',
+    ],
+  },
+  {
     version: '5.49.6', date: '20 Nov 2026', title: 'Fixes: gates and enemy Helipads',
     changes: [
       'Fixed: units told to attack a building headed for its middle. For a gate that is inside the wall, so they could drive all the way round through another entrance to reach it from the inside. They now go for the near side and shoot it from there.',
