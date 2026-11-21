@@ -1440,22 +1440,20 @@ function updateExtractor(e, dt) {
   const d = dockOf(ref);
   if (o.phase === 'docking') {
     if (!o.aligned) { o.aligned = moveToward(e, d.out.x, d.out.y, dt); return; }   // line up with the door first
-    if (moveToward(e, d.pad.x, d.pad.y, dt)) { o.phase = 'unloading'; o.t = 0; o.aligned = false; o.load = e.cargo; o.paid = 0; o.shown = 0; o.shownAt = 0; }
+    if (moveToward(e, d.pad.x, d.pad.y, dt)) { o.phase = 'unloading'; o.t = 0; o.aligned = false; o.load = e.cargo; o.paid = 0; }
     e.facing = -Math.PI / 2;   // then drive straight in, nose-first
     return;
   }
 
   if (o.phase === 'unloading') {
     // the money trickles in while it sits in the bay (v5.52), whole dollars at a time; cut short, the rest stays on board
-    if (o.load === undefined) { o.load = e.cargo; o.paid = 0; o.shown = 0; o.shownAt = o.t; }
+    if (o.load === undefined) { o.load = e.cargo; o.paid = 0; }
     o.t += dt;
     const k = Math.min(1, o.t / s.unloadTime), mult = e.team === 1 ? diff().income : 1;
     const due = k >= 1 ? Math.round(o.load * mult) : Math.floor(o.load * k * mult);
     if (due > o.paid) { earn(e.team, due - o.paid); o.paid = due; }
     e.cargo = o.load * (1 - k);
-    if (e.team === 0 && (o.t - o.shownAt >= 2.5 || k >= 1) && o.paid > o.shown) {   // a small +$ every couple of seconds
-      game.effects.push({ kind: 'text', x: e.x, y: e.y - 20, text: '+$' + (o.paid - o.shown), t: 0 }); o.shown = o.paid; o.shownAt = o.t;
-    }
+    // (no floating +$ over the Refinery since v5.53.1, your call: the money box and the emptying load bar show it)
     if (k >= 1) { e.cargo = 0; o.load = undefined; o.phase = 'undocking'; }
     return;
   }
