@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.58', date: '21 Nov 2026', title: 'Landing',
+    changes: [
+      'The game now opens with your Settler arriving by sea: a landing craft sails in, drops its ramp on the beach, your Settler drives ashore and heads for its start spot, and the boat backs out and leaves.',
+      'The sea is always in view, so you can watch it come in. The computer starts far from the sea, so its Settler starts in place, but it waits about as long as your landing takes before it deploys.',
+    ],
+  },
+  {
     version: '5.57', date: '21 Nov 2026', title: 'To the sea',
     changes: [
       'Every map now ends in a sea along its south edge: a sandy beach, surf and deep water, with the river running out into it.',

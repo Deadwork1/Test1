@@ -18,7 +18,7 @@ with sync_playwright() as p:
           let landWater = 0, seaLand = 0;
           for (let x = 12; x < W; x += 25) { for (let y = H + 12; y < HT; y += 25) if (terrainAt(x, y) !== T.WATER) seaLand++; }
           const s0 = game.ents.find(e=>e.team===0&&e.type==='settler');
-          const mirrored = Math.abs(START[1].x - (W - START[0].x)) < 1 && Math.abs(START[1].y - (H - START[0].y)) < 1 && Math.abs(s0.x - START[0].x) < 1 && Math.abs(s0.y - START[0].y) < 1;   // (the computer may already have deployed its Settler)
+          const mirrored = Math.abs(START[1].x - (W - START[0].x)) < 1 && Math.abs(START[1].y - (H - START[0].y)) < 1 && s0.boarded && Math.abs(s0.x - START[0].x) < 1;   // (your Settler starts on its landing boat, v5.58; the computer may already have deployed)
           deploy(s0); const hq = hqOf(0);
           const u = spawn('soldier', 0, hq.x + 120, H - 120), t = spawn('light', 0, hq.x + 200, H - 120);
           for (const v of [u, t]) v.order = { type: 'move', x: v.x, y: HT - 20 };

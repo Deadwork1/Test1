@@ -931,7 +931,8 @@ function newGame() {
   }
   spawn('settler', 0, START[0].x, START[0].y);
   spawn('settler', 1, START[1].x, START[1].y);
-  cam.x = START[0].x; cam.y = START[0].y; setZoom(1); clampCam();
+  startLanding();
+  cam.x = START[0].x; cam.y = (START[0].y + H) / 2; setZoom(1); clampCam();   // (between your start spot and the beach, so you see the boat come in)
   updateFog();
 }
 
@@ -1151,7 +1152,7 @@ function radarCells(x, y, r) {   // every fog square within r: a radar isn't blo
 }
 
 function updateFog() {
-  for (const f of fog) f.vis.fill(0);
+  for (const f of fog) { f.vis.fill(0); f.vis.fill(1, (H / CELL) * COLS); f.exp.fill(1, (H / CELL) * COLS); }   // the sea is always in view (only scenery: nobody can be out there), so you see your boat come in (v5.58)
   for (const e of game.ents) {
     if (e.team === NEUTRAL) continue;
     const f = fog[e.team];
@@ -1194,6 +1195,11 @@ function siteIsFree(x, y, size) {
 
 // the settler packs itself up and becomes a headquarters where it stands
 function deploy(settler) {
+  if (settler.boarded || settler.landing) {   // deployed before it has landed (the test tools do this): skip the landing, and the computer's wait
+    settler.boarded = settler.landing = false; settler.x = START[settler.team].x; settler.y = START[settler.team].y;
+    if (game.landing) { game.landing.phase = 'leave'; game.landing.t = 0; }
+    game.aiDeployAt = 0;
+  }
   if (!siteIsFree(settler.x, settler.y, STATS.hq.size)) return false;
   settler.hp = 0; settler.deployed = true;
   const hq = spawn('hq', settler.team, settler.x, settler.y);
@@ -1515,6 +1521,43 @@ function updateExtractor(e, dt) {
   }
 }
 
+// ---------- The landing (v5.58) ----------
+// The game opens with your Settler arriving on a landing craft: it sails in from the sea, drops its ramp on the beach,
+// the Settler drives up onto the land and heads for its start spot, then the boat backs out and leaves.
+// The computer starts far from the sea, so its Settler starts in place, but it waits about as long before deploying.
+const BOAT_SPEED = 60, BOAT_RAMP = 0.6;
+function startLanding() {
+  const s0 = game.ents.find(e => e.team === 0 && e.type === 'settler'); if (!s0) return;
+  const x = START[0].x, stopY = coastY(x) + 26, y = HT + 70;
+  s0.boarded = true; s0.x = x; s0.y = y - 4; s0.facing = -Math.PI / 2;
+  game.landing = { x, y, stopY, phase: 'sail', t: 0, ramp: 0, sid: s0.id };
+  // the computer deploys once your Settler could have reached its start spot
+  game.aiDeployAt = (y - stopY) / BOAT_SPEED + BOAT_RAMP + (stopY - 30 - (H - 22)) / STATS.settler.speed + Math.hypot(START[0].x - x, START[0].y - (H - 22)) / STATS.settler.speed;
+}
+function updateLanding(dt) {
+  const L = game.landing; if (!L) return;
+  const s = byId(L.sid);
+  if (L.phase === 'sail') {
+    L.y = Math.max(L.stopY, L.y - BOAT_SPEED * dt);
+    if (s && s.boarded) { s.x = L.x; s.y = L.y - 4; }
+    if (L.y <= L.stopY) { L.phase = 'ramp'; L.t = 0; }
+  } else if (L.phase === 'ramp') {
+    L.t += dt; L.ramp = Math.min(1, L.t / BOAT_RAMP);
+    if (L.ramp >= 1) { if (s && s.boarded) { s.boarded = false; s.landing = true; s.y = L.stopY - 30; } L.phase = 'unload'; }
+  } else if (L.phase === 'unload') {
+    if (!s || !s.landing) { L.phase = 'leave'; L.t = 0; }
+    else if (moveToward(s, L.x, H - 22, dt)) {   // off the ramp and up the beach, then on to its start spot like any order
+      s.landing = false; s.facing = -Math.PI / 2;
+      if (!s.order) s.order = { type: 'move', x: START[0].x, y: START[0].y };
+      L.phase = 'leave'; L.t = 0;
+    }
+  } else {   // ramp up, back out to sea
+    L.t += dt; L.ramp = Math.max(0, 1 - L.t / 0.5);
+    if (L.t > 0.6) L.y += BOAT_SPEED * 0.8 * Math.min(1, (L.t - 0.6) / 1.2) * dt;
+    if (L.y > HT + 90) game.landing = null;
+  }
+}
+
 // ---------- Update ----------
 function update(dt) {
   if (game.over || game.paused) return;
@@ -1523,9 +1566,11 @@ function update(dt) {
   if (game.track && game.time >= game.track.nextSample) { game.track.timeline.push(reportSnapshot()); game.track.nextSample += 30; }
   game.credits[0] += INCOME * dt;
   game.credits[1] += INCOME * dt;
+  updateLanding(dt);
   if (bldDirty) rebuildBuildingGrid();
 
   for (const e of game.ents) {
+    if (e.boarded || e.landing) continue;   // your Settler on its boat, or driving off the ramp (the landing moves it)
     if (e.order && e.order.type === 'man' && isInfantry(e)) { updateManning(e, dt); continue; }
     if (e.type === 'settler') { if (e.order && navigate(e, e.order.x, e.order.y, dt)) e.order = null; }
     else if (e.air) updateHeli(e, dt);
@@ -2108,7 +2153,7 @@ function waitSpot(ref, e) {
 
 // keep units from stacking on top of each other or driving through buildings
 function separate() {
-  const units = game.ents.filter(e => isUnit(e) && !e.air);   // (aircraft fly over everything)
+  const units = game.ents.filter(e => isUnit(e) && !e.air && !e.boarded && !e.landing);   // (aircraft fly over everything; the landing Settler isn't on the ground yet)
   for (const u of units) { u.px = u.x; u.py = u.y; }
   for (let i = 0; i < units.length; i++) {
     const a = units[i];
@@ -2442,7 +2487,7 @@ function runAI(dt) {
   for (const e of game.ents) if (e.team === 0 && isBuilding(e) && !isWallType(e.type) && visibleAt(e.x, e.y, 1)) ai.known.set(e.id, { x: e.x, y: e.y, type: e.type });
   for (const [id, k] of ai.known) if (!byId(id) && visibleAt(k.x, k.y, 1)) ai.known.delete(id);
 
-  if (settler && !hq) deploy(settler);
+  if (settler && !hq && game.time >= (game.aiDeployAt || 0)) deploy(settler);   // (waits while your Settler lands, v5.58)
   if (!hq) return;
 
   // ---- base building (army comes first: extras only once it has a decent force) ----
@@ -3094,7 +3139,9 @@ function draw() {
 
   const sel = game.selected;
   const ents = game.ents.filter(canSee).sort((a, b) => (isBuilding(b) - isBuilding(a)) || (!!a.air - !!b.air) || a.y - b.y);   // buildings, then ground units, then aircraft on top
+  if (game.landing) drawBoat(game.landing);
   for (const e of ents) {
+    if (e.boarded) continue;   // drawn on its boat
     if (sel.has(e.id)) drawSelection(e);
     if (e.type === 'hq') drawHQ(e);
     else if (e.type === 'barracks') drawBarracks(e);
@@ -3400,6 +3447,33 @@ function drawHealth(e) {
   }
 }
 
+// The landing craft: seen from above, bow (and its ramp) to the north, a wheelhouse at the stern, your colour along the sides
+function drawBoat(L) {
+  const t = performance.now() / 1000, moving = L.phase === 'sail' || (L.phase === 'leave' && L.t > 0.6);
+  ctx.save(); ctx.translate(L.x, L.y);
+  if (moving) {   // wake: a white V behind it and foam at the bow
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+    for (const sg of [-1, 1]) { ctx.beginPath(); ctx.moveTo(sg * 14, 30); ctx.quadraticCurveTo(sg * 22, 55, sg * 36, 82); ctx.stroke(); }
+    ctx.fillStyle = 'rgba(255,255,255,0.35)'; for (let k = 0; k < 5; k++) { ctx.beginPath(); ctx.arc(Math.sin(t * 7 + k) * 12, 40 + k * 9, 3 + k * 0.6, 0, Math.PI * 2); ctx.fill(); }
+  } else { ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(0, 4, 24, 40, 0, 0, Math.PI * 2); ctx.stroke(); }   // ripples round it while it waits
+  ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.roundRect(-16, -30, 36, 70, 6); ctx.fill();   // shadow
+  // ramp: a ridged steel plate hinged at the bow, folding down onto the sand
+  const rl = 6 + 16 * L.ramp;
+  ctx.fillStyle = '#6d6f62'; ctx.fillRect(-13, -34 - rl, 26, rl + 4);
+  ctx.strokeStyle = '#4b4d43'; ctx.lineWidth = 1.2; for (let y = -34 - rl + 3; y < -32; y += 3.5) { ctx.beginPath(); ctx.moveTo(-12, y); ctx.lineTo(12, y); ctx.stroke(); }
+  // hull, deck and side walls
+  ctx.fillStyle = '#4f5a46'; ctx.beginPath(); ctx.roundRect(-18, -34, 36, 70, 7); ctx.fill();
+  ctx.fillStyle = TEAMS[0].color; ctx.fillRect(-18, -20, 3, 36); ctx.fillRect(15, -20, 3, 36);   // your colour along both sides
+  ctx.fillStyle = '#6a7560'; ctx.fillRect(-13, -30, 26, 50);                                      // the well deck
+  ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 1; for (let y = -26; y < 20; y += 6) { ctx.beginPath(); ctx.moveTo(-13, y); ctx.lineTo(13, y); ctx.stroke(); }
+  // wheelhouse at the stern, with windows and a little flag
+  ctx.fillStyle = '#3c4536'; ctx.beginPath(); ctx.roundRect(-11, 20, 22, 13, 2); ctx.fill();
+  ctx.fillStyle = '#bfe3ff'; ctx.fillRect(-8, 21.5, 16, 3);
+  ctx.strokeStyle = '#222'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(8, 26); ctx.lineTo(8, 15); ctx.stroke();
+  ctx.fillStyle = TEAMS[0].color; ctx.beginPath(); ctx.moveTo(8, 15); ctx.lineTo(14 + Math.sin(t * 6) * 1.2, 17); ctx.lineTo(8, 19); ctx.fill();
+  ctx.restore();
+  const s = byId(L.sid); if (s && s.boarded) drawSettler(s);   // its cargo, riding on the deck
+}
 function drawSettler(e) {
   const c = TEAMS[e.team];
   ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.facing);
@@ -4711,7 +4785,7 @@ function hitTest(x, y) {
   const slop = 14 / scale();
   let best = null, bestScore = Infinity;
   for (const e of game.ents) {
-    if (!canSee(e)) continue;
+    if (!canSee(e) || e.boarded || e.landing) continue;
     const d = e.air ? Math.max(0, Math.hypot(x - e.x, y - (e.y - e.alt * HELI_LIFT)) - e.r) : edgeDist(x, y, e);
     if (d <= (isBuilding(e) ? 0.01 : slop)) {
       const score = (isUnit(e) ? 0 : 1000) + d;   // prefer units over buildings
@@ -5201,7 +5275,7 @@ function updateHUD() {
     const plural = { soldier: 'soldiers', buggy: 'buggies', extractor: 'extractors', grenadier: 'grenadiers', rocket: 'rocket soldiers', sniper: 'snipers', light: 'light tanks', heavy: 'heavy tanks', artillery: 'artillery', engineer: 'engineers', settler: 'settlers', civilian: 'civilians', heli: 'helicopters' };
     const parts = Object.entries(counts).map(([t, n]) => `${n} ${n > 1 ? plural[t] || t + 's' : (SHORT[t] || NAMES[t]).toLowerCase()}`);
     text = parts.join(', ') + ' — tap to move';
-  } else text = hqOf(0) ? 'Drag to scroll, pinch to zoom' : 'Tap your settler to begin';
+  } else text = hqOf(0) ? 'Drag to scroll, pinch to zoom' : game.landing && game.landing.phase !== 'leave' ? 'Your Settler is coming ashore…' : 'Tap your settler to begin';
   ui.info.textContent = text;
 }
 
