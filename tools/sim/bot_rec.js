@@ -2,13 +2,13 @@
 (function(){
 const U = window.update; window._realDraw = window.draw; window.update = () => {}; window.draw = () => {};   // stop the real-time loop; we drive the clock
 const STRATS = {
-  infantry: { order: ['barracks','tower','wall','tower','power','refinery2'], bar: {soldier:5, grenadier:2.5, rocket:1.5, sniper:1}, fac: null, wave: 10 },
-  tanks:    { order: ['barracks','tower','wall','tower','factory','power','tech','refinery2'], bar: {soldier:3, rocket:1}, fac: {light:6, heavy:4}, wave: 8 },
-  buggy:    { order: ['barracks','tower','wall','tower','factory','refinery2'], bar: {soldier:1}, fac: {buggy:8, light:2}, wave: 8 },
-  mixed:    { order: ['barracks','tower','wall','tower','power','factory','refinery2','tech'], bar: {soldier:4, grenadier:2, rocket:2, sniper:1, engineer:0.15}, fac: {buggy:2, light:3, heavy:2, artillery:1}, wave: 12 },
-  heavy:    { order: ['barracks','tower','wall','tower','factory','tech','power','refinery2'], bar: {soldier:3, rocket:1}, fac: {heavy:8, light:2}, wave: 6 },
-  heavyless:{ order: ['barracks','tower','wall','tower','factory','tech','power','refinery2'], bar: {soldier:3, rocket:1}, fac: {light:10}, wave: 6 },
-  turtle:   { order: ['barracks','tower','wall','tower','tower','power','tower','factory','refinery2','tech'], bar: {soldier:3, rocket:2, grenadier:1}, fac: {light:3, heavy:3, artillery:2}, wave: 16 },
+  infantry: { order: ['barracks','factory','tower','wall','tower','power','refinery2'], bar: {soldier:5, grenadier:2.5, rocket:1.5, sniper:1}, fac: null, wave: 10 },
+  tanks:    { order: ['barracks','factory','tower','wall','tower','power','tech','refinery2'], bar: {soldier:3, rocket:1}, fac: {light:6, heavy:4}, wave: 8 },
+  buggy:    { order: ['barracks','factory','tower','wall','tower','refinery2'], bar: {soldier:1}, fac: {buggy:8, light:2}, wave: 8 },
+  mixed:    { order: ['barracks','factory','tower','wall','tower','power','refinery2','tech'], bar: {soldier:4, grenadier:2, rocket:2, sniper:1, engineer:0.15}, fac: {buggy:2, light:3, heavy:2, artillery:1}, wave: 12 },
+  heavy:    { order: ['barracks','factory','tower','wall','tower','tech','power','refinery2'], bar: {soldier:3, rocket:1}, fac: {heavy:8, light:2}, wave: 6 },
+  heavyless:{ order: ['barracks','factory','tower','wall','tower','tech','power','refinery2'], bar: {soldier:3, rocket:1}, fac: {light:10}, wave: 6 },
+  turtle:   { order: ['barracks','factory','tower','wall','tower','tower','power','tower','refinery2','tech'], bar: {soldier:3, rocket:2, grenadier:1}, fac: {light:3, heavy:3, artillery:2}, wave: 16 },
 };
 const pick = w => { const ks = Object.keys(w).filter(k => unlocked(0, k)); if (!ks.length) return null; let t = ks.reduce((s, k) => s + w[k], 0) * Math.random(); for (const k of ks) { t -= w[k]; if (t <= 0) return k; } return ks[0]; };
 let allPlans = null;   // every gap wall it means to build (tiles and gates), kept clear of other buildings
@@ -83,7 +83,8 @@ window.runSim = function (strategy, maxMinutes) {
           else if (!unlocked(0, type) && game.time > 600) orderIdx++;   // give up on it
         }
         const xCap = of('tower').some(t => t.built) ? Math.min(6, refs.length * 3) : 3;
-        for (const r of refs) if (r.built && xs.length + refs.reduce((n, q) => n + q.queue, 0) < xCap && r.queue === 0) P0(r, 'extractor');
+        const xfs = of('factory').filter(f => f.built), xq = xfs.reduce((n, f) => n + f.qTypes.filter(q => q === 'extractor').length, 0);   // Extractors come from the War Factory since v5.55
+        for (const f of xfs) if (xs.length + xq < xCap && !f.qTypes.includes('extractor')) { P0(f, 'extractor'); break; }
         // gates that didn't fit before (outside the build area, say): try again now and then
         if (!wallPlan.length && retryGates.length && game.credits[0] >= COST.gate + 100 && game.time - lastGateRetry > 30) {
           lastGateRetry = game.time; const plan = retryGates[0];

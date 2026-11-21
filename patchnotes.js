@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.55', date: '21 Nov 2026', title: 'Extractors from the War Factory',
+    changes: [
+      'Extra Extractors ($300) are now bought at the War Factory instead of the Refinery. Each new Refinery still comes with one free Extractor.',
+      'The computer builds its War Factory early on Normal and Hard so it can buy them. On Easy, where it never builds one, it puts up a second Refinery for its free Extractor.',
+    ],
+  },
+  {
     version: '5.54', date: '21 Nov 2026', title: 'New Extractor',
     changes: [
       'The Extractor is now a big mining dump truck: six fat tyres, a ribbed tipper body where you can see the gold ore heap up as it loads, a rounded cab in your colour, and a spinning drill on the front while it mines.',

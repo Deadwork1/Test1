@@ -145,7 +145,8 @@ const STATS = {
   derrick:   { hp: 600, size: 64, sight: 160, pay: 100, payEvery: 15 },   // an Engineer captures it; then it pays its owner every 15s
   house:     { hp: 400, size: 42, sight: 0 },                             // village houses: scenery for now
 };
-const PRODUCES = { barracks: ['soldier', 'grenadier', 'rocket', 'sniper', 'engineer'], refinery: ['extractor'], factory: ['buggy', 'light', 'artillery', 'heavy'], helipad: ['heli'] };
+const PRODUCES = { barracks: ['soldier', 'grenadier', 'rocket', 'sniper', 'engineer'], factory: ['buggy', 'light', 'artillery', 'heavy', 'extractor'], helipad: ['heli'] };   // (Extractors were bought at the Refinery until v5.55; each Refinery still comes with one free)
+const HAS_DOOR = t => !!PRODUCES[t] || t === 'refinery';   // buildings whose front door must stay clear (the Refinery for its unloading bay)
 // Tech tree: what else you need (finished, and still standing) before you can build or train something
 const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['tower'], heavy: ['tech'], artillery: ['power'], radar: ['power'], medbay: ['barracks'], helipad: ['factory'], sam: ['power'] };
 const hasBuilt = (team, type) => game.ents.some(b => b.team === team && b.type === type && b.built && ruinWorks(b));   // (a captured ruin counts once it's repaired to half)
@@ -164,7 +165,7 @@ const SHORT = { buggy: 'Buggy', rocket: 'Rocket', sniper: 'Sniper', light: 'Ligh
 //  extractors / refineries: how big its economy gets   walls: whether it builds a wall line with a gate
 const DIFFICULTY = {
   easy:   { label: 'Easy',   think: 2.5, slow: 1.5,  income: 0.7,  attackAt: 5, attackAfter: 300, barracks: 1, maxArmy: 11, towers: 0, buggies: false, plants: 0,
-            guard: 1, maxWave: 6, extractors: 2, refineries: 1, walls: false, grenadiers: false, engineers: 0, rockets: false, snipers: 0, factory: false, tanks: 0, heavyTanks: false, artillery: 0, raidEvery: 0, waveEvery: 240, minWave: 3, focus: 'nearest',
+            guard: 1, maxWave: 6, extractors: 2, refineries: 2, walls: false, grenadiers: false, engineers: 0, rockets: false, snipers: 0, factory: false, tanks: 0, heavyTanks: false, artillery: 0, raidEvery: 0, waveEvery: 240, minWave: 3, focus: 'nearest',
             derricks: true, derrickAfter: 480, ruinAfter: 540, turrets: 1, turretsTotal: 2, engineerCap: 2, escort: 2, garrison: 1, hill: 0, hillSize: 0, hillAfter: 0 },
   normal: { label: 'Normal', think: 1.5, slow: 1, income: 1, attackAt: 8, attackAfter: 180, barracks: 1, maxArmy: 36, towers: 2, buggies: true, plants: 1,
             guard: 3, maxWave: 22, extractors: 6, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 1, factory: true, tanks: 0.25, heavyTanks: false, artillery: 1, raidEvery: 600, hqGuard: 2, helis: 1, sams: 1, heliSpare: 300, waveEvery: 180, minWave: 8, waveGrow: 3, waveWait: 60, focus: 'economy',
@@ -1182,11 +1183,11 @@ function canPlace(team, type, x, y) {
     if (game.ai.wallPlans.some(pl => [...pl.tiles, pl.gate].some(t => Math.abs(t.x - x) < size / 2 + 22 && Math.abs(t.y - y) < size / 2 + 22))) return false;
   }
   for (const b of game.ents) {   // never sit on the doorstep of a building that makes units
-    if (!isBuilding(b) || !PRODUCES[b.type]) continue;
+    if (!isBuilding(b) || !HAS_DOOR(b.type)) continue;
     const od = frontDoor(b);
     if (Math.abs(od.x - x) < size / 2 + 14 && Math.abs(od.y - y) < size / 2 + 14) return false;
   }
-  if (!PRODUCES[type]) return true;   // towers etc. don't need a door
+  if (!HAS_DOOR(type)) return true;   // towers etc. don't need a door
   // the new building's front door needs open ground in front of it
   const door = { x, y: y + size / 2 + 30 };
   for (const dx of [-16, 0, 16]) if (!walkable(terrainAt(door.x + dx, door.y), true) || terrainAt(door.x + dx, door.y) === T.BRIDGE) return false;
@@ -1224,7 +1225,7 @@ function canPlaceWallPiece(team, type, x, y, vertical = false) {
     if (!isBuilding(b)) continue;
     const gap = isWallType(b.type) ? 0 : 6;   // walls can touch each other, but not other buildings
     if (Math.abs(b.x - x) < halfX(b) + hx + gap - 0.5 && Math.abs(b.y - y) < halfY(b) + hy + gap - 0.5) return false;
-    if (PRODUCES[b.type]) {   // keep doorways clear
+    if (HAS_DOOR(b.type)) {   // keep doorways clear
       const d = frontDoor(b);
       if (Math.abs(d.x - x) < hx + 24 && Math.abs(d.y - y) < hy + 22) return false;
     }
@@ -1273,7 +1274,7 @@ function placeBuilding(team, type, x, y, vertical) {
 
 function produce(b, unit) {
   unit = unit || (PRODUCES[b.type] || [])[0];
-  if (!unit || !PRODUCES[b.type].includes(unit) || !unlocked(b.team, unit) || !b.built || !ruinWorks(b) || b.queue >= STATS[b.type].maxQueue || game.credits[b.team] < COST[unit]) return false;
+  if (!unit || !(PRODUCES[b.type] || []).includes(unit) || !unlocked(b.team, unit) || !b.built || !ruinWorks(b) || b.queue >= STATS[b.type].maxQueue || game.credits[b.team] < COST[unit]) return false;
   if (unit === 'heli' && padHeli(b)) return false;   // a Helipad looks after one helicopter at a time
   spend(b.team, COST[unit]);
   b.queue++; b.qTypes.push(unit);
@@ -1901,7 +1902,7 @@ function updateBuilding(e, dt) {
     e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.9 * dt / (s.buildTime * slowOf(e)));
     if (e.progress >= 1) {
       e.progress = 1; e.built = true;
-      if (e.type === 'refinery') releaseUnit(e);   // every refinery comes with one free extractor
+      if (e.type === 'refinery') releaseUnit(e, 'extractor');   // every refinery comes with one free extractor
     }
     return;
   }
@@ -2409,9 +2410,9 @@ function runAI(dt) {
   const sent = Math.max(ai.wavesSent || 0, D.walls ? (game.time > 480 ? 2 : game.time > 300 ? 1 : 0) : 0);
   const wantTowers = sent === 0 ? (D.towers && barracks.some(b => b.built) && extractors.length >= 3 && game.time > 150 ? 1 : 0) : sent === 1 ? Math.min(1, D.towers) : D.towers;   // first tower early, at the choke point
   // Hard puts down a second refinery straight away (after a minute); everyone builds the rest once its economy and first wave are going
-  const reqRefineries = extractors.length >= 3 && sent >= 1 ? D.refineries : D.earlyRefinery && game.time > 60 ? 2 : 1;
+  const reqRefineries = !D.factory ? D.refineries : extractors.length >= 3 && sent >= 1 ? D.refineries : D.earlyRefinery && game.time > 60 ? 2 : 1;   // (Easy has no War Factory to buy Extractors at, so it builds its Refineries for their free ones, v5.55)
   // the build phase lasts until this stage's extras are built (or 90s, so it never stalls)
-  const wantFactory = D.factory && sent >= 1 && of('factory').length < (sent >= 3 && of('factory').some(f => f.built) ? (D.factories || 1) : 1) && unlocked(1, 'factory') && !aiBlocked('factory');   // (Hard adds a second one after 3 waves)
+  const wantFactory = D.factory && (sent >= 1 || !of('factory').length) && of('factory').length < (sent >= 3 && of('factory').some(f => f.built) ? (D.factories || 1) : 1) && unlocked(1, 'factory') && !aiBlocked('factory');   // (Hard adds a second one after 3 waves)
   const wantTech = D.heavyTanks && sent >= 2 && of('factory').some(f => f.built) && !of('tech').length && unlocked(1, 'tech') && !aiBlocked('tech');
   const wantRadar = D.walls && sent >= 1 && !of('radar').length && unlocked(1, 'radar') && !aiBlocked('radar');   // Normal and Hard
   const wantMedbay = D.walls && sent >= 1 && !of('medbay').length && unlocked(1, 'medbay') && !aiBlocked('medbay');   // Normal and Hard: somewhere to patch up the wounded
@@ -2461,8 +2462,9 @@ function runAI(dt) {
 
   // ---- economy ----
   const wantExtractors = Math.min(D.extractors, refineries.filter(r => r.built).length * 3);
-  const qx = refineries.reduce((n, r) => n + r.queue, 0);
-  for (const r of refineries) if (extractors.length + qx < wantExtractors && r.queue === 0 && (extractors.length < 3 || game.time - (ai.extractorAt || -99) > 30) && produce(r)) ai.extractorAt = game.time;   // (replacing lost ones: one every 30 s at most, so the money goes into troops)
+  const xFactories = of('factory').filter(f => f.built);   // Extractors are bought at the War Factory (v5.55), one at a time per factory
+  const qx = xFactories.reduce((n, f) => n + f.qTypes.filter(t => t === 'extractor').length, 0);
+  for (const f of xFactories) if (extractors.length + qx < wantExtractors && !f.qTypes.includes('extractor') && f.queue < STATS.factory.maxQueue && (extractors.length < 3 || game.time - (ai.extractorAt || -99) > 30) && produce(f, 'extractor')) { ai.extractorAt = game.time; break; }   // (replacing lost ones: one every 30 s at most, so the money goes into troops)
   for (const x of extractors) {   // idle extractors go to ore it knows about, or drive off to look for some
     if (x.order || autoHarvest(x)) continue;
     const spot = aiExploreSpot(x.x, x.y, false);
@@ -2470,7 +2472,8 @@ function runAI(dt) {
   }
 
   // ---- training ----
-  let reserve = extractors.length + qx < wantExtractors ? COST.extractor : 0;
+  const xWanted = xFactories.length && extractors.length + qx < wantExtractors;   // (no War Factory yet: nothing to save for)
+  let reserve = xWanted ? COST.extractor : 0;
   const defended = army.length >= D.guard + 2;   // never stops training while its home is thin
   if (expanding && defended) reserve += expanding;   // saving for a stepping stone or a new refinery
   if (building && defended) {   // in a build phase: save for the next thing it wants, not for units
@@ -2486,7 +2489,7 @@ function runAI(dt) {
   if (defended && (!building || otherExtrasDone)) reserve += wantFactory ? COST.factory : wantTech ? COST.tech : 0;
   // an attack is due but there aren't enough troops yet: troops come first, savings wait (it never stops attacking)
   const waveDue = game.time >= D.attackAfter && game.time >= (ai.nextWave || 0);
-  if (waveDue && army.filter(u => !u.role).length < D.minWave + 4) reserve = Math.min(reserve, (extractors.length + qx < wantExtractors ? COST.extractor : 0) + (wantSam && defended ? COST.sam : 0) + (padEmpty ? COST.heli : 0));   // (a SAM Site it needs, and on Hard a helicopter for an empty pad, still come first)
+  if (waveDue && army.filter(u => !u.role).length < D.minWave + 4) reserve = Math.min(reserve, (xWanted ? COST.extractor : 0) + (wantSam && defended ? COST.sam : 0) + (padEmpty ? COST.heli : 0));   // (a SAM Site it needs, and on Hard a helicopter for an empty pad, still come first)
   const queued = barracks.reduce((n, b) => n + b.queue, 0) + of('factory').reduce((n, f) => n + f.queue, 0);
   const qBuggies = of('factory').reduce((n, b) => n + b.qTypes.filter(t => t === 'buggy').length, 0);
   const wantBuggy = D.buggies && unlocked(1, 'buggy') && of('buggy').length + qBuggies < (of('soldier').length + 2) / ((game.ai.seen && game.ai.seen.snipers >= 3) ? 1.3 : 2);   // ~1 per 2 soldiers, more if you field snipers/grenadiers
@@ -5132,6 +5135,7 @@ function updateHUD() {
   else if (sel.length === 1 && sel[0].type === 'house') text = 'Village house';
   else if (sel.length === 1 && sel[0].type === 'medbay') text = sel[0].built ? 'Medbay — heals up to 5 infantry or 1 vehicle standing on it' + (sel[0].healing ? ' (healing ' + sel[0].healing + ')' : '') + '. Select units, then tap it' : 'Medbay: building…';
   else if (sel.length === 1 && sel[0].type === 'radar') text = sel[0].built ? 'Radar — reveals everything within ' + STATS.radar.sight + ', over rocks and cliffs (not hidden infantry in forests)' : 'Radar: ' + Math.floor(sel[0].progress * 100) + '% built';
+  else if (sel.length === 1 && sel[0].type === 'refinery') text = sel[0].built ? 'Refinery — buy Extractors at the War Factory' : `Refinery: ${Math.floor(sel[0].progress * 100)}% built`;
   else if (sel.length === 1 && sel[0].type === 'tower') text = sel[0].built ? 'Guard Tower — fires at enemies in range' : `Guard Tower: ${Math.floor(sel[0].progress * 100)}% built`;
   else if (sel.length === 1 && sel[0].type === 'turret') text = !sel[0].built ? `Turret: being built (${Math.floor(sel[0].progress * 100)}%)`
     : sel[0].crew ? `Turret — manned by a ${NAMES[sel[0].crew.type]}: a machine gun, strong against infantry, half damage to tanks`
