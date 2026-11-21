@@ -4,7 +4,8 @@ const PATCH_NOTES = [
   {
     version: '5.61', date: '21 Nov 2026', title: 'Normal gets tanks a little later',
     changes: [
-      'On Normal the computer now waits until 2:30 before it starts its War Factory (it used to have one up by about 1:15), so its first tanks and extra Extractors come a little later. Easy and Hard are unchanged.',
+      'On Normal the computer now waits until 2:30 before it starts its War Factory (it used to have one up by about 1:15), so its first tanks and extra Extractors come a little later. Easy is unchanged.',
+      'Hard always puts its War Factory before its second and third Barracks.',
     ],
   },
   {

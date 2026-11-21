@@ -2709,8 +2709,8 @@ function runAI(dt) {
   else if (of('power').length < D.plants && cash >= COST.power) aiPlace(hq, 'power');
   else if (refineries.length < reqRefineries && cash >= COST.refinery && !aiBlocked('refinery')) aiPlaceRefinery(hq);
   else if (of('tower').length < wantTowers && cash >= COST.tower && !aiBlocked('tower')) aiPlaceTower(hq);
+  else if (wantFactory && cash >= COST.factory) aiPlace(hq, 'factory');   // War Factory before any extra Barracks (v5.61: Hard used to build its 2nd and 3rd Barracks first)
   else if (barracks.length < D.barracks && cash >= 900) aiPlace(hq, 'barracks');
-  else if (wantFactory && cash >= COST.factory) aiPlace(hq, 'factory');
   else if (wantTech && cash >= COST.tech) aiPlace(hq, 'tech');
   else if (wantMedbay && cash >= COST.medbay) aiPlace(hq, 'medbay');
   else if (wantRadar && cash >= COST.radar + 150) aiPlace(hq, 'radar');
