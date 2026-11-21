@@ -1726,7 +1726,7 @@ function startLanding() {
   s0.boarded = true; s0.x = x; s0.y = y - 8; s0.facing = -Math.PI / 2;
   game.landing = { x, y, stopY, phase: 'sail', t: 0, ramp: 0, sid: s0.id };
   // the computer deploys once your Settler could have reached its start spot
-  game.aiDeployAt = (y - stopY) / BOAT_SPEED + BOAT_RAMP + (stopY - 44 - (H - 26)) / STATS.settler.speed + Math.hypot(START[0].x - x, START[0].y - (H - 26)) / STATS.settler.speed;
+  game.aiDeployAt = (y - stopY) / BOAT_SPEED + BOAT_RAMP + (stopY - 8 - (H - 26)) / STATS.settler.speed + Math.hypot(START[0].x - x, START[0].y - (H - 26)) / STATS.settler.speed;
 }
 function updateLanding(dt) {
   const L = game.landing; if (!L) return;
@@ -1737,7 +1737,7 @@ function updateLanding(dt) {
     if (L.y <= L.stopY) { L.phase = 'ramp'; L.t = 0; }
   } else if (L.phase === 'ramp') {
     L.t += dt; L.ramp = Math.min(1, L.t / BOAT_RAMP);
-    if (L.ramp >= 1) { if (s && s.boarded) { s.boarded = false; s.landing = true; s.y = L.stopY - 44; } L.phase = 'unload'; }
+    if (L.ramp >= 1) { if (s && s.boarded) { s.boarded = false; s.landing = true; } L.phase = 'unload'; }   // it drives off from where it stands on the deck (v5.61: it used to jump to the end of the ramp)
   } else if (L.phase === 'unload') {
     if (!s || !s.landing) { L.phase = 'leave'; L.t = 0; }
     else if (moveToward(s, L.x, H - 26, dt)) {   // off the ramp and up the beach, then on to its start spot like any order

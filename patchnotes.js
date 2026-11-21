@@ -7,6 +7,7 @@ const PATCH_NOTES = [
       'On Normal the computer now waits until 2:30 before it starts its War Factory (it used to have one up by about 1:15), so its first tanks and extra Extractors come a little later. Easy is unchanged.',
       'Hard now gets the same share of each load as you (it got 112%) and runs at most 7 Extractors (was 8). The computer no longer gets a free Extractor with a new Refinery once it\'s at its limit (expanding used to take it past).',
       'The first attack wave comes later: not before 4:00 on Normal (was 3:00) and 3:00 on Hard (it could leave as soon as it had 12 troops, about 2:30).',
+      'The opening landing: your Settler now drives smoothly off the boat\'s deck and down the ramp, instead of jumping forward as the ramp drops.',
       'Hard always puts its War Factory before its second and third Barracks.',
       'Normal and Hard build their Medbay only once their War Factory is up (it used to come first on Hard).',
       'Normal no longer gets stuck without a War Factory when an attack is due: it saves for it before more troops, and doesn\'t put its Radar in front of it.',
