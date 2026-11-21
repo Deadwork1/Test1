@@ -823,15 +823,22 @@ const bg = document.createElement('canvas');
   // the sea along the south edge (v5.57): a sandy beach, surf, shallows going out to deep water, and the river's mouth
   {
     const band = (off, fill) => { b.beginPath(); b.moveTo(0, HT); for (let x = 0; x <= W; x += 8) b.lineTo(x, coastY(x) + off); b.lineTo(W, HT); b.closePath(); b.fillStyle = fill; b.fill(); };
+    // the river's channel across the beach: it follows the river and widens smoothly as it reaches the sea (v5.57.1)
+    const half = MAP.river.half, y0 = H - 40, cy = coastY(riverX(H));
+    const chanW = (y, w) => { const k = Math.max(0, Math.min(1, (y - (H - 10)) / (cy + 20 - (H - 10)))); return half * w * (1 + 1.5 * k * k * (3 - 2 * k)); };
+    const chan = (w, close = true) => { for (let y = y0; y <= HT; y += 2) b.lineTo(riverX(y) - chanW(y, w), y); for (let y = HT; y >= y0; y -= 2) b.lineTo(riverX(y) + chanW(y, w), y); if (close) b.closePath(); };
+    b.save(); b.beginPath(); b.rect(0, 0, W, HT); b.moveTo(riverX(y0) - chanW(y0, 1), y0); chan(1); b.clip('evenodd');   // sand everywhere but the channel
     b.beginPath(); b.moveTo(0, HT); for (let x = 0; x <= W; x += 8) b.lineTo(x, H - 8 + 3 * Math.sin(x / 53) + 2 * Math.sin(x / 23)); b.lineTo(W, HT); b.closePath();
     b.fillStyle = '#c4ad73'; b.fill();                                            // the beach starts right where the grass ends
     band(-26, '#cdb77c'); band(-12, '#b9a36b'); band(-4, '#8f8a62');            // dry sand, wet sand, damp edge
-    const half = MAP.river.half, cy = coastY(riverX(H)), mouth = (w, col) => {   // the river cuts through the beach, opening out as it meets the sea
-      const y0 = cy - 70, y1 = cy + 40; b.beginPath();
-      for (let y = y0; y <= y1; y += 4) { const k = (y - y0) / (y1 - y0); b.lineTo(riverX(y) - half * w * (1 + 1.6 * k * k), y); }
-      for (let y = y1; y >= y0; y -= 4) { const k = (y - y0) / (y1 - y0); b.lineTo(riverX(y) + half * w * (1 + 1.6 * k * k), y); }
-      b.closePath(); b.fillStyle = col; b.fill(); };
-    mouth(1.35, '#8f8a62'); mouth(1.0, '#2f6390'); mouth(0.55, '#24537d');
+    b.restore();
+    const fade = (r, g, bl) => { const gr = b.createLinearGradient(0, y0, 0, H); gr.addColorStop(0, `rgba(${r},${g},${bl},0)`); gr.addColorStop(1, `rgba(${r},${g},${bl},1)`); return gr; };
+    b.beginPath(); chan(1); b.fillStyle = fade(47, 99, 144); b.fill();            // water in the channel, blending in from the river above
+    b.beginPath(); chan(0.5); b.fillStyle = fade(36, 83, 125); b.fill();          // its deeper middle
+    b.save(); b.beginPath(); b.rect(0, H - 12, W, HT - H + 12); b.clip();          // a damp sandy edge down both banks
+    b.strokeStyle = '#8f8a62'; b.lineWidth = 5; b.lineJoin = 'round';
+    for (const sgn of [-1, 1]) { b.beginPath(); for (let y = y0; y <= cy + 20; y += 2) b.lineTo(riverX(y) + sgn * (chanW(y, 1) + 2), y); b.stroke(); }
+    b.restore();
     const D = HT - H;
     band(0, '#3e8bab'); band(D * 0.2, '#2f6f9c'); band(D * 0.42, '#255d8a'); band(D * 0.6, '#1d4c76');   // shallows to deep water
     b.lineCap = 'round';
@@ -841,7 +848,7 @@ const bg = document.createElement('canvas');
     }
     b.strokeStyle = 'rgba(200,230,245,0.3)'; b.lineWidth = 2;                   // swell further out
     for (let i = 0; i < W / 18; i++) { const x = rnd() * W, y = coastY(x) + 20 + rnd() * (HT - coastY(x) - 24), l = 10 + rnd() * 22; b.beginPath(); b.moveTo(x, y); b.quadraticCurveTo(x + l / 2, y - 4, x + l, y); b.stroke(); }
-    for (let i = 0; i < W / 300; i++) { const x = rnd() * W, y = coastY(x) - 14 - rnd() * 8; b.fillStyle = 'rgba(120,100,70,0.6)'; b.beginPath(); b.ellipse(x, y, 4 + rnd() * 5, 2 + rnd() * 2, rnd() * 3, 0, Math.PI * 2); b.fill(); }   // pebbles on the beach
+    for (let i = 0; i < W / 300; i++) { const x = rnd() * W, y = coastY(x) - 14 - rnd() * 8; if (Math.abs(x - riverX(y)) < chanW(y, 1) + 14) continue; b.fillStyle = 'rgba(120,100,70,0.6)'; b.beginPath(); b.ellipse(x, y, 4 + rnd() * 5, 2 + rnd() * 2, rnd() * 3, 0, Math.PI * 2); b.fill(); }   // pebbles on the beach
     b.lineCap = 'butt';
   }
   b.strokeStyle = 'rgba(0,0,0,0.5)'; b.lineWidth = 6; b.strokeRect(3, 3, W - 6, HT - 6);
