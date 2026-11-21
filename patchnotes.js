@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.51', date: '21 Nov 2026', title: 'Battle damage',
+    changes: [
+      'Buildings and vehicles now show how badly they are hurt. Below two thirds of their health they get scorch marks, cracks or dents and a thin wisp of smoke; below a third they burn, with flickering fires, thick black smoke and sparks.',
+      'It goes away again as they are repaired or healed. Walls and Gates only crack and scorch. Infantry don\'t show it.',
+    ],
+  },
+  {
     version: '5.50', date: '20 Nov 2026', title: 'Rockets bite Heavy Tanks',
     changes: [
       'Rocket Soldiers now do double damage to Heavy Tanks, the same as to other vehicles (80 a rocket, was 60): 13 rockets destroy one instead of 17.',

@@ -25,6 +25,8 @@ A small real-time strategy game inspired by classic 90s RTS games, built step by
 
 - **Helicopters:** an Attack Helicopter ($800) starts docked on its Helipad, flies over everything, fires 8 missiles (strong against vehicles and buildings, weak against infantry), then flies home to reload. Tap an enemy to attack (an attack can take it into land you've never seen), the ground to hover there (it stops at the edge of land you've never seen), or its Helipad (or Return) to send it home. Only Rocket Soldiers and SAM Sites can shoot aircraft. On Normal and Hard the computer flies helicopters too (1 / 2), raiding your Extractors and Refineries, and builds SAM Sites once it has seen yours.
 
+- **Battle damage:** buildings and vehicles show scorch marks, cracks and smoke below 2/3 health, and burn below 1/3.
+
 - **Crushing:** tanks and Extractors drive straight over enemy infantry and crush them.
 
 ## Controls (touch or mouse)

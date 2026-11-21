@@ -3255,7 +3255,7 @@ function drawSelection(e) {
   }
 }
 
-// ---- Visible damage (v5.51) ----
+// ---- Visible damage (v5.51; vehicle fires drawn bigger than a scaled-down building fire so they read at normal zoom) ----
 // Buildings and vehicles show how hurt they are: below 2/3 health scorch marks, cracks or dents and a thin wisp of smoke;
 // below 1/3 more scorching, flickering fires, thick black smoke and sparks. Infantry don't show it.
 const DMG_DAMAGED = 2 / 3, DMG_CRITICAL = 1 / 3;
@@ -3318,7 +3318,7 @@ function drawDamageSmoke(e) {
     }
     if (!crit) continue;
     // fire: a few flickering tongues of flame
-    const fr = (isBuilding(e) ? 6 : 3.6) * Math.max(0.7, sc) * p.s;
+    const fr = (isBuilding(e) ? 6 * Math.max(0.7, sc) : 6.5 * Math.max(1, sc)) * p.s;
     for (let j = 0; j < 3; j++) {
       const fl = 0.75 + 0.25 * Math.sin(t * 13 + j * 2.1 + seed * 20) + 0.1 * Math.sin(t * 29 + j);
       const fx = p.x + (j - 1) * fr * 0.55, h = fr * 1.7 * fl, w = fr * 0.55;
