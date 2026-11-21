@@ -2,6 +2,12 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.61', date: '21 Nov 2026', title: 'Normal gets tanks a little later',
+    changes: [
+      'On Normal the computer now waits until 2:30 before it starts its War Factory (it used to have one up by about 1:15), so its first tanks and extra Extractors come a little later. Easy and Hard are unchanged.',
+    ],
+  },
+  {
     version: '5.60', date: '21 Nov 2026', title: 'Random maps',
     changes: [
       'New Random map option on the start screen, in Small, Large or Huge size. The gold island always sits in the middle; everything else is rolled: the river\'s bends and the bridges (sometimes two), the jungle with its ruined base, ridges, plateaus, woods and ponds.',
