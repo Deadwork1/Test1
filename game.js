@@ -4069,7 +4069,7 @@ function drawHQ(real) {
   ctx.save(); ctx.translate(real.x, real.y); ctx.scale(bump, bump); ctx.translate(-real.x, -real.y);
   ctx.beginPath(); ctx.rect(X(L), Y(T), (Rr - L) * k, (B - T) * k); ctx.clip(); art();
   ctx.restore();
-  const halves = 1 - ease((u - 0.62) / 0.12);   // the halves become the walls, then blend into them
+  const halves = 1 - ease((u - 0.42) / 0.34);   // the halves fade gently into the walls as they slide out
   if (halves > 0) {
     ctx.save(); ctx.globalAlpha *= halves;
     truckAt(70, 104, S, [40, 70, 70, 112], -(54 - L) * 0.5);   // west half of the module (the truck's back part only)
@@ -4080,9 +4080,9 @@ function drawHQ(real) {
     ctx.strokeStyle = 'rgba(40,40,36,0.85)'; ctx.lineWidth = 3; ctx.strokeRect(X(L), Y(T), (Rr - L) * k, (B - T) * k);
     ctx.strokeStyle = TEAMS[real.team].color; ctx.lineWidth = 1.5; ctx.strokeRect(X(L) + 2, Y(T) + 2, (Rr - L) * k - 4, (B - T) * k - 4);
   }
-  // 4: the cab drives in through the front doorway and is gone
-  const inside = ease((u - 0.68) / 0.16);
-  if (inside < 1) truckAt(70, 104 - 30 * inside, S, [50, 110, 90, 140]);
+  // 4: the cab rolls forward into the doorway, fading away as it goes (no hard cut-off)
+  const inside = ease((u - 0.5) / 0.36);
+  if (inside < 1) { ctx.save(); ctx.globalAlpha *= 1 - inside; truckAt(70, 104 - 16 * inside, S, [50, 108, 90, 140]); ctx.restore(); }
   if (u > 0.7) {   // 5: dust puffs at the corners as it settles
     const dk = (u - 0.7) / 0.3, hs = real.size / 2;
     ctx.fillStyle = `rgba(170,150,110,${0.45 * (1 - dk)})`;
