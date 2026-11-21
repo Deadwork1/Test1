@@ -1,0 +1,68 @@
+Small test on v5.61 (session branch, commit 7ea67b3, before the landing fix, which test games skip), 21 Nov 2026.
+40 games: 10 each of Large Normal, Large Hard, Huge Normal, Huge Hard; 2 per test-player strategy; 40-minute limit; standard test player (flies helicopters, builds SAM Sites).
+v5.61 changes: Normal War Factory from 2:30, Medbay after the War Factory, Hard income 112%->100%, Hard Extractors 8->7, first wave Normal 4:00 / Hard 3:00.
+Previous (v5.59 Medium, 25 per mode): computer wins Large Normal 60%, Large Hard 68%, Huge Normal 56%, Huge Hard 72%.
+With 10 games per mode, each win rate is only good to about +/-15 points.
+
+games 40  errors 0
+
+== Results (player = scripted test player, ai = computer)
+  large normal n= 10  computer wins  30%  player  70%  timeout   0%  median length 13.8 min
+  large hard   n= 10  computer wins  40%  player  50%  timeout  10%  median length 15.3 min
+  huge  normal n= 10  computer wins  70%  player  20%  timeout  10%  median length 16.2 min
+  huge  hard   n= 10  computer wins  40%  player  60%  timeout   0%  median length 16.6 min
+
+== Computer win rate by player strategy (all maps)
+  buggy     n=  8  computer  88%  player  12%  timeout   0%
+  infantry  n=  8  computer  50%  player  38%  timeout  12%
+  mixed     n=  8  computer  38%  player  62%  timeout   0%
+  tanks     n=  8  computer  25%  player  75%  timeout   0%
+  turtle    n=  8  computer  25%  player  62%  timeout  12%
+
+== Units: value killed per $1 spent (both sides), and split by side
+  [ALL]
+    sniper     made   406  died   272  spent $ 101,500  killed $ 174,760  value per $1: 1.72
+    rocket     made  1384  died  1042  spent $ 276,800  killed $ 357,500  value per $1: 1.29
+    soldier    made  5312  died  4399  spent $ 531,200  killed $ 462,865  value per $1: 0.87
+    artillery  made   121  died    71  spent $  60,500  killed $  48,125  value per $1: 0.80
+    light      made   547  died   355  spent $ 382,900  killed $ 303,950  value per $1: 0.79
+    heavy      made   158  died    64  spent $ 158,000  killed $ 116,725  value per $1: 0.74
+    grenadier  made  1287  died  1025  spent $ 205,920  killed $ 116,170  value per $1: 0.56
+    buggy      made   277  died   238  spent $ 110,800  killed $  43,930  value per $1: 0.40
+    engineer   made  1103  died   387  spent $ 110,300  killed $       0  value per $1: 0.00
+  [LARGE]
+    sniper     made   185  died   121  spent $  46,250  killed $  89,110  value per $1: 1.93
+    rocket     made   713  died   556  spent $ 142,600  killed $ 179,695  value per $1: 1.26
+    artillery  made    60  died    33  spent $  30,000  killed $  28,065  value per $1: 0.94
+    soldier    made  2494  died  2011  spent $ 249,400  killed $ 220,600  value per $1: 0.88
+    heavy      made    85  died    37  spent $  85,000  killed $  67,320  value per $1: 0.79
+    light      made   253  died   169  spent $ 177,100  killed $ 134,375  value per $1: 0.76
+    grenadier  made   620  died   495  spent $  99,200  killed $  57,110  value per $1: 0.58
+    buggy      made   136  died   117  spent $  54,400  killed $  19,240  value per $1: 0.35
+    engineer   made   521  died   185  spent $  52,100  killed $       0  value per $1: 0.00
+  [HUGE]
+    sniper     made   221  died   151  spent $  55,250  killed $  85,650  value per $1: 1.55
+    rocket     made   671  died   486  spent $ 134,200  killed $ 177,805  value per $1: 1.32
+    soldier    made  2818  died  2388  spent $ 281,800  killed $ 242,265  value per $1: 0.86
+    light      made   294  died   186  spent $ 205,800  killed $ 169,575  value per $1: 0.82
+    heavy      made    73  died    27  spent $  73,000  killed $  49,405  value per $1: 0.68
+    artillery  made    61  died    38  spent $  30,500  killed $  20,060  value per $1: 0.66
+    grenadier  made   667  died   530  spent $ 106,720  killed $  59,060  value per $1: 0.55
+    buggy      made   141  died   121  spent $  56,400  killed $  24,690  value per $1: 0.44
+    engineer   made   582  died   202  spent $  58,200  killed $       0  value per $1: 0.00
+
+== High ground (fighting units, per side) [low ground, high ground]
+  large player   fighting-minutes low      560 high      9 (2% on high ground) | shots/min low 51.2 high 31.0 | damage taken/min low 370.0 high 251.0 | deaths per fighting-minute low 4.593 high 2.573
+  large computer fighting-minutes low      396 high     35 (8% on high ground) | shots/min low 41.2 high 27.4 | damage taken/min low 332.8 high 68.0 | deaths per fighting-minute low 3.063 high 1.129
+  huge  player   fighting-minutes low      611 high     14 (2% on high ground) | shots/min low 52.3 high 25.0 | damage taken/min low 351.8 high 51.3 | deaths per fighting-minute low 4.663 high 1.169
+  huge  computer fighting-minutes low      444 high     27 (6% on high ground) | shots/min low 40.4 high 28.1 | damage taken/min low 299.2 high 23.4 | deaths per fighting-minute low 2.976 high 0.375
+
+== Games where one side spent more unit-time on high ground: who won? (decided games only)
+  large side with more high-ground time won 61% of 18 games
+  huge  side with more high-ground time won 63% of 19 games
+
+== Other
+  large normal stuck/game 1.6  captures player 58 computer 75  derrick-min player 18.6 computer 6.1 per game  | computer Medbay built in 10/10 (median 4.9 min), units sent to heal 29, HP healed 1659  | AI waves 2.6  AI cash avg 245
+  large hard   stuck/game 2.3  captures player 66 computer 82  derrick-min player 20.1 computer 8.9 per game  | computer Medbay built in 9/10 (median 4.9 min), units sent to heal 37, HP healed 1976  | AI waves 2.0  AI cash avg 265
+  huge  normal stuck/game 0.1  captures player 60 computer 108  derrick-min player 19.8 computer 10.2 per game  | computer Medbay built in 10/10 (median 5.4 min), units sent to heal 43, HP healed 2790  | AI waves 3.8  AI cash avg 283
+  huge  hard   stuck/game 0.4  captures player 63 computer 87  derrick-min player 20.5 computer 6.2 per game  | computer Medbay built in 10/10 (median 5.5 min), units sent to heal 26, HP healed 1463  | AI waves 1.7  AI cash avg 237
