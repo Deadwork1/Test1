@@ -1441,8 +1441,13 @@ function updateExtractor(e, dt) {
   const d = dockOf(ref);
   if (o.phase === 'docking') {
     if (!o.aligned) { o.aligned = moveToward(e, d.out.x, d.out.y, dt); return; }   // line up with the door first
-    if (moveToward(e, d.pad.x, d.pad.y, dt)) { o.phase = 'unloading'; o.t = 0; o.aligned = false; o.load = e.cargo; o.paid = 0; }
-    e.facing = -Math.PI / 2;   // then drive straight in, nose-first
+    if (!o.turned) {   // swing round at the door so its tipper faces the bay (v5.55.1: it backs in, like a dump truck)
+      const df = Math.atan2(Math.sin(Math.PI / 2 - e.facing), Math.cos(Math.PI / 2 - e.facing)), step = 3.2 * dt;
+      if (Math.abs(df) <= step) { e.facing = Math.PI / 2; o.turned = true; } else e.facing += Math.sign(df) * step;
+      return;
+    }
+    if (moveToward(e, d.pad.x, d.pad.y, dt)) { o.phase = 'unloading'; o.t = 0; o.aligned = false; o.turned = false; o.load = e.cargo; o.paid = 0; }
+    e.facing = Math.PI / 2;   // then reverse straight in, tail first
     return;
   }
 
@@ -1461,7 +1466,7 @@ function updateExtractor(e, dt) {
 
   if (o.phase === 'undocking') {
     const done = moveToward(e, d.out.x, d.out.y, dt);
-    e.facing = -Math.PI / 2;   // reverse back out
+    e.facing = Math.PI / 2;   // drive straight out, nose first
     if (done || edgeDist(e.x, e.y, ref) > e.r) {
       e.docked = false; if (ref.dockedBy === e.id) ref.dockedBy = null;
       if (o.finish) {   // nothing left to collect: park beside the door, not on it

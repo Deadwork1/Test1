@@ -2,6 +2,12 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.55.1', date: '21 Nov 2026', title: 'Backing in',
+    changes: [
+      'Extractors now turn round at the Refinery door and back in, tipper first, like a dump truck. When the load is in they drive straight out forwards.',
+    ],
+  },
+  {
     version: '5.55', date: '21 Nov 2026', title: 'Extractors from the War Factory',
     changes: [
       'Extra Extractors ($300) are now bought at the War Factory instead of the Refinery. Each new Refinery still comes with one free Extractor.',
