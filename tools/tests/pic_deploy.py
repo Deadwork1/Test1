@@ -23,7 +23,7 @@ with sync_playwright() as p:
     pg.wait_for_timeout(400); pg.screenshot(path=f'{out}_truck.png')
     # deploy, step by step
     pg.evaluate("(()=>{ deploy(__s); game.ents=game.ents.filter(e=>e.hp>0); window.__hq=hqOf(0); game.selected=new Set(); cam.zoom=2.2; cam.x=__hq.x; cam.y=__hq.y; })()")
-    for k in [0.1, 0.27, 0.45, 0.6, 0.8, 1.0]:
+    for k in [0.08, 0.25, 0.45, 0.62, 0.76, 0.86, 1.0]:
         pg.evaluate(f"(()=>{{ __hq.unfold={k}; }})()"); pg.wait_for_timeout(250); pg.screenshot(path=f'{out}_u{int(k*100):03d}.png')
     print('errors', errs[:3])
     b.close()

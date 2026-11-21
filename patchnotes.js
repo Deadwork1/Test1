@@ -5,7 +5,7 @@ const PATCH_NOTES = [
     version: '5.59', date: '21 Nov 2026', title: 'Unpacking',
     changes: [
       'The Settler is now a big mobile-HQ truck (about 1.5x the size), carrying the folded Headquarters on its back: panel seams, the star emblem and a folded radar dish.',
-      'Deploying is animated: the truck swings round to face north, the Headquarters unfolds out of it with its walls sliding out to full size, and it settles in a puff of dust (about 2.6 seconds). The HQ works straight away.',
+      'Deploying is animated (about 3 seconds): the truck swings round and rolls forward, its folded module splits and the halves slide out as the Headquarters\' walls, the cab drives in through the front door, and the building settles in a puff of dust. The HQ works straight away.',
       'The landing boat is bigger to carry it, and runs its bow up onto the sand.',
     ],
   },
