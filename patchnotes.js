@@ -2,6 +2,14 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.52', date: '21 Nov 2026', title: 'Bigger loads',
+    changes: [
+      'An Extractor now carries $500 a load (was $150) and mines $50 a second (was $30), so it fills up in 10 seconds.',
+      'Unloading takes 10 seconds in the Refinery (was 1.5), and the money trickles in as it goes, about $50 a second, instead of all at once. Its load bar empties as it pays out. Called away early, it keeps the rest on board.',
+      'Ore fields hold 3.3 times as much, so they last about as many trips as before.',
+    ],
+  },
+  {
     version: '5.51', date: '21 Nov 2026', title: 'Battle damage',
     changes: [
       'Buildings and vehicles now show how badly they are hurt. Below two thirds of their health they get scorch marks, cracks or dents and a thin wisp of smoke; below a third they burn, with flickering fires, thick black smoke and sparks.',

@@ -111,7 +111,7 @@ const WALL_REACH = 150;              // walls, gates and guard towers can go thi
 const STATS = {
   settler:   { hp: 200, speed: 38, r: 16, sight: 180 },
   soldier:   { hp: 60,  speed: 52, r: 9,  sight: 170, range: 85, dmg: 7, cooldown: 0.8 },
-  extractor: { hp: 300, speed: 34, r: 15, sight: 150, capacity: 150, rate: 30, unloadTime: 1.5 },
+  extractor: { hp: 300, speed: 34, r: 15, sight: 150, capacity: 500, rate: 50, unloadTime: 10 },   // (v5.52: a $500 load mined at $50/s, paid out bit by bit over 10 s in the Refinery; was 150, 30/s, 1.5 s)
   buggy:     { hp: 140, speed: 95, r: 13, sight: 220, range: 110, dmg: 4,  cooldown: 0.25 },   // fast, machine gun (damage 5 until v5.41)
   light:     { hp: 350, speed: 60, r: 15, sight: 200, range: 130, dmg: 30, cooldown: 1.5, tank: true },   // light tank: all-rounder
   heavy:     { hp: 1000, speed: 40, r: 19, sight: 210, range: 140, dmg: 60, cooldown: 2.0, tank: true },   // heavy tank: slow, very tough
@@ -860,16 +860,16 @@ function newGame() {
         }
         while ((terrainAt(x, y) !== T.GRASS || terrainAt(W - x, H - y) !== T.GRASS || game.ore.some(o => Math.hypot(o.x - x, o.y - y) < 45)) && ++tries < 40);
         const rot = rnd() * 6;
-        game.ore.push({ id: game.nextId++, x, y, amount: f.amount, max: f.amount, rot });
-        game.ore.push({ id: game.nextId++, x: W - x, y: H - y, amount: f.amount, max: f.amount, rot: rot + 3 });
+        game.ore.push({ id: game.nextId++, x, y, amount: f.amount * ORE_MULT, max: f.amount * ORE_MULT, rot });
+        game.ore.push({ id: game.nextId++, x: W - x, y: H - y, amount: f.amount * ORE_MULT, max: f.amount * ORE_MULT, rot: rot + 3 });
       }
       for (let i = 0; i < (f.inner || 0) / 2; i++) {   // and more scattered across the middle, also in mirrored pairs
         let x, y, tries = 0;
         do { const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * (f.ring[0] - 10); x = f.x + Math.cos(a) * d; y = f.y + Math.sin(a) * d; }
         while ((terrainAt(x, y) !== T.GRASS || Math.hypot(x - f.x, y - f.y) < 30 || game.ore.some(o => Math.hypot(o.x - x, o.y - y) < 50)) && ++tries < 40);
         const rot = rnd() * 6;
-        game.ore.push({ id: game.nextId++, x, y, amount: f.amount, max: f.amount, rot });
-        game.ore.push({ id: game.nextId++, x: W - x, y: H - y, amount: f.amount, max: f.amount, rot: rot + 3 });
+        game.ore.push({ id: game.nextId++, x, y, amount: f.amount * ORE_MULT, max: f.amount * ORE_MULT, rot });
+        game.ore.push({ id: game.nextId++, x: W - x, y: H - y, amount: f.amount * ORE_MULT, max: f.amount * ORE_MULT, rot: rot + 3 });
       }
       continue;
     }
@@ -877,7 +877,7 @@ function newGame() {
       let x, y, tries = 0;
       do { const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * f.spread; x = f.x + Math.cos(a) * d; y = f.y + Math.sin(a) * d; }
       while (terrainAt(x, y) !== T.GRASS && ++tries < 30);
-      game.ore.push({ id: game.nextId++, x, y, amount: f.amount, max: f.amount, rot: rnd() * 6 });
+      game.ore.push({ id: game.nextId++, x, y, amount: f.amount * ORE_MULT, max: f.amount * ORE_MULT, rot: rnd() * 6 });
     }
   }
   for (const v of MAP.villages || []) for (const [vx, vy] of [[v.x, v.y], mirror([v.x, v.y])]) {
@@ -896,6 +896,7 @@ function newGame() {
 }
 
 const spend = (team, n) => { game.credits[team] -= n; if (game.stats[team]) game.stats[team].spent += n; };
+const ORE_MULT = 10 / 3;   // each crystal holds this many times the map's listed amount (v5.52: loads went from $150 to $500, so fields last as many trips as before)
 const earn = (team, n) => { game.credits[team] += n; if (game.stats[team]) game.stats[team].earned += n; };
 
 function spawn(type, team, x, y) {
@@ -1438,19 +1439,23 @@ function updateExtractor(e, dt) {
   const d = dockOf(ref);
   if (o.phase === 'docking') {
     if (!o.aligned) { o.aligned = moveToward(e, d.out.x, d.out.y, dt); return; }   // line up with the door first
-    if (moveToward(e, d.pad.x, d.pad.y, dt)) { o.phase = 'unloading'; o.t = 0; o.aligned = false; }
+    if (moveToward(e, d.pad.x, d.pad.y, dt)) { o.phase = 'unloading'; o.t = 0; o.aligned = false; o.load = e.cargo; o.paid = 0; o.shown = 0; o.shownAt = 0; }
     e.facing = -Math.PI / 2;   // then drive straight in, nose-first
     return;
   }
 
   if (o.phase === 'unloading') {
+    // the money trickles in while it sits in the bay (v5.52), whole dollars at a time; cut short, the rest stays on board
+    if (o.load === undefined) { o.load = e.cargo; o.paid = 0; o.shown = 0; o.shownAt = o.t; }
     o.t += dt;
-    if (o.t >= s.unloadTime) {
-      const amount = Math.round(e.cargo);
-      earn(e.team, e.team === 1 ? Math.round(amount * diff().income) : amount); e.cargo = 0;
-      if (e.team === 0) game.effects.push({ kind: 'text', x: e.x, y: e.y - 20, text: '+$' + amount, t: 0 });
-      o.phase = 'undocking';
+    const k = Math.min(1, o.t / s.unloadTime), mult = e.team === 1 ? diff().income : 1;
+    const due = k >= 1 ? Math.round(o.load * mult) : Math.floor(o.load * k * mult);
+    if (due > o.paid) { earn(e.team, due - o.paid); o.paid = due; }
+    e.cargo = o.load * (1 - k);
+    if (e.team === 0 && (o.t - o.shownAt >= 2.5 || k >= 1) && o.paid > o.shown) {   // a small +$ every couple of seconds
+      game.effects.push({ kind: 'text', x: e.x, y: e.y - 20, text: '+$' + (o.paid - o.shown), t: 0 }); o.shown = o.paid; o.shownAt = o.t;
     }
+    if (k >= 1) { e.cargo = 0; o.load = undefined; o.phase = 'undocking'; }
     return;
   }
 
@@ -2861,14 +2866,14 @@ function aiManOutposts(army, spare) {
 function aiExpand(hq, refineries, sent) {
   if (refineries.length >= 4 || (!sent && game.time < 200) || aiBlocked('expand')) return 0;
   const oreNear = (x, y, r) => game.ore.reduce((s, o) => s + (o.amount > 0 && Math.hypot(o.x - x, o.y - y) < r ? o.amount : 0), 0);
-  if (refineries.some(r => !r.built || oreNear(r.x, r.y, 450) > (diff().expandAt || 600))) return 0;   // still plenty to mine (Hard moves on sooner)
+  if (refineries.some(r => !r.built || oreNear(r.x, r.y, 450) > (diff().expandAt || 600) * ORE_MULT)) return 0;   // still plenty to mine (Hard moves on sooner)
   // never more than a few stepping stones
   if (game.ents.filter(e => e.team === 1 && e.type === 'power').length >= diff().plants + 4) return 0;
   // the nearest known ore on its own side of the river (it can't build across water) that isn't already by a refinery
   const mySide = Math.sign(hq.x - riverX(hq.y));
   let target = null, td = Infinity;
   for (const o of game.ore) {
-    if (o.amount < 100 || !exploredAt(o.x, o.y, 1) || refineries.some(r => Math.hypot(r.x - o.x, r.y - o.y) < 450)) continue;
+    if (o.amount < 100 * ORE_MULT || !exploredAt(o.x, o.y, 1) || refineries.some(r => Math.hypot(r.x - o.x, r.y - o.y) < 450)) continue;
     if (Math.sign(o.x - riverX(o.y)) !== mySide || Math.hypot(o.x - ISLAND.x, o.y - ISLAND.y) < ISLAND.r + 40) continue;
     const d = Math.hypot(o.x - hq.x, o.y - hq.y);
     if (d < td) { td = d; target = o; }
@@ -2899,7 +2904,7 @@ function aiExpand(hq, refineries, sent) {
 
 // a new refinery goes as close as it can get to ore it knows about that still has plenty left
 function aiPlaceRefinery(hq) {
-  const ore = game.ore.filter(o => o.amount > 100 && (exploredAt(o.x, o.y, 1) || Math.hypot(o.x - hq.x, o.y - hq.y) < 600));
+  const ore = game.ore.filter(o => o.amount > 100 * ORE_MULT && (exploredAt(o.x, o.y, 1) || Math.hypot(o.x - hq.x, o.y - hq.y) < 600));
   if (!ore.length) return aiPlace(hq, 'refinery');
   let best = null, bestD = Infinity;
   for (const src of buildAreaSources(1)) {
