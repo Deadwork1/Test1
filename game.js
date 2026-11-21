@@ -2696,9 +2696,12 @@ function runAI(dt) {
   const reqRefineries = !D.factory ? D.refineries : extractors.length >= 3 && sent >= 1 ? D.refineries : D.earlyRefinery && game.time > 60 ? 2 : 1;   // (Easy has no War Factory to buy Extractors at, so it builds its Refineries for their free ones, v5.55)
   // the build phase lasts until this stage's extras are built (or 90s, so it never stalls)
   const wantFactory = D.factory && game.time >= (D.factoryAt || 0) && (sent >= 1 || !of('factory').length) && of('factory').length < (sent >= 3 && of('factory').some(f => f.built) ? (D.factories || 1) : 1) && unlocked(1, 'factory') && !aiBlocked('factory');   // (Hard adds a second one after 3 waves; Normal starts its first no earlier than 2:30, v5.61)
+  // Normal (which waits until 2:30 to start its War Factory) saves for its first one even in a build phase or with a wave due, and builds nothing cheaper
+  // in front of it: that War Factory is its economy, as Extractors are bought there (v5.61)
+  const firstFactory = !!D.factoryAt && wantFactory && !of('factory').length;
   const wantTech = D.heavyTanks && sent >= 2 && of('factory').some(f => f.built) && !of('tech').length && unlocked(1, 'tech') && !aiBlocked('tech');
   const wantRadar = D.walls && sent >= 1 && !of('radar').length && unlocked(1, 'radar') && !aiBlocked('radar');   // Normal and Hard
-  const wantMedbay = D.walls && sent >= 1 && !of('medbay').length && unlocked(1, 'medbay') && !aiBlocked('medbay');   // Normal and Hard: somewhere to patch up the wounded
+  const wantMedbay = D.walls && sent >= 1 && of('factory').some(f => f.built) && !of('medbay').length && unlocked(1, 'medbay') && !aiBlocked('medbay');   // Normal and Hard: somewhere to patch up the wounded (v5.61: only once its War Factory is up)
   const wantPad = D.helis && sent >= 2 && of('factory').some(f => f.built) && of('helipad').length < D.helis && !of('helipad').some(p => !padHeli(p))   /* no second pad while one stands empty */ && unlocked(1, 'helipad') && !aiBlocked('helipad');   // 1 on Normal, 2 on Hard
   const wantSam = D.sams && ai.seenAir && of('sam').length < D.sams && unlocked(1, 'sam') && !aiBlocked('sam');
   const extrasDone = (refineries.length >= reqRefineries || aiBlocked('refinery')) && (of('tower').length >= wantTowers || aiBlocked('tower')) && !wantFactory && !wantTech;
@@ -2713,7 +2716,7 @@ function runAI(dt) {
   else if (barracks.length < D.barracks && cash >= 900) aiPlace(hq, 'barracks');
   else if (wantTech && cash >= COST.tech) aiPlace(hq, 'tech');
   else if (wantMedbay && cash >= COST.medbay) aiPlace(hq, 'medbay');
-  else if (wantRadar && cash >= COST.radar + 150) aiPlace(hq, 'radar');
+  else if (wantRadar && !firstFactory && cash >= COST.radar + 150) aiPlace(hq, 'radar');
   else if (wantPad && cash >= COST.helipad + (D.heliSpare ?? AI_SPARE)) aiPlace(hq, 'helipad');   // helicopters are bought with spare money only (v5.49.2; Hard needs none to spare, v5.49.3)
 
   // expand toward fresh ore once the ore by its refineries is running out
@@ -2769,10 +2772,10 @@ function runAI(dt) {
   const vReserve = reserve - (padEmpty ? COST.heli : 0);   // vehicles don't wait for the Tech Centre savings, or for a helicopter
   // the War Factory (and later the Tech Centre) are worth saving for whenever home is safe
   const otherExtrasDone = (refineries.length >= reqRefineries || aiBlocked('refinery')) && (of('tower').length >= wantTowers || aiBlocked('tower'));
-  if (defended && (!building || otherExtrasDone)) reserve += wantFactory ? COST.factory : wantTech ? COST.tech : 0;
+  if (defended && (!building || otherExtrasDone || firstFactory)) reserve += wantFactory ? COST.factory : wantTech ? COST.tech : 0;
   // an attack is due but there aren't enough troops yet: troops come first, savings wait (it never stops attacking)
   const waveDue = game.time >= D.attackAfter && game.time >= (ai.nextWave || 0);
-  if (waveDue && army.filter(u => !u.role).length < D.minWave + 4) reserve = Math.min(reserve, (xWanted ? COST.extractor : 0) + (wantSam && defended ? COST.sam : 0) + (padEmpty ? COST.heli : 0));   // (a SAM Site it needs, and on Hard a helicopter for an empty pad, still come first)
+  if (waveDue && army.filter(u => !u.role).length < D.minWave + 4) reserve = Math.min(reserve, (xWanted ? COST.extractor : 0) + (wantSam && defended ? COST.sam : 0) + (padEmpty ? COST.heli : 0) + (firstFactory && defended ? COST.factory : 0));   // (a SAM Site it needs, and on Hard a helicopter for an empty pad, still come first)
   const queued = barracks.reduce((n, b) => n + b.queue, 0) + of('factory').reduce((n, f) => n + f.queue, 0);
   const qBuggies = of('factory').reduce((n, b) => n + b.qTypes.filter(t => t === 'buggy').length, 0);
   const wantBuggy = D.buggies && unlocked(1, 'buggy') && of('buggy').length + qBuggies < (of('soldier').length + 2) / ((game.ai.seen && game.ai.seen.snipers >= 3) ? 1.3 : 2);   // ~1 per 2 soldiers, more if you field snipers/grenadiers

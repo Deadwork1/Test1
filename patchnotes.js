@@ -6,6 +6,8 @@ const PATCH_NOTES = [
     changes: [
       'On Normal the computer now waits until 2:30 before it starts its War Factory (it used to have one up by about 1:15), so its first tanks and extra Extractors come a little later. Easy is unchanged.',
       'Hard always puts its War Factory before its second and third Barracks.',
+      'Normal and Hard build their Medbay only once their War Factory is up (it used to come first on Hard).',
+      'Normal no longer gets stuck without a War Factory when an attack is due: it saves for it before more troops, and doesn\'t put its Radar in front of it.',
     ],
   },
   {
