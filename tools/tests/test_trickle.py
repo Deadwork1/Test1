@@ -43,7 +43,7 @@ with sync_playwright() as p:
       return JSON.stringify({ paid, left: Math.round(left), after: Math.round(ex.cargo), total: Math.round(paid + ex.cargo) }); })()""".replace('if (pic) {}', '')))
     print('cut short:', r2)
     if not (230 <= r2['paid'] <= 270 and abs(r2['total'] - 500) <= 1): ok = False; print('FAIL: cut short')
-    # the computer on Hard gets 112%
+    # the computer gets its difficulty's share of the load (Hard: 112% until v5.61, now 100%)
     r3 = json.loads(pg.evaluate("""(()=>{ const ex = spawn('extractor', 1, 500, 500); const ref = game.ents.find(e=>e.type==='refinery'&&e.team===1) || spawn('refinery',1,W-600,H-600);
       ref.built=true; ex.cargo = 500; ex.x = ref.x; ex.y = ref.y; ex.order = { type:'harvest', ref: ref.id, phase:'unloading', t:0, load:500, paid:0, shown:0, shownAt:0 };
       const c0 = game.stats[1].earned; for (let i=0;i<220;i++) update(0.05); return JSON.stringify({ got: game.stats[1].earned-c0, diff: game.difficulty || null, mult: diff().income }); })()"""))

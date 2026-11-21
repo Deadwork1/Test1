@@ -2,9 +2,10 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
-    version: '5.61', date: '21 Nov 2026', title: 'Normal gets tanks a little later',
+    version: '5.61', date: '21 Nov 2026', title: 'Normal gets tanks a little later, Hard earns less',
     changes: [
       'On Normal the computer now waits until 2:30 before it starts its War Factory (it used to have one up by about 1:15), so its first tanks and extra Extractors come a little later. Easy is unchanged.',
+      'Hard now gets the same share of each load as you (it got 112%) and runs at most 7 Extractors (was 8). The computer no longer gets a free Extractor with a new Refinery once it\'s at its limit (expanding used to take it past).',
       'Hard always puts its War Factory before its second and third Barracks.',
       'Normal and Hard build their Medbay only once their War Factory is up (it used to come first on Hard).',
       'Normal no longer gets stuck without a War Factory when an attack is due: it saves for it before more troops, and doesn\'t put its Radar in front of it.',

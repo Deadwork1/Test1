@@ -317,8 +317,8 @@ const DIFFICULTY = {
   normal: { label: 'Normal', think: 1.5, slow: 1, income: 1, attackAt: 8, attackAfter: 180, barracks: 1, maxArmy: 36, towers: 2, buggies: true, plants: 1,
             guard: 3, maxWave: 22, extractors: 6, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 1, factory: true, tanks: 0.25, heavyTanks: false, artillery: 1, raidEvery: 600, hqGuard: 2, helis: 1, sams: 1, heliSpare: 300, factoryAt: 150, waveEvery: 180, minWave: 8, waveGrow: 3, waveWait: 60, focus: 'economy',
             derricks: true, derrickAfter: 360, ruinAfter: 420, turrets: 1, turretsTotal: 2, engineerCap: 2, escort: 3, garrison: 2, hill: 1, hillSize: 3, hillAfter: 420 },
-  hard:   { label: 'Hard',   think: 1,   slow: 0.9,  income: 1.12,    attackAt: 12, attackAfter: 0,   barracks: 3, factories: 2, maxArmy: Infinity, towers: 3, buggies: true, plants: 2,
-            guard: 4, maxWave: 36, extractors: 8, refineries: 3, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true, artillery: 2, raidEvery: 480, hqGuard: 3, helis: 2, sams: 2, heliSpare: 0, heliSave: true, earlyRefinery: true, expandAt: 1500, antiArmor: 12, waveEvery: 120, minWave: 12, waveGrow: 3, waveWait: 60, focus: 'defences',
+  hard:   { label: 'Hard',   think: 1,   slow: 0.9,  income: 1.0,     attackAt: 12, attackAfter: 0,   barracks: 3, factories: 2, maxArmy: Infinity, towers: 3, buggies: true, plants: 2,
+            guard: 4, maxWave: 36, extractors: 7, refineries: 3, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true, artillery: 2, raidEvery: 480, hqGuard: 3, helis: 2, sams: 2, heliSpare: 0, heliSave: true, earlyRefinery: true, expandAt: 1500, antiArmor: 12, waveEvery: 120, minWave: 12, waveGrow: 3, waveWait: 60, focus: 'defences',
             derricks: true, derrickAfter: 300, ruinAfter: 360, turrets: 1, turretsTotal: 2, engineerCap: 3, escort: 3, garrison: 3, hill: 2, hillSize: 3, hillAfter: 360 },
 };
 let difficulty = 'normal';
@@ -2185,7 +2185,8 @@ function updateBuilding(e, dt) {
     e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.9 * dt / (s.buildTime * slowOf(e)));
     if (e.progress >= 1) {
       e.progress = 1; e.built = true;
-      if (e.type === 'refinery') releaseUnit(e, 'extractor');   // every refinery comes with one free extractor
+      // every refinery comes with one free extractor (the computer's only while it's under its Extractor limit, v5.61: expanding used to take Hard past it)
+      if (e.type === 'refinery' && !(e.team === 1 && game.ents.filter(x => x.team === 1 && x.type === 'extractor').length >= diff().extractors)) releaseUnit(e, 'extractor');
     }
     return;
   }
