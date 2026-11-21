@@ -825,19 +825,22 @@ const bg = document.createElement('canvas');
     const band = (off, fill) => { b.beginPath(); b.moveTo(0, HT); for (let x = 0; x <= W; x += 8) b.lineTo(x, coastY(x) + off); b.lineTo(W, HT); b.closePath(); b.fillStyle = fill; b.fill(); };
     // the river's channel across the beach: it follows the river and widens smoothly as it reaches the sea (v5.57.1)
     const half = MAP.river.half, y0 = H - 40, cy = coastY(riverX(H));
-    const chanW = (y, w) => { const k = Math.max(0, Math.min(1, (y - (H - 10)) / (cy + 20 - (H - 10)))); return half * w * (1 + 1.5 * k * k * (3 - 2 * k)); };
-    const chan = (w, close = true) => { for (let y = y0; y <= HT; y += 2) b.lineTo(riverX(y) - chanW(y, w), y); for (let y = HT; y >= y0; y -= 2) b.lineTo(riverX(y) + chanW(y, w), y); if (close) b.closePath(); };
-    b.save(); b.beginPath(); b.rect(0, 0, W, HT); b.moveTo(riverX(y0) - chanW(y0, 1), y0); chan(1); b.clip('evenodd');   // sand everywhere but the channel
-    b.beginPath(); b.moveTo(0, HT); for (let x = 0; x <= W; x += 8) b.lineTo(x, H - 8 + 3 * Math.sin(x / 53) + 2 * Math.sin(x / 23)); b.lineTo(W, HT); b.closePath();
+    const FR = 18, top = H - 12;   // the sand's corners where it meets the river are rounded off (a quarter circle), so nothing sticks out into the water
+    const chanW = (y, w, round) => { const k = Math.max(0, Math.min(1, (y - (H - 10)) / (cy + 20 - (H - 10)))), t = y - top;
+      const fillet = !round ? 0 : t < 0 ? FR : t < FR ? FR - Math.sqrt(FR * FR - (FR - t) * (FR - t)) : 0;
+      return half * w * 1.1 * (1 + 1.5 * k * k * (3 - 2 * k)) + fillet; };   // (round: the sand's edge, with its corners rounded; the water itself isn't widened)
+    const chan = (w, round) => { for (let y = y0; y <= HT; y += 1) b.lineTo(riverX(y) - chanW(y, w, round), y); for (let y = HT; y >= y0; y -= 1) b.lineTo(riverX(y) + chanW(y, w, round), y); b.closePath(); };
+    b.save(); b.beginPath(); b.rect(0, 0, W, HT); b.moveTo(riverX(y0) - chanW(y0, 1, true), y0); chan(1, true); b.clip('evenodd');   // sand everywhere but the channel
+    b.beginPath(); b.moveTo(0, HT); for (let x = 0; x <= W; x += 4) b.lineTo(x, H - 8 + 3 * Math.sin(x / 53) + 2 * Math.sin(x / 23)); b.lineTo(W, HT); b.closePath();
     b.fillStyle = '#c4ad73'; b.fill();                                            // the beach starts right where the grass ends
     band(-26, '#cdb77c'); band(-12, '#b9a36b'); band(-4, '#8f8a62');            // dry sand, wet sand, damp edge
     b.restore();
     const fade = (r, g, bl) => { const gr = b.createLinearGradient(0, y0, 0, H); gr.addColorStop(0, `rgba(${r},${g},${bl},0)`); gr.addColorStop(1, `rgba(${r},${g},${bl},1)`); return gr; };
     b.beginPath(); chan(1); b.fillStyle = fade(47, 99, 144); b.fill();            // water in the channel, blending in from the river above
     b.beginPath(); chan(0.5); b.fillStyle = fade(36, 83, 125); b.fill();          // its deeper middle
-    b.save(); b.beginPath(); b.rect(0, H - 12, W, HT - H + 12); b.clip();          // a damp sandy edge down both banks
+    b.save(); b.beginPath(); b.rect(0, H - 9, W, HT - H + 9); b.clip();            // a damp sandy edge down both banks
     b.strokeStyle = '#8f8a62'; b.lineWidth = 5; b.lineJoin = 'round';
-    for (const sgn of [-1, 1]) { b.beginPath(); for (let y = y0; y <= cy + 20; y += 2) b.lineTo(riverX(y) + sgn * (chanW(y, 1) + 2), y); b.stroke(); }
+    for (const sgn of [-1, 1]) { b.beginPath(); for (let y = top; y <= cy + 20; y += 1) b.lineTo(riverX(y) + sgn * (chanW(y, 1, true) + 2), y); b.stroke(); }
     b.restore();
     const D = HT - H;
     band(0, '#3e8bab'); band(D * 0.2, '#2f6f9c'); band(D * 0.42, '#255d8a'); band(D * 0.6, '#1d4c76');   // shallows to deep water
