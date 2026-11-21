@@ -105,8 +105,8 @@ const INCOME = 1;                     // small trickle per second so nobody gets
 const BUILD_RADIUS = 300;             // how far from your HQ you can place buildings
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
 
-// v5.52 prices (your picks, with the $500 loads): Sniper 250 (was 200), Buggy 400 (250), Light Tank 700 (400), Heavy Tank 1000 (700), Extractor 300 (150)
-const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 300, buggy: 400, grenadier: 160, engineer: 100, turret: 125, rocket: 200, sniper: 250, light: 700, heavy: 1000, artillery: 450, tech: 600, radar: 300, medbay: 400, helipad: 500, heli: 800, sam: 600 };
+// v5.52 prices (your picks, with the $500 loads): Sniper 250 (was 200), Buggy 400 (250), Light Tank 700 (400), Heavy Tank 1000 (700), Extractor 300 (150); v5.56: Artillery 500 (450)
+const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 300, buggy: 400, grenadier: 160, engineer: 100, turret: 125, rocket: 200, sniper: 250, light: 700, heavy: 1000, artillery: 500, tech: 600, radar: 300, medbay: 400, helipad: 500, heli: 800, sam: 600 };
 const WALL_REACH = 150;              // walls, gates and guard towers can go this much further out than other buildings
 
 const STATS = {
@@ -119,7 +119,7 @@ const STATS = {
   // artillery: very slow and fragile, but its shells fly further than a guard tower can shoot and wreck buildings.
   // It can only fire at what your side can see (its own sight is short), can't hit anything too close, and the
   // shells take a while to land, so moving units can dodge them.
-  artillery: { hp: 120, speed: 28, r: 13, sight: 150, range: 250, minRange: 80, dmg: 45, cooldown: 4, siege: true, splash: 40, flight: 1.3, spread: 14, vsBuilding: 3, vsVehicle: 0.6 },
+  artillery: { hp: 120, speed: 32, r: 13, sight: 150, range: 250, minRange: 80, dmg: 45, cooldown: 4, siege: true, splash: 40, flight: 1.3, spread: 14, vsBuilding: 3, vsVehicle: 0.6 },   // (speed 28 until v5.56)
   sniper:    { hp: 45,  speed: 46, r: 9,  sight: 220, range: 160, dmg: 75, cooldown: 2.7, vsVehicle: 0.15, vsBuilding: 0.1, reveal: 0.5 },   // one-shots infantry from far away; useless vs vehicles
   rocket:    { hp: 55,  speed: 45, r: 9,  sight: 170, range: 130, dmg: 40, cooldown: 2.5, rocket: true, vsVehicle: 2, vsHeavy: 2, vsBuilding: 2, vsInfantry: 0.4, vsAir: 1.5 },   // (vsHeavy 1.5 until v5.50: Heavy Tanks were too hard to stop)   // (and the only soldier that can hit aircraft)
   // attack helicopter: flies over everything, fires 8 missiles (6 of 35 until v5.49.2), then goes home to its Helipad to reload (about 10 s) and patch up

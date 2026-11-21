@@ -2,6 +2,12 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.56', date: '21 Nov 2026', title: 'Artillery tweak',
+    changes: [
+      'Artillery now costs $500 (was $450) and moves a little faster: speed 32, up from 28 (about 14% quicker).',
+    ],
+  },
+  {
     version: '5.55.1', date: '21 Nov 2026', title: 'Backing in',
     changes: [
       'Extractors now turn round at the Refinery door and back in, tipper first, like a dump truck. When the load is in they drive straight out forwards.',
