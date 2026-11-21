@@ -4,8 +4,9 @@ const PATCH_NOTES = [
   {
     version: '5.60', date: '21 Nov 2026', title: 'Random maps',
     changes: [
-      'New Random map option on the start screen, in Small, Large or Huge size. Each one keeps the river with the gold island in the middle and rolls everything else: the river\'s bends, the bridge, the jungle with its ruined base, ridges, plateaus and woods.',
-      'Your base\'s wall is random too: an L of rock from the west edge round to the sea, with its two entrances in different places each time (both north, both east, or one of each). It runs into the sea, so nobody can walk round it on the beach.',
+      'New Random map option on the start screen, in Small, Large or Huge size. The gold island always sits in the middle; everything else is rolled: the river\'s bends and the bridges (sometimes two), the jungle with its ruined base, ridges, plateaus, woods and ponds.',
+      'The river comes in four styles: a narrow stream, the usual river, a wide river, or a broad lake round the gold island with long bridges.',
+      'Your base moves around the south of your half (near the sea, so the boat can still land you). Its wall is random: an L from the west edge or a U round the base, running into the sea, with 2 or 3 entrances in different places each time.',
       'Ore is more random: how many fields, how many crystals, how rich and how spread out, a home field somewhere inside your base, and now and then a small extra patch. Villages with Oil Derricks are random as well: one or two anywhere on your half, with 2 to 4 houses each.',
       'Every map is checked before you play it (your HQ fits, and you can reach the enemy, the island, every ore field, the village and the ruins) and rolled again if it fails. Both halves are mirror images, so it\'s always fair.',
       'Each random map has a number: tap it to type one in and play that map again or share it, or tap New map for a fresh one.',

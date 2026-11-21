@@ -100,24 +100,36 @@ const MAPS = {
 const newMapNumber = () => 1 + Math.floor(Math.random() * 999999);
 function generateMap(size, seed, attempt = 0) {
   const segDist = (px, py, ax, ay, bx, by) => { const dx = bx - ax, dy = by - ay, l = dx * dx + dy * dy, t = l ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l)) : 0; return Math.hypot(px - ax - t * dx, py - ay - t * dy); };
-  const base = MAPS[size], k = base.W / 3600, W0 = base.W, H0 = base.H, S = base.start;
+  const base = MAPS[size], k = base.W / 3600, W0 = base.W, H0 = base.H;
   let st = (seed * 2654435761 + attempt * 40503 + 12345) >>> 0;
   const rnd = () => { st = (st + 0x6D2B79F5) >>> 0; let t = st; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };   // (the same number always rolls the same map)
   const R = (a, b) => a + rnd() * (b - a), RI = (a, b) => Math.floor(R(a, b + 1));
-  const river = { amp: Math.round(base.river.amp * R(0.6, 1.4)), period: Math.round(base.river.period * R(0.8, 1.3)), half: base.river.half };
+  // the river (v5.60: a style is rolled): a narrow stream, the usual river, a wide river, or a lake round the gold island
+  const style = ['stream', 'river', 'river', 'wide', 'lake'][RI(0, 4)];
+  const river = { amp: Math.round(base.river.amp * R(0.6, 1.4)), period: Math.round(base.river.period * R(0.8, 1.3)),
+    half: Math.round(base.river.half * (style === 'stream' ? R(0.65, 0.8) : style === 'wide' ? R(1.3, 1.55) : R(0.9, 1.1))) };
   const rx = y => W0 / 2 + river.amp * Math.sin((y - H0 / 2) / river.period);
-  const island = { ...base.island, r: Math.round(base.island.r * R(0.88, 1.12)), nodes: Math.max(10, Math.round(base.island.nodes * R(0.75, 1.25))), amount: Math.round(base.island.amount * R(0.85, 1.2) / 50) * 50 };
-  if (island.inner) island.inner = Math.max(8, Math.round(island.inner * R(0.75, 1.25)));
-  // your base's wall (v5.60): an L of rock from the west edge round to the sea, with two entrances cut in random places -
-  // both on the north side, both on the east, or one of each
+  const island = { ...base.island, r: Math.round(base.island.r * R(0.88, 1.12) * (style === 'lake' ? 1.15 : 1)), nodes: Math.max(10, Math.round(base.island.nodes * R(0.75, 1.25))), amount: Math.round(base.island.amount * R(0.85, 1.2) / 50) * 50 };
+  const ringW = Math.round(style === 'lake' ? R(90, 130) * k + 30 : style === 'stream' ? 28 : style === 'wide' ? 44 : 34);   // half the width of the water round the island
+  { const land = island.r - ringW;   // keep the island's ore on its dry middle
+    island.spread = Math.min(island.spread, Math.round(land * 0.72));
+    if (island.ring) island.ring = [Math.round(land * 0.5), Math.round(land * 0.88)];
+    if (island.inner) island.inner = Math.max(8, Math.round(island.inner * R(0.75, 1.25))); }
+  // your start (v5.60: random): somewhere along the south of your half, near enough the sea for the boat to land you
+  const S = { x: Math.round(W0 * R(0.07, 0.27)), y: Math.round(H0 - H0 * R(0.12, 0.19)) };
+  // your base's wall (v5.60): rock round your base down to the sea - an L from the west edge if the base is in the corner,
+  // otherwise a U with a west side too - with 2 or 3 entrances cut in random places
   const seaD = Math.round(H0 / 15 / 50) * 50;
-  const yN = Math.round(S.y - R(290, 390) * k), xC = Math.round(S.x + R(480, 720) * k);
-  const wall = [[-40, yN], [Math.round(-40 + (xC + 40) * R(0.3, 0.7)), Math.round(yN + R(-40, 40) * k)], [xC, Math.round(yN + R(-30, 30) * k)],
-    [Math.round(xC + R(-40, 40) * k), Math.round(yN + (H0 - yN) * R(0.35, 0.65))], [Math.round(xC + R(-30, 30) * k), H0 + seaD + 30]];
+  const yN = Math.round(S.y - R(290, 390) * k), xC = Math.round(S.x + R(480, 720) * k), xW = Math.round(S.x - R(420, 620) * k);
+  const jit = v => Math.round(v * k * R(-1, 1));
+  const top = [[Math.round((Math.max(xW, -40) + xC) / 2), yN + jit(40)], [xC, yN + jit(30)], [xC + jit(40), Math.round(yN + (H0 - yN) * R(0.35, 0.65))], [xC + jit(30), H0 + seaD + 30]];
+  const wall = xW < 140 * k ? [[-40, yN], ...top]
+    : [[xW + jit(30), H0 + seaD + 30], [xW + jit(40), Math.round(yN + (H0 - yN) * R(0.35, 0.65))], [xW, yN + jit(30)], ...top];
   const seg = wall.slice(1).map((q, i) => Math.hypot(q[0] - wall[i][0], q[1] - wall[i][1])), total = seg.reduce((a, b) => a + b, 0);
   const at = d => { for (let i = 0; i < seg.length; i++) { if (d <= seg[i] || i === seg.length - 1) { const t = Math.min(1, d / seg[i]); return [wall[i][0] + (wall[i + 1][0] - wall[i][0]) * t, wall[i][1] + (wall[i + 1][1] - wall[i][1]) * t]; } d -= seg[i]; } };
   const gapW = R(190, 260) * k, gaps = [];
-  for (let t = 0; gaps.length < 2 && t < 200; t++) {   // two entrances, apart from each other, clear of the far ends and above the beach
+  const nGaps = RI(2, 3);
+  for (let t = 0; gaps.length < nGaps && t < 300; t++) {   // the entrances, apart from each other, clear of the far ends and above the beach
     const d = R(gapW, total - gapW), [, y] = at(d);
     if (y > H0 - 120 * k || gaps.some(g => Math.abs(g - d) < gapW * 2.2)) continue;
     gaps.push(d);
@@ -134,18 +146,20 @@ function generateMap(size, seed, attempt = 0) {
     }
     if (piece.length > 1) baseRidges.push([piece, 32]);
   }
-  const bx1 = xC + 120 * k, by0 = yN - 120 * k;
-  const inBase = (x, y, r) => x - r < bx1 && y + r > by0;
+  const bx0 = xW < 140 * k ? -9999 : xW - 120 * k, bx1 = xC + 120 * k, by0 = yN - 120 * k;
+  const inBase = (x, y, r) => x + r > bx0 && x - r < bx1 && y + r > by0;
   const nearWall = (x, y, r) => baseRidges.some(([pts]) => pts.some((q, i) => i && segDist(x, y, pts[i - 1][0], pts[i - 1][1], q[0], q[1]) < r));
   const placed = [], free = (x, y, r) => placed.every(q => Math.hypot(x - q.x, y - q.y) > r + q.r);
-  const onSide = (x, y, r) => x > r + 40 && y > r + 40 && y < H0 - r - 40 && x < rx(y) - river.half - r - 50 && Math.hypot(x - W0 / 2, y - H0 / 2) > island.r + r + 70;
+  const onSide = (x, y, r) => x > r + 40 && y > r + 40 && y < H0 - r - 40 && x < rx(y) - river.half - r - 50 && Math.hypot(x - W0 / 2, y - H0 / 2) > island.r + ringW + r + 40;
   let loose = 1;   // when the ground is crowded, pick() relaxes its spacing a little at a time
   const pick = (r, ok) => { for (loose = 1; loose > 0.55; loose -= 0.15) for (let i = 0; i < 250; i++) { const y = R(r + 40, H0 - r - 40), x = R(r + 40, W0 / 2); if (onSide(x, y, r * loose) && !inBase(x, y, r * loose) && free(x, y, r * loose) && (!ok || ok(x, y))) return { x, y }; } return null; };
   const farFromStart = d => (x, y) => Math.hypot(x - S.x, y - S.y) > d * loose;
   // the bridge above the island (its mirror crosses below it)
-  const by = Math.round(R(0.07 * H0, H0 / 2 - island.r - 260 * k));
-  const bridges = [{ y: by, hw: base.bridges[0].hw }];
-  placed.push({ x: rx(by), y: by, r: 140 * k }, { x: rx(H0 - by), y: H0 - by, r: 140 * k });
+  const bhw = Math.max(base.bridges[0].hw, river.half + 30), topY = H0 / 2 - island.r - ringW - 230 * k;
+  const by = Math.round(R(0.07 * H0, topY));
+  const bridges = [{ y: by, hw: bhw }];
+  if (rnd() < 0.4) for (let t = 0; t < 20 && bridges.length < 2; t++) { const y2 = Math.round(R(0.05 * H0, topY)); if (Math.abs(y2 - by) > 230 * k) bridges.push({ y: y2, hw: bhw }); }   // sometimes a second crossing
+  for (const b of bridges) placed.push({ x: rx(b.y), y: b.y, r: 140 * k }, { x: rx(H0 - b.y), y: H0 - b.y, r: 140 * k });
   // villages with an Oil Derrick (v5.60: random): one or two anywhere on your half, each with 2 to 4 houses round the Derrick
   const villages = [];
   for (let i = RI(1, 2), t = 0; villages.length < i && t < 6; t++) {
@@ -166,21 +180,6 @@ function generateMap(size, seed, attempt = 0) {
     ruins.push({ ...base.ruins[0], x: Math.round(J.x), y: Math.round(J.y) });
     placed.push({ x: J.x, y: J.y, r: jr * 1.35 });
   }
-  // ore fields (v5.60: more random): a home field somewhere inside your base, then a random number of fields over your half,
-  // each with its own number of crystals, richness and spread, and now and then a small extra patch
-  const fieldOf = (big) => ({ nodes: big ? RI(6, 10) : RI(3, 5), amount: Math.round(R(big ? 400 : 350, big ? 700 : 550) / 50) * 50, spread: Math.round(R(big ? 80 : 50, big ? 130 : 75) * k) });
-  const home = fieldOf(true); home.nodes = Math.max(home.nodes, 7);
-  let hx = null;
-  for (let t = 0; t < 200 && !hx; t++) {
-    const x = R(home.spread + 70 * k, xC - home.spread - 110 * k), y = R(yN + home.spread + 110 * k, H0 - home.spread - 50 * k);
-    if (Math.hypot(x - S.x, y - S.y) > 210 * k + home.spread && !nearWall(x, y, home.spread + 90 * k)) hx = { x, y };
-  }
-  const fields = [hx ? { ...home, x: Math.round(hx.x), y: Math.round(hx.y) } : base.fields[0]];
-  const want = base.fields.length - 1 + RI(-1, 1), wantMin = Math.max(1, base.fields.length - 2);
-  for (let i = 0; i < want + RI(0, 2); i++) {
-    const big = i < want, f = fieldOf(big), at = pick(f.spread + 110 * k, farFromStart((big ? 650 : 500) * k)); if (!at) continue;
-    fields.push({ ...f, x: Math.round(at.x), y: Math.round(at.y) }); placed.push({ x: at.x, y: at.y, r: f.spread + 120 * k });
-  }
   // plateaus (high ground with cliffs and one or two ramps)
   const plateaus = [];
   for (let i = 0; i < Math.max(2, base.plateaus.length); i++) {
@@ -189,6 +188,21 @@ function generateMap(size, seed, attempt = 0) {
     const pl = { x: Math.round(at.x), y: Math.round(at.y), rx: Math.round(pr), ry: Math.round(pr * R(0.62, 0.75)), tilt: R(-1, 1), ramps };
     if (pr < 110) pl.rim = 30;
     plateaus.push(pl); placed.push({ x: at.x, y: at.y, r: pr + 50 * k });
+  }
+  // ore fields (v5.60: more random): a home field somewhere inside your base, then a random number of fields over your half,
+  // each with its own number of crystals, richness and spread, and now and then a small extra patch
+  const fieldOf = (big) => ({ nodes: big ? RI(6, 10) : RI(3, 5), amount: Math.round(R(big ? 400 : 350, big ? 700 : 550) / 50) * 50, spread: Math.round(R(big ? 80 : 50, big ? 130 : 75) * k) });
+  const home = fieldOf(true); home.nodes = Math.max(home.nodes, 7);
+  let hx = null;
+  for (let t = 0; t < 200 && !hx; t++) {
+    const x = R(Math.max(xW, 0) + home.spread + 90 * k, xC - home.spread - 110 * k), y = R(yN + home.spread + 110 * k, H0 - home.spread - 50 * k);
+    if (Math.hypot(x - S.x, y - S.y) > 210 * k + home.spread && !nearWall(x, y, home.spread + 90 * k)) hx = { x, y };
+  }
+  const fields = [hx ? { ...home, x: Math.round(hx.x), y: Math.round(hx.y) } : base.fields[0]];
+  const want = base.fields.length - 1 + RI(-1, 1), wantMin = Math.max(1, base.fields.length - 3);
+  for (let i = 0; i < want + RI(0, 2); i++) {
+    const big = i < want, f = fieldOf(big), at = pick(f.spread + 90 * k, farFromStart((big ? 520 : 420) * k)); if (!at) continue;
+    fields.push({ ...f, x: Math.round(at.x), y: Math.round(at.y) }); placed.push({ x: at.x, y: at.y, r: f.spread + 90 * k });
   }
   // rock ridges: short bent lines of two or three pieces
   const ridges = [...baseRidges];
@@ -210,8 +224,11 @@ function generateMap(size, seed, attempt = 0) {
   }
   // a few small woods
   for (let i = RI(2, 4); i > 0; i--) { const r = R(90, 200) * k, at = pick(r + 30 * k, farFromStart(420 * k)); if (!at) continue; forests.push([Math.round(at.x), Math.round(at.y), Math.round(r)]); placed.push({ x: at.x, y: at.y, r: r + 30 * k }); }
+  // ponds: a few small bodies of water
+  const ponds = [];
+  for (let i = RI(1, 4); i > 0; i--) { const pr = R(55, 130) * k, at = pick(pr + 40 * k, farFromStart(420 * k)); if (!at) continue; ponds.push([Math.round(at.x), Math.round(at.y), Math.round(pr), Math.round(pr * R(0.55, 0.9)), R(0, Math.PI)]); placed.push({ x: at.x, y: at.y, r: pr + 40 * k }); }
   const short = gaps.length < 2 || fields.length < wantMin + 1 || plateaus.length < 2 || ridges.length < baseRidges.length + 2 || !ruins.length || !villages.length;   // too sparse: roll again
-  return { label: 'Random', random: true, short, size, seed, attempt, W: W0, H: H0, start: S, fields, island, ridges, forests, plateaus, river, bridges, ruins, villages };
+  return { label: 'Random', random: true, short, size, seed, attempt, style, walls: baseRidges.length, entrances: gaps.length, wantFields: wantMin + 1, W: W0, H: H0, start: S, fields, island, ringW, ridges, forests, plateaus, ponds, river, bridges, ruins, villages };
 }
 let mapChoice = 'large', randomSize = 'large', mapNumber = 0;
 try {
@@ -325,7 +342,7 @@ const RUIN_HP = 0.2, RUIN_WORKS = 0.5, RUIN_SIGHT = 160, RUIN_REPAIR = 1 / 3, RU
 const ruinWorks = e => !e.ruin || (e.team !== NEUTRAL && e.hp >= e.maxHp * RUIN_WORKS);
 const animT = e => ruinWorks(e) ? performance.now() / 1000 : 0;   // a ruin that isn't working stands still: no spinning dish, no glow
 const isNeutralType = t => t === 'derrick' || t === 'house';
-const START = [{ x: MAP.start.x, y: MAP.start.y }, { x: W - MAP.start.x, y: H - MAP.start.y }];
+let START = [{ x: MAP.start.x, y: MAP.start.y }, { x: W - MAP.start.x, y: H - MAP.start.y }];   // (a random map's start is rolled; buildWorld sets it again)
 
 // ore fields: a small one by each base, a big rich one in the middle, two on the flanks
 let ORE_FIELDS = [];   // (filled in by buildWorld, below)
@@ -393,6 +410,8 @@ function buildTerrain() {
   const plateaus = [];
   for (const pl of MAP.plateaus || []) { plateaus.push(pl); const [x, y] = mirror([pl.x, pl.y]); plateaus.push({ ...pl, x, y, ramps: pl.ramps.map(a => a + Math.PI) }); }
   const overhung = (x, y) => plateaus.some(pl => pl.overhang && Math.hypot(x - pl.x, y - pl.y) < Math.max(pl.rx, pl.ry) + 10);
+  const ponds = [];
+  for (const pd of MAP.ponds || []) { ponds.push(pd); const [x, y] = mirror([pd[0], pd[1]]); ponds.push([x, y, pd[2], pd[3], pd[4]]); }
   const forests = [];
   for (const f of FORESTS) {   // a circle [x, y, r] or an oval jungle [x, y, rx, ry, tilt]
     const g = f.length === 3 ? [f[0], f[1], f[2], f[2], 0] : f;
@@ -434,8 +453,12 @@ function buildTerrain() {
           if (segDist(x, y, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]) < th) t = T.ROCK;
         }
       }
-      if (Math.abs(dI - ISLAND.r) < 34 || (Math.abs(x - riverX(y)) < MAP.river.half && dI > ISLAND.r)) {
+      if (Math.abs(dI - ISLAND.r) < (MAP.ringW || 34) || (Math.abs(x - riverX(y)) < MAP.river.half && dI > ISLAND.r)) {
         if (!(elev[r * TCOLS + c] && overhung(x, y))) t = T.WATER;   // a lookout plateau's rock juts out over the river here
+      }
+      for (const [px, py, prx, pry, pt] of ponds) {   // ponds (random maps), with a slightly ragged shore
+        const dx = x - px, dy = y - py, co = Math.cos(pt), si = Math.sin(pt), u = (dx * co + dy * si) / prx, v = (-dx * si + dy * co) / pry, a = Math.atan2(v, u);
+        if (Math.hypot(u, v) < 0.92 + 0.08 * Math.sin(a * 5 + px)) { t = T.WATER; elev[r * TCOLS + c] = 0; }
       }
       if (y >= H) t = y >= coastY(x) - 4 || Math.abs(x - riverX(y)) < seaChanW(y + TC / 2) + 12 ? T.WATER : t === T.ROCK ? T.ROCK : T.GRASS;   // (a random map's base wall carries on across the sand)   // the beach can be walked on (v5.59), the sea and the river's mouth can't
       if (t === T.WATER) elev[r * TCOLS + c] = 0;   // water is never high ground
@@ -462,8 +485,9 @@ function buildWorld() {
   ORE_FIELDS = [...MAP.fields.flatMap(f => [f, { ...f, x: W - f.x, y: H - f.y }]),
     { x: W / 2, y: H / 2, nodes: MAP.island.nodes, amount: MAP.island.amount, spread: MAP.island.spread, ring: MAP.island.ring, inner: MAP.island.inner }];
   RIDGES = MAP.ridges; FORESTS = MAP.forests;
+  START = [{ x: MAP.start.x, y: MAP.start.y }, { x: W - MAP.start.x, y: H - MAP.start.y }];
   ISLAND = { x: W / 2, y: H / 2, r: MAP.island.r };
-  BRIDGES = [...MAP.bridges.map(b => ({ x: riverX(b.y), y: b.y, hw: b.hw, hh: 24 })), { x: ISLAND.x - ISLAND.r, y: H / 2, hw: 58, hh: 24 }];
+  BRIDGES = [...MAP.bridges.map(b => ({ x: riverX(b.y), y: b.y, hw: b.hw, hh: 24 })), { x: ISLAND.x - ISLAND.r, y: H / 2, hw: (MAP.ringW || 34) + 24, hh: 24 }];
   for (const b of [...BRIDGES]) { const [x, y] = mirror([b.x, b.y]); BRIDGES.push({ ...b, x, y }); }
   terrain.fill(0); elev.fill(0);
   buildTerrain();
@@ -483,7 +507,8 @@ function mapPlayable() {
   };
   const near = (seen, x, y, d) => { for (let dy = -d; dy <= d; dy += TC) for (let dx = -d; dx <= d; dx += TC) if (seen[tile(x + dx, y + dy)]) return true; return false; };
   const car = reach(false), man = reach(true);
-  if (!near(car, START[1].x, START[1].y, 60) || !near(car, ISLAND.x, ISLAND.y, ISLAND.r * 0.5)) return false;
+  if (!near(car, START[1].x, START[1].y, 60) || !near(car, ISLAND.x, ISLAND.y, Math.max(40, (ISLAND.r - (MAP.ringW || 34)) * 0.5))) return false;
+  if (!near(car, START[0].x, H - 26, 30)) return false;   // your Settler can drive up from the beach where the boat lands it
   for (const f of MAP.fields) if (!near(car, f.x, f.y, Math.min(60, f.spread))) return false;
   for (const v of MAP.villages || []) { if (!near(man, v.x, v.y, 70)) return false; for (const [dx, dy] of [v.derrick, ...v.houses]) if (terrain[tile(v.x + dx, v.y + dy)] !== T.GRASS) return false; }
   for (const ru of MAP.ruins || []) if (!near(man, ru.x, ru.y, 70)) return false;
