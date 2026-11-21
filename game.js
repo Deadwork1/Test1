@@ -3385,17 +3385,12 @@ function drawExtractor(e) {
   drawExtractorBody(e);
 }
 
-// Extractor art: 'classic' (the original), or one of the new looks being tried out: 'truck', 'tracked', 'silo'
-let EXTRACTOR_STYLE = 'classic';
+// Extractor art (v5.54, your pick): a big mining dump truck
 function drawExtractorBody(e) {
   const moving = e.exLx !== undefined && Math.hypot(e.x - e.exLx, e.y - e.exLy) > 0.2;
   e.exLx = e.x; e.exLy = e.y;
-  const t = performance.now() / 1000, fill = e.cargo / STATS.extractor.capacity;
-  if (EXTRACTOR_STYLE === 'classic') return drawExtractorClassic(e);
   ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.facing);
-  if (EXTRACTOR_STYLE === 'truck') drawExtractorTruck(e, TEAMS[e.team], moving, t, fill);
-  else if (EXTRACTOR_STYLE === 'tracked') drawExtractorTracked(e, TEAMS[e.team], moving, t, fill);
-  else drawExtractorSilo(e, TEAMS[e.team], moving, t, fill);
+  drawExtractorTruck(e, TEAMS[e.team], moving, performance.now() / 1000, e.cargo / STATS.extractor.capacity);
   ctx.restore();
   drawExtractorIdle(e);
 }
@@ -3420,7 +3415,7 @@ function drawBeacon(x, y, t, on) {   // amber roof light, flashing while it work
   if (lit) { ctx.fillStyle = 'rgba(255,170,40,0.35)'; ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill(); }
   ctx.fillStyle = lit ? '#ffb02e' : '#8a5a12'; ctx.beginPath(); ctx.arc(x, y, 1.9, 0, Math.PI * 2); ctx.fill();
 }
-// A: a big mining dump truck — six fat tyres, a ribbed tipper body that heaps up with ore, a rounded cab and a drill on the front
+// The mining truck — six fat tyres, a ribbed tipper body that heaps up with ore, a rounded cab and a drill on the front
 function drawExtractorTruck(e, c, moving, t, fill) {
   ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(-15, -10, 36, 24);
   for (const wx of [-13, -4, 11]) for (const s of [-1, 1]) {   // tyres with a hub
@@ -3451,83 +3446,6 @@ function drawExtractorTruck(e, c, moving, t, fill) {
     for (let k = 0; k < 3; k++) { const x = 22.5 + ((a + k * 2.3) % 6); ctx.beginPath(); ctx.moveTo(x, -3.5 + (x - 22) * 0.55); ctx.lineTo(x + 1.2, 3.5 - (x - 22) * 0.55); ctx.stroke(); }
   }
 }
-// B: a tracked harvester — tank tracks, a toothed cutter drum across the front, ore seen through a glass-topped hopper
-function drawExtractorTracked(e, c, moving, t, fill) {
-  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(-14, -11, 36, 26);
-  ctx.fillStyle = '#1f1f1c'; ctx.fillRect(-17, -13, 32, 6); ctx.fillRect(-17, 7, 32, 6);      // tracks
-  ctx.strokeStyle = '#45453f'; ctx.lineWidth = 1;
-  const off = moving ? (performance.now() / 40) % 4 : 0;
-  for (let k = -17 + off; k < 15; k += 4) { ctx.beginPath(); ctx.moveTo(k, -13); ctx.lineTo(k, -7); ctx.moveTo(k, 7); ctx.lineTo(k, 13); ctx.stroke(); }
-  ctx.fillStyle = c.dark; ctx.fillRect(-16, -8, 30, 16);                                       // hull
-  // hopper with a glass top showing the ore
-  ctx.fillStyle = '#4d4a40'; ctx.beginPath(); ctx.roundRect(-15, -7, 19, 14, 3); ctx.fill();
-  drawOreHeap(-15, -7, 19, 14, fill, 20);
-  ctx.fillStyle = 'rgba(170,215,240,0.28)'; ctx.beginPath(); ctx.roundRect(-15, -7, 19, 14, 3); ctx.fill();
-  ctx.strokeStyle = '#2a2925'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.roundRect(-15, -7, 19, 14, 3); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(-5.5, -7); ctx.lineTo(-5.5, 7); ctx.stroke();
-  ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(-13, -5.5, 5, 1.2);
-  // cab on one side in team colour, engine grille on the other
-  ctx.fillStyle = c.color; ctx.beginPath(); ctx.roundRect(5, -8, 9, 8, 2); ctx.fill();
-  ctx.fillStyle = '#bfe3ff'; ctx.fillRect(11, -6.5, 2.2, 5);
-  ctx.fillStyle = '#2c2c28'; ctx.fillRect(5, 2, 9, 5);
-  ctx.fillStyle = '#4a4a44'; for (let k = 0; k < 4; k++) ctx.fillRect(6 + k * 2, 2.8, 1, 3.4);
-  drawBeacon(-16, 0, t, moving || e.mining || (e.order && e.order.phase === 'unloading'));
-  // cutter drum with teeth that roll while it mines
-  ctx.fillStyle = '#5c5c55'; ctx.fillRect(14, -12, 6, 24);
-  ctx.fillStyle = '#86867c'; ctx.fillRect(15, -12, 2, 24);
-  const roll = e.mining ? (t * 30) % 4 : 0;
-  ctx.fillStyle = '#cfcfc6';
-  for (let y = -12 + roll; y < 12; y += 4) { ctx.beginPath(); ctx.moveTo(20, y); ctx.lineTo(23, y + 1.2); ctx.lineTo(20, y + 2.4); ctx.closePath(); ctx.fill(); }
-  if (e.mining) { ctx.fillStyle = 'rgba(230,200,90,0.5)'; for (let k = 0; k < 4; k++) ctx.fillRect(22 + ((t * 40 + k * 7) % 6), -8 + k * 5, 1.6, 1.6); }   // flying chips of ore
-}
-// C: a silo crawler — a round ore silo with a gauge ring that fills as it loads, a team-colour cab and a claw arm in front
-function drawExtractorSilo(e, c, moving, t, fill) {
-  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(3, 3, 19, 12, 0, 0, Math.PI * 2); ctx.fill();
-  for (const wx of [-12, -3, 7]) for (const s of [-1, 1]) { ctx.fillStyle = '#1e1e1c'; ctx.beginPath(); ctx.roundRect(wx - 3.5, s * 10.5 - 2.5, 7, 5, 2); ctx.fill(); }
-  ctx.fillStyle = '#3d3d37'; ctx.fillRect(-16, -8, 30, 16);                                   // chassis
-  // silo seen from above: steel drum, team-colour band, gold gauge ring for the load, a hatch on top
-  ctx.fillStyle = '#9a9a90'; ctx.beginPath(); ctx.arc(-6, 0, 10, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = c.color; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(-6, 0, 8.3, 0, Math.PI * 2); ctx.stroke();
-  if (fill > 0) { ctx.strokeStyle = '#f2c94c'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(-6, 0, 8.3, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * fill); ctx.stroke(); }
-  ctx.fillStyle = '#c9c9bf'; ctx.beginPath(); ctx.arc(-6, 0, 6, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#7d7d74'; ctx.beginPath(); ctx.arc(-6, 0, 3, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.beginPath(); ctx.arc(-8.5, -3, 2.2, 0, Math.PI * 2); ctx.fill();
-  if (fill > 0.98) { ctx.fillStyle = '#f2c94c'; ctx.beginPath(); ctx.arc(-6, 0, 1.6, 0, Math.PI * 2); ctx.fill(); }   // full: the hatch glints gold
-  // cab
-  ctx.fillStyle = c.color; ctx.beginPath(); ctx.roundRect(5, -8, 10, 16, 3); ctx.fill();
-  ctx.fillStyle = c.dark; ctx.fillRect(5, -8, 2.5, 16);
-  ctx.fillStyle = '#bfe3ff'; ctx.beginPath(); ctx.roundRect(11, -5.5, 3, 11, 1.2); ctx.fill();
-  drawBeacon(9, 0, t, moving || e.mining || (e.order && e.order.phase === 'unloading'));
-  // claw arm: two jaws that open and close while it mines
-  ctx.strokeStyle = '#55554e'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(15, 0); ctx.lineTo(21, 0); ctx.stroke();
-  const open = e.mining ? 2 + 2 * Math.abs(Math.sin(t * 5)) : 1.5;
-  ctx.strokeStyle = '#c8c8be'; ctx.lineWidth = 1.8; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(21, 0); ctx.lineTo(24, -open); ctx.lineTo(27, -open * 0.4); ctx.moveTo(21, 0); ctx.lineTo(24, open); ctx.lineTo(27, open * 0.4); ctx.stroke();
-}
-function drawExtractorClassic(e) {
-  const c = TEAMS[e.team];
-  ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.facing);
-  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(-14, -9, 32, 22);
-  ctx.fillStyle = '#2b2b2b';
-  for (const [wx, wy] of [[-12, -12], [-2, -12], [8, -12], [-12, 9], [-2, 9], [8, 9]]) ctx.fillRect(wx, wy, 7, 4);
-  ctx.fillStyle = '#b8902a'; ctx.fillRect(-16, -10, 22, 20);           // ore hopper
-  const fill = e.cargo / STATS.extractor.capacity;
-  ctx.fillStyle = '#f5dc72'; ctx.fillRect(-14, 8 - 16 * fill, 18, 16 * fill);
-  ctx.fillStyle = c.color; ctx.fillRect(6, -9, 11, 18);                // cab
-  ctx.fillStyle = '#cfe8ff'; ctx.fillRect(12, -6, 3, 12);
-  ctx.fillStyle = c.dark; ctx.fillRect(-16, -10, 22, 3); ctx.fillRect(-16, 7, 22, 3);
-  if (e.mining) {   // spinning drill
-    ctx.strokeStyle = '#ddd'; ctx.lineWidth = 2;
-    const a = performance.now() / 60;
-    ctx.beginPath(); ctx.moveTo(18 + Math.cos(a) * 5, Math.sin(a) * 5); ctx.lineTo(18 - Math.cos(a) * 5, -Math.sin(a) * 5); ctx.stroke();
-  }
-  ctx.restore();
-  if (e.team === 0 && !e.order) {   // "!" when idle so you notice it
-    ctx.fillStyle = e.outOfOre ? '#ff9b3d' : '#ffd86b'; ctx.font = 'bold 14px system-ui'; ctx.textAlign = 'center';
-    ctx.fillText('!', e.x, e.y - e.r - 14);
-  }
-}
-
 function drawSoldier(e) {   // soldiers, grenadiers and engineers share a body; their kit differs
   const c = TEAMS[e.team];
   const hidden = e.team === 0 && hiddenFrom(e, 1);   // your infantry is hidden in a forest

@@ -1,12 +1,12 @@
-# Extractor looks side by side: empty, half full and mining, full, and the computer's colours, for each art style.
-# Usage: python3 tests/pic_extractor.py <game folder> <port> <out prefix> [styles, default classic,truck,tracked,silo]
+# The Extractor (mining truck, v5.54) close up: empty, half full and mining, full, and in the computer's colours.
+# Usage: python3 tests/pic_extractor.py <game folder> <port> <out prefix>
 import sys, http.server, threading, functools
 from playwright.sync_api import sync_playwright
 class Q(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *a): pass
 srv = http.server.ThreadingHTTPServer(('127.0.0.1', int(sys.argv[2])), functools.partial(Q, directory=sys.argv[1]))
 threading.Thread(target=srv.serve_forever, daemon=True).start()
-out = sys.argv[3]; styles = (sys.argv[4] if len(sys.argv) > 4 else 'classic,truck,tracked,silo').split(',')
+out = sys.argv[3]
 with sync_playwright() as p:
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--no-sandbox'])
     pg = b.new_page(viewport={'width': 1000, 'height': 200}, device_scale_factor=2); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)))
@@ -18,8 +18,7 @@ with sync_playwright() as p:
       const mk=(team,dx,cargo,mining,face)=>{ const u=spawn('extractor',team,c.x+dx,c.y); u.cargo=cargo; u.mining=mining; u.facing=face; u.order={type:'move',x:u.x,y:u.y}; u.passive=true; return u; };
       mk(0,-105,0,false,-0.3); mk(0,-35,250,true,-0.3); mk(0,35,500,false,-0.3); mk(1,105,250,true,2.6);
       cam.zoom=6.5; cam.x=c.x; cam.y=c.y; game.selected=new Set(); game.paused=true; })()""")
-    for s in styles:
-        pg.evaluate(f"EXTRACTOR_STYLE='{s}'"); pg.wait_for_timeout(450); pg.screenshot(path=f'{out}_{s}.png')
+    pg.wait_for_timeout(450); pg.screenshot(path=f'{out}_close.png')
     print('errors', errs[:3])
     b.close()
 srv.shutdown()
