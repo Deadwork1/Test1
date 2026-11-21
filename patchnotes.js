@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.53', date: '21 Nov 2026', title: 'Hidden tech',
+    changes: [
+      'Buildings and units you can\'t make yet no longer show up at all. Their buttons appear only once you have the buildings they need, so finding new ones is part of the game. (They used to show what they needed.)',
+      'Lose the building that unlocked them and they disappear again until you rebuild it.',
+    ],
+  },
+  {
     version: '5.52', date: '21 Nov 2026', title: 'Bigger loads, new prices',
     changes: [
       'An Extractor now carries $500 a load (was $150) and mines $50 a second (was $30), so it fills up in 10 seconds.',

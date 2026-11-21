@@ -5013,14 +5013,14 @@ function updateHUD() {
   show(ui.deploy, !!settler && !placing);
   show(ui.barracks, !!hq && !placing);
   show(ui.refinery, !!hq && !placing);
-  show(ui.factory, !!hq && !placing);
-  show(ui.tech, !!hq && !placing);
+  show(ui.factory, !!hq && !placing && unlocked(0, 'factory'));   // hidden until you have what it needs (v5.53)
+  show(ui.tech, !!hq && !placing && unlocked(0, 'tech'));   // hidden until you have what it needs (v5.53)
   show(ui.tower, !!hq && !placing);
   show(ui.power, !!hq && !placing);
-  show(ui.radar, !!hq && !placing);
-  show(ui.medbay, !!hq && !placing);
-  show(ui.helipad, !!hq && !placing);
-  show(ui.sam, !!hq && !placing);
+  show(ui.radar, !!hq && !placing && unlocked(0, 'radar'));   // hidden until you have what it needs (v5.53)
+  show(ui.medbay, !!hq && !placing && unlocked(0, 'medbay'));   // hidden until you have what it needs (v5.53)
+  show(ui.helipad, !!hq && !placing && unlocked(0, 'helipad'));   // hidden until you have what it needs (v5.53)
+  show(ui.sam, !!hq && !placing && unlocked(0, 'sam'));   // hidden until you have what it needs (v5.53)
   show(ui.heliHome, sel.some(e => e.air && e.team === 0 && !e.landed) && !placing);
   show(ui.wall, !!hq && !placing);
   show(ui.gate, !!hq && !placing);
@@ -5049,10 +5049,10 @@ function updateHUD() {
   const boost = powerBoost(0);
   ui.powerChip.style.display = boost > 1 ? '' : 'none';
   ui.powerChip.textContent = `⚡ +${Math.round((boost - 1) * 100)}%`;
-  // locked buildings say what they still need
+  // locked buildings are hidden above until you have what they need (v5.53: finding them is part of the fun; they used to say what they needed)
   for (const [btn, type] of [[ui.factory, 'factory'], [ui.tech, 'tech'], [ui.radar, 'radar'], [ui.medbay, 'medbay'], [ui.helipad, 'helipad'], [ui.sam, 'sam']]) {
     const miss = missingFor(0, type);
-    btn.textContent = miss.length ? `${NAMES[type]}: needs ${miss.map(t => NAMES[t]).join(' + ')}` : `${NAMES[type]} $${COST[type]}`;
+    btn.textContent = `${NAMES[type]} $${COST[type]}`;
     btn.disabled = miss.length > 0 || game.credits[0] < COST[type];
   }
   ui.wall.disabled = game.credits[0] < COST.wall;
@@ -5068,7 +5068,9 @@ function updateHUD() {
       const unit = btn.dataset.unit;
       const miss = missingFor(0, unit);
       const docked = unit === 'heli' && padHeli(producer);
-      const label = miss.length ? `${SHORT[unit] || NAMES[unit]}: needs ${miss.map(t => NAMES[t]).join(' + ')}` : docked ? 'Helicopter: this pad has one' : `${SHORT[unit] || NAMES[unit]} $${COST[unit]}`;
+      const vis = miss.length ? 'none' : '';   // locked units stay hidden too (v5.53)
+      if (btn.style.display !== vis) btn.style.display = vis;
+      const label = docked ? 'Helicopter: this pad has one' : `${SHORT[unit] || NAMES[unit]} $${COST[unit]}`;
       if (btn.textContent !== label) btn.textContent = label;
       btn.disabled = miss.length > 0 || !!docked || !producer.built || producer.queue >= STATS[producer.type].maxQueue || game.credits[0] < COST[unit];
     }
