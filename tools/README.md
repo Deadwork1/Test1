@@ -46,6 +46,16 @@ Example: `python3 rec/record.py .. 8801 large hard mixed 60`
 - `test_gate_attack.py` checks tanks told to attack an enemy gate shoot it from their own side instead of driving round through the base's other entrance (Huge and Large).
 - `test_rocket_heavy.py <game folder> <port> [trials]` puts 12 enemy Rocket Soldiers (with the computer's brain running) against 3 of your Heavy Tanks and 4 Buggies, and reports what each side lost and when the first Heavy Tank fell.
 - `test_random_map.py <game folder> <port> [maps per size] [out prefix]` rolls many random maps on each size and checks each loads and passes its own check (HQ fits, enemy, island, ore fields, village and ruins reachable), that the same number gives the same map, and saves pictures of a few.
+- `pic_damage.py <game folder> <port> <out prefix>` pictures buildings and vehicles at full health, damaged and critical (battle damage, v5.51).
+- `test_trickle.py <game folder> <port> [out prefix]` checks an Extractor's $500 load is paid in whole dollars over 10 s in the Refinery, that one called away early keeps the rest on board, and the computer's share (v5.52).
+- `pic_hidden_tech.py <game folder> <port> <out prefix>` checks buttons for buildings and units appear only once their requirements are built, and hide again when they're lost (v5.53).
+- `pic_extractor.py <game folder> <port> <out prefix>` pictures the Extractor (mining truck) empty, half full and mining, full, and in the computer's colours (v5.54).
+- `test_extractor_factory.py <game folder> <port> [minutes]` checks Extractors are bought at the War Factory, each Refinery still gives one free, and the computer gets its Extractors on Easy, Normal and Hard (v5.55).
+- `pic_dock_reverse.py <game folder> <port> <out prefix>` pictures an Extractor turning at the Refinery door, backing in, unloading and driving out (v5.55.1).
+- `pic_sea_preview.py <game folder> <port> <map> <out prefix>` the picture-only sea preview made before the sea was built (v5.57).
+- `test_sea.py <game folder> <port>` checks the sea on every map: water and beach where they should be, units stop on the sand, the river's mouth can't be crossed, nothing is built on the beach, both halves still mirror (v5.57-5.59).
+- `pic_landing.py <game folder> <port> <out prefix> [map]` pictures the opening landing (boat in, ramp down, Settler ashore, boat out) and checks its timing, the computer's matching wait, and that deploying straight away skips it (v5.58).
+- `pic_deploy.py <game folder> <port> <out prefix>` pictures the Settler truck, the boat and the deploy animation step by step (v5.59).
 - `test_turret.py` checks Turrets: an Engineer builds an empty one, infantry man it, Unload, enemy takeover of an empty one, the gunner lost with it.
 - `test_ruins.py` checks the ruined bases on every map: capture, repair, working only from half health, no selling, falling back to neutral when knocked out.
 - `test_ai_ruins.py <game folder> <port> <maps> <difficulties>` logs when the computer captures and repairs each ruin.
