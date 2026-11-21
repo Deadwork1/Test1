@@ -65,6 +65,7 @@
   }
   #overlay > * { flex-shrink: 0; }
   .row { display: flex; gap: 10px; }
+  #mapRow, #randRow { flex-wrap: wrap; justify-content: center; }
   #notes { z-index: 30; position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
     background: rgba(0,0,0,.75); padding: 14px; }
   #notesBox { background: #141d11; border: 1px solid #5b8a45; border-radius: 14px; width: min(640px, 100%);
@@ -132,6 +133,14 @@
     <button class="ghost" data-m="classic">Classic map</button>
     <button class="ghost" data-m="large">Large map</button>
     <button class="ghost" data-m="huge">Huge map</button>
+    <button class="ghost" data-m="random">Random map</button>
+  </div>
+  <div id="randRow" class="row" style="display:none">
+    <button class="ghost" data-s="classic">Small</button>
+    <button class="ghost" data-s="large">Large</button>
+    <button class="ghost" data-s="huge">Huge</button>
+    <button id="randNum" class="ghost">Map #</button>
+    <button id="randNew" class="ghost">New map</button>
   </div>
   <div id="mapInfo" class="sub"></div>
   <div id="diffRow" class="row">

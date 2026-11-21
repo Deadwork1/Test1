@@ -2,7 +2,7 @@
 
 A small real-time strategy game inspired by classic 90s RTS games, built step by step.
 
-**Current version:** 1v1 against the computer with terrain and fog of war, on the Classic, Large or Huge map.
+**Current version:** 1v1 against the computer with terrain and fog of war, on the Classic, Large or Huge map, or a **Random map** (Small, Large or Huge size; each has a number you can replay or share).
 
 - Your **settler** arrives by boat at the start (it lands on the beach and drives to its start spot), then deploys into a **Headquarters (HQ)**.
 - The HQ builds a **Refinery** ($400), a **Barracks** ($300, trains Soldiers, Grenadiers, Rocket Soldiers, Snipers and Engineers), a **War Factory** ($500, Scout Buggy, Light Tank, Artillery, Heavy Tank, Extractor), a **Tech Centre** ($600, unlocks the Heavy Tank), a **Power Plant** ($200, +25% build and training speed each, up to double), a **Guard Tower** ($500), a **Radar** ($300, needs a Power Plant: reveals everything within 750, over rocks and cliffs), a **Medbay** ($400, needs a Barracks: units standing on it heal, up to 5 infantry or 1 vehicle at a time), a **Helipad** ($500, needs a War Factory: home of one Attack Helicopter), a **SAM Site** ($600, needs a Power Plant: shoots only at aircraft), **Walls** ($20 each) and **Gates** ($150, 3 tiles wide).

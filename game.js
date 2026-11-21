@@ -92,9 +92,95 @@ const MAPS = {
     ruins: [{ x: 580, y: 920, clearing: [140, 115], buildings: [['barracks', -64, -30], ['power', 66, -34], ['radar', 0, 56]] }],   // old ruined base in the middle of the big jungle
   },
 };
-let mapChoice = 'large';
-try { if (MAPS[localStorage.getItem('mini-rts-map')]) mapChoice = localStorage.getItem('mini-rts-map'); } catch (err) {}
-const MAP = MAPS[mapChoice];
+// ---------- Random maps (v5.60) ----------
+// A Random map has the size of Classic, Large or Huge and keeps their shape: your base corner (with its walls and home ore field),
+// a river down the middle with the gold island, and the mirror-image enemy half. Everything else is rolled from the map number:
+// the river's bends, the island's size, where the bridge crosses, ore fields, forests, the jungle with its ruined base, ridges,
+// plateaus and the village. Each one is checked before you play it (below, after the terrain is built) and rolled again if it fails.
+const newMapNumber = () => 1 + Math.floor(Math.random() * 999999);
+function generateMap(size, seed, attempt = 0) {
+  const base = MAPS[size], k = base.W / 3600, W0 = base.W, H0 = base.H, S = base.start;
+  let st = (seed * 2654435761 + attempt * 40503 + 12345) >>> 0;
+  const rnd = () => { st = (st + 0x6D2B79F5) >>> 0; let t = st; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };   // (the same number always rolls the same map)
+  const R = (a, b) => a + rnd() * (b - a), RI = (a, b) => Math.floor(R(a, b + 1));
+  const river = { amp: Math.round(base.river.amp * R(0.6, 1.4)), period: Math.round(base.river.period * R(0.8, 1.3)), half: base.river.half };
+  const rx = y => W0 / 2 + river.amp * Math.sin((y - H0 / 2) / river.period);
+  const island = { ...base.island, r: Math.round(base.island.r * R(0.88, 1.12)) };
+  // your base corner stays as it is on the fixed map: its two walls and its home ore field
+  const baseRidges = base.ridges.slice(0, 2), bp = baseRidges.flatMap(r => r[0]);
+  const bx1 = Math.max(...bp.map(q => q[0])) + 80, by0 = Math.min(...bp.map(q => q[1])) - 80;
+  const inBase = (x, y, r) => x - r < bx1 && y + r > by0;
+  const placed = [], free = (x, y, r) => placed.every(q => Math.hypot(x - q.x, y - q.y) > r + q.r);
+  const onSide = (x, y, r) => x > r + 40 && y > r + 40 && y < H0 - r - 40 && x < rx(y) - river.half - r - 50 && Math.hypot(x - W0 / 2, y - H0 / 2) > island.r + r + 70;
+  let loose = 1;   // when the ground is crowded, pick() relaxes its spacing a little at a time
+  const pick = (r, ok) => { for (loose = 1; loose > 0.55; loose -= 0.15) for (let i = 0; i < 250; i++) { const y = R(r + 40, H0 - r - 40), x = R(r + 40, W0 / 2); if (onSide(x, y, r * loose) && !inBase(x, y, r * loose) && free(x, y, r * loose) && (!ok || ok(x, y))) return { x, y }; } return null; };
+  const farFromStart = d => (x, y) => Math.hypot(x - S.x, y - S.y) > d * loose;
+  // the bridge above the island (its mirror crosses below it)
+  const by = Math.round(R(0.07 * H0, H0 / 2 - island.r - 260 * k));
+  const bridges = [{ y: by, hw: base.bridges[0].hw }];
+  placed.push({ x: rx(by), y: by, r: 140 * k }, { x: rx(H0 - by), y: H0 - by, r: 140 * k });
+  // the village, on your side of the bridge below the island
+  const vb = H0 - by, vt = base.villages[0];
+  let vy = Math.min(H0 - 150 * k, vb - R(40, 170) * k), vx = rx(vy) - river.half - R(220, 320) * k;
+  while (Math.hypot(vx - W0 / 2, vy - H0 / 2) < island.r + 300 * k && vy < H0 - 160 * k) { vy += 25; vx = rx(vy) - river.half - 270 * k; }   // keep it clear of the island's river
+  const villages = [{ ...vt, x: Math.round(vx), y: Math.round(vy) }];
+  placed.push({ x: vx, y: vy, r: 190 * k });
+  // the jungle with an old ruined base in its clearing, well away from your base
+  const forests = [], ruins = [];
+  const J = pick(330 * k, farFromStart(900 * k));
+  if (J) {
+    const jr = R(300, 400) * k;
+    forests.push([Math.round(J.x), Math.round(J.y), Math.round(jr), Math.round(jr * R(0.7, 0.85)), R(-0.4, 0.4)]);
+    for (let i = RI(1, 2); i > 0; i--) { const a = R(0, Math.PI * 2), d = jr * R(0.6, 0.9); forests.push([Math.round(J.x + Math.cos(a) * d), Math.round(J.y + Math.sin(a) * d), Math.round(jr * R(0.45, 0.65)), Math.round(jr * R(0.35, 0.5)), R(-0.6, 0.6)]); }
+    ruins.push({ ...base.ruins[0], x: Math.round(J.x), y: Math.round(J.y) });
+    placed.push({ x: J.x, y: J.y, r: jr * 1.35 });
+  }
+  // ore fields: your home field, then the rest scattered over your half
+  const fields = [base.fields[0]];
+  for (const f of base.fields.slice(1)) {
+    const at = pick(f.spread + 110 * k, farFromStart(650 * k)); if (!at) continue;
+    fields.push({ ...f, x: Math.round(at.x), y: Math.round(at.y) }); placed.push({ x: at.x, y: at.y, r: f.spread + 120 * k });
+  }
+  // plateaus (high ground with cliffs and one or two ramps)
+  const plateaus = [];
+  for (let i = 0; i < Math.max(2, base.plateaus.length); i++) {
+    const pr = R(130, 200) * k, at = pick(pr + 40 * k, farFromStart(500 * k)); if (!at) continue;
+    const ramps = [R(0, Math.PI * 2)]; if (rnd() < 0.5) ramps.push(ramps[0] + Math.PI + R(-0.6, 0.6));
+    const pl = { x: Math.round(at.x), y: Math.round(at.y), rx: Math.round(pr), ry: Math.round(pr * R(0.62, 0.75)), tilt: R(-1, 1), ramps };
+    if (pr < 110) pl.rim = 30;
+    plateaus.push(pl); placed.push({ x: at.x, y: at.y, r: pr + 50 * k });
+  }
+  // rock ridges: short bent lines of two or three pieces
+  const ridges = [...baseRidges];
+  for (let i = RI(3, 5), tries = 0; i > 0 && tries < 20; tries++) {
+    const a0 = pick(50 * k, farFromStart(450 * k)); if (!a0) continue;
+    const pts = [[Math.round(a0.x), Math.round(a0.y)]]; let a = R(0, Math.PI * 2);
+    for (let j = RI(2, 3); j > 0; j--) {   // each piece tries a few directions before the ridge stops growing
+      let next = null;
+      for (let t = 0; t < 8 && !next; t++) {
+        const b = a + R(-0.7, 0.7) + (t > 3 ? Math.PI : 0), L = R(140, 250) * k, [px, py] = pts[pts.length - 1], nx = px + Math.cos(b) * L, ny = py + Math.sin(b) * L;
+        if (onSide(nx, ny, 40) && !inBase(nx, ny, 40) && free(nx, ny, 15) && Math.hypot(nx - S.x, ny - S.y) > 400 * k) { next = [Math.round(nx), Math.round(ny)]; a = b; }
+      }
+      if (!next) break;
+      pts.push(next);
+    }
+    if (pts.length < 2) continue;
+    i--;
+    ridges.push([pts, RI(28, 32)]); for (const [x, y] of pts) placed.push({ x, y, r: 60 * k });
+  }
+  // a few small woods
+  for (let i = RI(2, 4); i > 0; i--) { const r = R(90, 200) * k, at = pick(r + 30 * k, farFromStart(420 * k)); if (!at) continue; forests.push([Math.round(at.x), Math.round(at.y), Math.round(r)]); placed.push({ x: at.x, y: at.y, r: r + 30 * k }); }
+  const short = fields.length < base.fields.length || plateaus.length < 2 || ridges.length < baseRidges.length + 2 || !ruins.length;   // too sparse: roll again
+  return { label: 'Random', random: true, short, size, seed, attempt, W: W0, H: H0, start: S, fields, island, ridges, forests, plateaus, river, bridges, ruins, villages };
+}
+let mapChoice = 'large', randomSize = 'large', mapNumber = 0;
+try {
+  const m = localStorage.getItem('mini-rts-map'); if (MAPS[m] || m === 'random') mapChoice = m;
+  if (MAPS[localStorage.getItem('mini-rts-rsize')]) randomSize = localStorage.getItem('mini-rts-rsize');
+  mapNumber = parseInt(localStorage.getItem('mini-rts-seed'), 10) || 0;
+} catch (err) {}
+if (!mapNumber) { mapNumber = newMapNumber(); try { localStorage.setItem('mini-rts-seed', mapNumber); } catch (err) {} }
+let MAP = mapChoice === 'random' ? generateMap(randomSize, mapNumber) : MAPS[mapChoice];
 
 // ---------- Settings (tweak these to balance the game) ----------
 const W = MAP.W, H = MAP.H;           // map size in world units (the land, where the game is played: both halves mirror each other in it)
@@ -202,10 +288,7 @@ const isNeutralType = t => t === 'derrick' || t === 'house';
 const START = [{ x: MAP.start.x, y: MAP.start.y }, { x: W - MAP.start.x, y: H - MAP.start.y }];
 
 // ore fields: a small one by each base, a big rich one in the middle, two on the flanks
-const ORE_FIELDS = [
-  ...MAP.fields.flatMap(f => [f, { ...f, x: W - f.x, y: H - f.y }]),
-  { x: W / 2, y: H / 2, nodes: MAP.island.nodes, amount: MAP.island.amount, spread: MAP.island.spread, ring: MAP.island.ring, inner: MAP.island.inner },
-];
+let ORE_FIELDS = [];   // (filled in by buildWorld, below)
 
 // ---------- Canvas, camera ----------
 const canvas = document.getElementById('c');
@@ -245,15 +328,14 @@ const elev = new Uint8Array(TCOLS * TROWS);   // 1 = high ground (plateau tops a
 
 const mirror = ([x, y]) => [W - x, H - y];
 // cliff ridges ([points], thickness) and forests ([x, y, radius]) for your side; mirrored below
-const RIDGES = MAP.ridges;
-const FORESTS = MAP.forests;
+let RIDGES = MAP.ridges, FORESTS = MAP.forests;
 const riverX = y => W / 2 + MAP.river.amp * Math.sin((y - H / 2) / MAP.river.period);
 // half the width of the river's channel across the beach: it widens as it reaches the sea (the background draws the same shape)
 function seaChanW(y) { const cy = coastY(riverX(H)), k = Math.max(0, Math.min(1, (y - (H - 10)) / (cy + 20 - (H - 10)))); return MAP.river.half * 1.1 * (1 + 1.5 * k * k * (3 - 2 * k)); }
 const SEA_VIEW_ROW = Math.ceil((H + SEA * 0.47) / 50);   // the first row of fog squares that is all water (the sea is always in view from there down)
-const ISLAND = { x: W / 2, y: H / 2, r: MAP.island.r };   // the middle ore field sits on an island
+let ISLAND = { x: W / 2, y: H / 2, r: MAP.island.r };   // the middle ore field sits on an island
 // bridges: centre x, centre y, half-width, half-height
-const BRIDGES = [
+let BRIDGES = [
   ...MAP.bridges.map(b => ({ x: riverX(b.y), y: b.y, hw: b.hw, hh: 24 })),
   { x: ISLAND.x - ISLAND.r, y: H / 2, hw: 58, hh: 24 },
 ];
@@ -265,7 +347,7 @@ function segDist(px, py, ax, ay, bx, by) {
   return Math.hypot(px - ax - t * dx, py - ay - t * dy);
 }
 
-(function buildTerrain() {
+function buildTerrain() {
   const ridges = [];
   for (const [pts, th] of RIDGES) { ridges.push([pts, th]); ridges.push([pts.map(mirror), th]); }
   const plateaus = [];
@@ -334,7 +416,45 @@ function segDist(px, py, ax, ay, bx, by) {
     if (wet) toCliff.push(i);
   }
   for (const i of toCliff) terrain[i] = T.CLIFF;
-})();
+}
+// everything worked out from the map, then its terrain (run again for each roll of a random map)
+function buildWorld() {
+  ORE_FIELDS = [...MAP.fields.flatMap(f => [f, { ...f, x: W - f.x, y: H - f.y }]),
+    { x: W / 2, y: H / 2, nodes: MAP.island.nodes, amount: MAP.island.amount, spread: MAP.island.spread, ring: MAP.island.ring, inner: MAP.island.inner }];
+  RIDGES = MAP.ridges; FORESTS = MAP.forests;
+  ISLAND = { x: W / 2, y: H / 2, r: MAP.island.r };
+  BRIDGES = [...MAP.bridges.map(b => ({ x: riverX(b.y), y: b.y, hw: b.hw, hh: 24 })), { x: ISLAND.x - ISLAND.r, y: H / 2, hw: 58, hh: 24 }];
+  for (const b of [...BRIDGES]) { const [x, y] = mirror([b.x, b.y]); BRIDGES.push({ ...b, x, y }); }
+  terrain.fill(0); elev.fill(0);
+  buildTerrain();
+}
+// Is this map playable? Your HQ fits where your Settler lands; a vehicle can drive from your start to the enemy's, to the island
+// and to every ore field on your side; infantry can reach the village and the ruined base. (Both halves are mirror images.)
+function mapPlayable() {
+  if (MAP.short) return false;
+  const tile = (x, y) => Math.max(0, Math.min(TROWS - 1, Math.floor(y / TC))) * TCOLS + Math.max(0, Math.min(TCOLS - 1, Math.floor(x / TC)));
+  for (let dy = -85; dy <= 85; dy += 12) for (let dx = -85; dx <= 85; dx += 12) if (terrain[tile(START[0].x + dx, START[0].y + dy)] !== T.GRASS) return false;
+  const reach = foot => {   // flood fill from your start over the ground a vehicle (or a soldier) can cross
+    const seen = new Uint8Array(TCOLS * TROWS), q = [tile(START[0].x, START[0].y)]; seen[q[0]] = 1;
+    const ok = i => { const t = terrain[i]; return t === T.GRASS || t === T.BRIDGE || (foot && t === T.FOREST); };
+    while (q.length) { const i = q.pop(), c = i % TCOLS, r = (i / TCOLS) | 0;
+      for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const cc = c + dc, rr = r + dr; if (cc < 0 || rr < 0 || cc >= TCOLS || rr >= TROWS) continue; const j = rr * TCOLS + cc; if (!seen[j] && ok(j)) { seen[j] = 1; q.push(j); } } }
+    return seen;
+  };
+  const near = (seen, x, y, d) => { for (let dy = -d; dy <= d; dy += TC) for (let dx = -d; dx <= d; dx += TC) if (seen[tile(x + dx, y + dy)]) return true; return false; };
+  const car = reach(false), man = reach(true);
+  if (!near(car, START[1].x, START[1].y, 60) || !near(car, ISLAND.x, ISLAND.y, ISLAND.r * 0.5)) return false;
+  for (const f of MAP.fields) if (!near(car, f.x, f.y, Math.min(60, f.spread))) return false;
+  for (const v of MAP.villages || []) if (!near(man, v.x, v.y, 70)) return false;
+  for (const ru of MAP.ruins || []) if (!near(man, ru.x, ru.y, 70)) return false;
+  return true;
+}
+if (MAP.random) {   // roll until the layout has everything (quick), build its terrain, and roll on if it fails the checks
+  let tries = 0;
+  const roll = () => { while (MAP.short && tries < 300) MAP = generateMap(randomSize, mapNumber, ++tries); };
+  roll(); buildWorld();
+  while (!mapPlayable() && tries < 300) { MAP = generateMap(randomSize, mapNumber, ++tries); roll(); buildWorld(); }
+} else buildWorld();
 
 const elevAt = (x, y) => { const c = Math.floor(x / TC), r = Math.floor(y / TC); return c < 0 || r < 0 || c >= TCOLS || r >= TROWS ? 0 : elev[r * TCOLS + c]; };
 const HIGH_SIGHT = 1.25, HIGH_RANGE = 1.2;   // seeing and shooting from high ground
@@ -5180,10 +5300,23 @@ for (const b of document.querySelectorAll('#mapRow button')) {
     location.reload();
   });
 }
+// a Random map: its size, its number (play it again, or send it to a friend), and a button to roll a new one
+$('randRow').style.display = mapChoice === 'random' ? '' : 'none';
+for (const b of document.querySelectorAll('#randRow button[data-s]')) {
+  b.classList.toggle('on', b.dataset.s === randomSize);
+  b.addEventListener('click', () => { if (b.dataset.s === randomSize) return; try { localStorage.setItem('mini-rts-rsize', b.dataset.s); } catch (err) {} location.reload(); });
+}
+$('randNew').addEventListener('click', () => { try { localStorage.setItem('mini-rts-seed', newMapNumber()); } catch (err) {} location.reload(); });
+$('randNum').addEventListener('click', () => {
+  const v = parseInt(prompt('Map number to play (1 to 999999):', mapNumber), 10);
+  if (v >= 1 && v <= 999999 && v !== mapNumber) { try { localStorage.setItem('mini-rts-seed', v); } catch (err) {} location.reload(); }
+});
+$('randNum').textContent = 'Map #' + mapNumber;
 $('mapInfo').textContent = {
   classic: 'Classic: the smaller map. A village with an Oil Derrick, high ground by the bridges and a small ruined base hidden in the jungle. Quicker games.',
   large: 'Large: a smaller Huge. Extra ore fields, high ground with river lookouts, one bridge each side, a village with an Oil Derrick and an old ruined base deep in the jungle. Longer games.',
   huge: 'Huge: lots of open ground between the bases, more ore fields, high ground and an old ruined base deep in the jungle. The longest games.',
+  random: `Random (${MAPS[randomSize].label} size): a new layout each time, with the river and gold island in the middle and your base corner as usual. Tap the map number to play one again or share it.`,
 }[mapChoice];
 
 // ---------- Difficulty picker ----------
@@ -5384,7 +5517,7 @@ function reportHits(team) {
 function buildReport() {
   return {
     game: 'Mini RTS', version: (typeof PATCH_NOTES !== 'undefined' && PATCH_NOTES[0].version) || '?', saved: new Date().toISOString(),
-    map: mapChoice, difficulty: difficulty, secondsPlayed: Math.round(game.time), result: game.over || 'in progress',
+    map: mapChoice === 'random' ? `random-${randomSize} #${mapNumber}` : mapChoice, difficulty: difficulty, secondsPlayed: Math.round(game.time), result: game.over || 'in progress',
     stats: { you: game.stats[0], enemy: game.stats[1] },
     made: { you: game.track.made[0], enemy: game.track.made[1] }, lost: { you: game.track.lost[0], enemy: game.track.lost[1] },
     byUnit: { you: reportHits(0), enemy: reportHits(1) },

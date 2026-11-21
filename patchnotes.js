@@ -2,6 +2,14 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.60', date: '21 Nov 2026', title: 'Random maps',
+    changes: [
+      'New Random map option on the start screen, in Small, Large or Huge size. Each one keeps your base corner and the river with the gold island, and rolls everything else: the river\'s bends, the bridge, ore fields, the jungle with its ruined base, ridges, plateaus and the village.',
+      'Every map is checked before you play it (your HQ fits, and you can reach the enemy, the island, every ore field, the village and the ruins) and rolled again if it fails. Both halves are mirror images, so it\'s always fair.',
+      'Each random map has a number: tap it to type one in and play that map again or share it, or tap New map for a fresh one.',
+    ],
+  },
+  {
     version: '5.59', date: '21 Nov 2026', title: 'Unpacking',
     changes: [
       'The Settler is now a big mobile-HQ truck (about 1.5x the size), carrying the folded Headquarters on its back: panel seams, the star emblem and a folded radar dish.',
