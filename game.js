@@ -113,7 +113,7 @@ const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 50
 const WALL_REACH = 150;              // walls, gates and guard towers can go this much further out than other buildings
 
 const STATS = {
-  settler:   { hp: 200, speed: 38, r: 16, sight: 180 },
+  settler:   { hp: 200, speed: 38, r: 22, sight: 180 },   // (r 16 until v5.59: it's a bigger truck now, with the folded HQ on its back)
   soldier:   { hp: 60,  speed: 52, r: 9,  sight: 170, range: 85, dmg: 7, cooldown: 0.8 },
   extractor: { hp: 300, speed: 34, r: 15, sight: 150, capacity: 500, rate: 50, unloadTime: 10 },   // (v5.52: a $500 load mined at $50/s, paid out bit by bit over 10 s in the Refinery; was 150, 30/s, 1.5 s)
   buggy:     { hp: 140, speed: 95, r: 13, sight: 220, range: 110, dmg: 4,  cooldown: 0.25 },   // fast, machine gun (damage 5 until v5.41)
@@ -1203,6 +1203,7 @@ function deploy(settler) {
   if (!siteIsFree(settler.x, settler.y, STATS.hq.size)) return false;
   settler.hp = 0; settler.deployed = true;
   const hq = spawn('hq', settler.team, settler.x, settler.y);
+  if (game.time > 0.1) { hq.unfold = 0; hq.unfoldFrom = settler.facing || 0; }   // the truck turns and the HQ unfolds out of it (v5.59; not when the tools deploy at the very start)
   if (game.selected.delete(settler.id) && settler.team === 0) game.selected.add(hq.id);
   return true;
 }
@@ -1525,28 +1526,28 @@ function updateExtractor(e, dt) {
 // The game opens with your Settler arriving on a landing craft: it sails in from the sea, drops its ramp on the beach,
 // the Settler drives up onto the land and heads for its start spot, then the boat backs out and leaves.
 // The computer starts far from the sea, so its Settler starts in place, but it waits about as long before deploying.
-const BOAT_SPEED = 60, BOAT_RAMP = 0.6;
+const BOAT_SPEED = 60, BOAT_RAMP = 0.6, BOAT_K = 1.4;
 function startLanding() {
   const s0 = game.ents.find(e => e.team === 0 && e.type === 'settler'); if (!s0) return;
-  const x = START[0].x, stopY = coastY(x) + 26, y = HT + 70;
-  s0.boarded = true; s0.x = x; s0.y = y - 4; s0.facing = -Math.PI / 2;
+  const x = START[0].x, stopY = coastY(x) + 20, y = HT + 90;   // (its bow runs up onto the sand)
+  s0.boarded = true; s0.x = x; s0.y = y - 8; s0.facing = -Math.PI / 2;
   game.landing = { x, y, stopY, phase: 'sail', t: 0, ramp: 0, sid: s0.id };
   // the computer deploys once your Settler could have reached its start spot
-  game.aiDeployAt = (y - stopY) / BOAT_SPEED + BOAT_RAMP + (stopY - 30 - (H - 22)) / STATS.settler.speed + Math.hypot(START[0].x - x, START[0].y - (H - 22)) / STATS.settler.speed;
+  game.aiDeployAt = (y - stopY) / BOAT_SPEED + BOAT_RAMP + (stopY - 44 - (H - 26)) / STATS.settler.speed + Math.hypot(START[0].x - x, START[0].y - (H - 26)) / STATS.settler.speed;
 }
 function updateLanding(dt) {
   const L = game.landing; if (!L) return;
   const s = byId(L.sid);
   if (L.phase === 'sail') {
     L.y = Math.max(L.stopY, L.y - BOAT_SPEED * dt);
-    if (s && s.boarded) { s.x = L.x; s.y = L.y - 4; }
+    if (s && s.boarded) { s.x = L.x; s.y = L.y - 8; }
     if (L.y <= L.stopY) { L.phase = 'ramp'; L.t = 0; }
   } else if (L.phase === 'ramp') {
     L.t += dt; L.ramp = Math.min(1, L.t / BOAT_RAMP);
-    if (L.ramp >= 1) { if (s && s.boarded) { s.boarded = false; s.landing = true; s.y = L.stopY - 30; } L.phase = 'unload'; }
+    if (L.ramp >= 1) { if (s && s.boarded) { s.boarded = false; s.landing = true; s.y = L.stopY - 44; } L.phase = 'unload'; }
   } else if (L.phase === 'unload') {
     if (!s || !s.landing) { L.phase = 'leave'; L.t = 0; }
-    else if (moveToward(s, L.x, H - 22, dt)) {   // off the ramp and up the beach, then on to its start spot like any order
+    else if (moveToward(s, L.x, H - 26, dt)) {   // off the ramp and up the beach, then on to its start spot like any order
       s.landing = false; s.facing = -Math.PI / 2;
       if (!s.order) s.order = { type: 'move', x: START[0].x, y: START[0].y };
       L.phase = 'leave'; L.t = 0;
@@ -1554,7 +1555,7 @@ function updateLanding(dt) {
   } else {   // ramp up, back out to sea
     L.t += dt; L.ramp = Math.max(0, 1 - L.t / 0.5);
     if (L.t > 0.6) L.y += BOAT_SPEED * 0.8 * Math.min(1, (L.t - 0.6) / 1.2) * dt;
-    if (L.y > HT + 90) game.landing = null;
+    if (L.y > HT + 110) game.landing = null;
   }
 }
 
@@ -1567,6 +1568,7 @@ function update(dt) {
   game.credits[0] += INCOME * dt;
   game.credits[1] += INCOME * dt;
   updateLanding(dt);
+  for (const e of game.ents) if (e.unfold !== undefined && e.unfold < 1) e.unfold = Math.min(1, e.unfold + dt / HQ_UNFOLD);
   if (bldDirty) rebuildBuildingGrid();
 
   for (const e of game.ents) {
@@ -3450,7 +3452,7 @@ function drawHealth(e) {
 // The landing craft: seen from above, bow (and its ramp) to the north, a wheelhouse at the stern, your colour along the sides
 function drawBoat(L) {
   const t = performance.now() / 1000, moving = L.phase === 'sail' || (L.phase === 'leave' && L.t > 0.6);
-  ctx.save(); ctx.translate(L.x, L.y);
+  ctx.save(); ctx.translate(L.x, L.y); ctx.scale(BOAT_K, BOAT_K);   // (1.4x since v5.59, to carry the bigger Settler)
   if (moving) {   // wake: a white V behind it and foam at the bow
     ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
     for (const sg of [-1, 1]) { ctx.beginPath(); ctx.moveTo(sg * 14, 30); ctx.quadraticCurveTo(sg * 22, 55, sg * 36, 82); ctx.stroke(); }
@@ -3474,16 +3476,37 @@ function drawBoat(L) {
   ctx.restore();
   const s = byId(L.sid); if (s && s.boarded) drawSettler(s);   // its cargo, riding on the deck
 }
-function drawSettler(e) {
+// The Settler (v5.59): a big mobile-HQ truck, seen from above, nose along +x: a cab in your colour, six big wheels,
+// and the folded Headquarters on its back (panel seams, the star emblem, a folded radar dish, hazard stripes on the tail)
+function drawSettler(e, alpha = 1) {
   const c = TEAMS[e.team];
-  ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.facing);
-  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(-15, -9, 32, 22);
-  ctx.fillStyle = '#2b2b2b';
-  for (const [wx, wy] of [[-10, -11], [8, -11], [-10, 9], [8, 9]]) ctx.fillRect(wx, wy, 7, 4);
-  ctx.fillStyle = c.color; ctx.fillRect(-16, -10, 24, 20);
-  ctx.fillStyle = c.dark; ctx.fillRect(8, -8, 9, 16);
-  ctx.fillStyle = '#cfe8ff'; ctx.fillRect(12, -6, 3, 12);
-  ctx.fillStyle = c.light; ctx.fillRect(-12, -6, 14, 12);
+  ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.facing); ctx.globalAlpha *= alpha;
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(-23, -14, 52, 34);                              // shadow
+  for (const wx of [-18, -6, 15]) for (const sg of [-1, 1]) {                                      // tyres
+    ctx.fillStyle = '#1e1e1c'; ctx.beginPath(); ctx.roundRect(wx - 5, sg * 16 - 3.5, 10, 7, 2.5); ctx.fill();
+    ctx.fillStyle = '#5a5a52'; ctx.fillRect(wx - 1, sg * 16 - 1, 2, 2);
+  }
+  ctx.fillStyle = '#34342f'; ctx.fillRect(-25, -12, 50, 24);                                      // chassis
+  // the folded HQ: a concrete-grey module with your colour along its edges
+  ctx.fillStyle = '#a3a39a'; ctx.beginPath(); ctx.roundRect(-25, -15, 34, 30, 3); ctx.fill();
+  ctx.fillStyle = c.color; ctx.fillRect(-25, -15, 34, 3); ctx.fillRect(-25, 12, 34, 3);
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 1;
+  for (let x = -17; x <= 1; x += 6) { ctx.beginPath(); ctx.moveTo(x, -12); ctx.lineTo(x, 12); ctx.stroke(); }   // folding panel seams
+  ctx.fillStyle = c.dark; ctx.beginPath(); ctx.arc(-5, 0, 7.5, 0, Math.PI * 2); ctx.fill();         // the star emblem, as on the HQ
+  ctx.fillStyle = '#f2efe6'; ctx.beginPath();
+  for (let k = 0; k < 10; k++) { const r = k % 2 ? 2.4 : 5.6, a = -Math.PI / 2 + k * Math.PI / 5; ctx.lineTo(-5 + Math.cos(a) * r, Math.sin(a) * r); }
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#d9d9d0'; ctx.beginPath(); ctx.arc(-18, -5, 5, Math.PI * 0.5, Math.PI * 1.5); ctx.fill();   // folded radar dish
+  ctx.strokeStyle = '#6b6b63'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(-18, -5); ctx.lineTo(-13, -5); ctx.stroke();
+  ctx.strokeStyle = '#555'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(-20, 8); ctx.lineTo(6, 8); ctx.stroke();   // aerial, laid flat
+  for (let i = 0; i < 5; i++) { ctx.fillStyle = i % 2 ? '#222' : '#f2c230'; ctx.fillRect(-27, -15 + i * 6, 2, 6); }   // hazard stripes on the tail
+  // cab
+  ctx.fillStyle = c.dark; ctx.beginPath(); ctx.roundRect(9, -13, 18, 26, 4); ctx.fill();
+  ctx.fillStyle = c.color; ctx.beginPath(); ctx.roundRect(10, -12, 15, 24, 4); ctx.fill();
+  ctx.fillStyle = '#bfe3ff'; ctx.beginPath(); ctx.roundRect(19, -9, 5, 18, 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fillRect(20, -8, 1.5, 6);
+  ctx.fillStyle = '#2a2a2a'; ctx.fillRect(12, -4, 4, 8);                                           // roof hatch
+  ctx.fillStyle = '#ffe9a0'; ctx.fillRect(25.5, -11, 1.6, 3.5); ctx.fillRect(25.5, 7.5, 1.6, 3.5);   // headlights
   ctx.restore();
 }
 
@@ -4014,11 +4037,43 @@ function door(e, w, hgt) {
 
 // Headquarters: the command centre, drawn in a 140 x 140 box and scaled to the HQ's real size.
 // A helicopter takes off from its pad every so often and circles the building; the radar sweeps, lights chase and blink.
+// Deploying (v5.59): over HQ_UNFOLD seconds the truck swings round to face north, then the HQ unfolds out of it -
+// its walls slide out from the truck's footprint to the full building while the truck fades away - and it settles in a puff of dust
+const HQ_UNFOLD = 2.6;
+const ease = k => k < 0 ? 0 : k > 1 ? 1 : k * k * (3 - 2 * k);
 function drawHQ(real) {
-  const k = real.size / 140;
-  ctx.save(); ctx.translate(real.x - real.size / 2, real.y - real.size / 2); ctx.scale(k, k);
-  drawHQArt(real);
+  const k = real.size / 140, u = real.unfold === undefined ? 1 : real.unfold;
+  if (u >= 1) {
+    ctx.save(); ctx.translate(real.x - real.size / 2, real.y - real.size / 2); ctx.scale(k, k);
+    drawHQArt(real);
+    ctx.restore();
+    return;
+  }
+  const truck = { x: real.x, y: real.y, team: real.team, facing: -Math.PI / 2 };
+  const turn = ease(u / 0.2), open = ease((u - 0.2) / 0.55), settle = ease((u - 0.75) / 0.25);
+  if (u < 0.2) {   // 1: the truck swings round to face north
+    let d = -Math.PI / 2 - real.unfoldFrom; d = Math.atan2(Math.sin(d), Math.cos(d));
+    truck.facing = real.unfoldFrom + d * turn; drawSettler(truck); return;
+  }
+  // 2: the building opens out of the truck - its outline grows from the truck's 32 x 52 to the full size
+  const w = 32 + (real.size - 32) * open, h = 52 + (real.size - 52) * open, bump = 1 + 0.025 * Math.sin(settle * Math.PI);
+  ctx.save(); ctx.translate(real.x, real.y); ctx.scale(bump, bump);
+  ctx.beginPath(); ctx.rect(-w / 2, -h / 2, w, h); ctx.clip();
+  ctx.translate(-real.size / 2, -real.size / 2); ctx.scale(k, k); drawHQArt(real);
   ctx.restore();
+  if (open < 1) {   // the walls' edges as they slide out
+    ctx.strokeStyle = 'rgba(40,40,36,0.85)'; ctx.lineWidth = 3; ctx.strokeRect(real.x - w / 2, real.y - h / 2, w, h);
+    ctx.strokeStyle = TEAMS[real.team].color; ctx.lineWidth = 1.5; ctx.strokeRect(real.x - w / 2 + 2, real.y - h / 2 + 2, w - 4, h - 4);
+  }
+  const fade = 1 - ease((u - 0.2) / 0.3);
+  if (fade > 0) drawSettler(truck, fade);   // the truck folds away into it
+  if (u > 0.6) {   // 3: dust puffs at the corners as it settles
+    const dk = (u - 0.6) / 0.4, hs = real.size / 2;
+    ctx.fillStyle = `rgba(170,150,110,${0.45 * (1 - dk)})`;
+    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) for (let j = 0; j < 3; j++) {
+      ctx.beginPath(); ctx.arc(real.x + sx * (hs + 6 + dk * 18 + j * 6), real.y + sy * (hs + 4 + dk * 14 - j * 5), 6 + dk * 10 - j * 2, 0, Math.PI * 2); ctx.fill();
+    }
+  }
 }
 function hqHeli(x, y, ang, alt, t) {   // a small team helicopter seen from above; alt 0 = parked
   const s = 1 + alt * 0.25;

@@ -2,6 +2,14 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.59', date: '21 Nov 2026', title: 'Unpacking',
+    changes: [
+      'The Settler is now a big mobile-HQ truck (about 1.5x the size), carrying the folded Headquarters on its back: panel seams, the star emblem and a folded radar dish.',
+      'Deploying is animated: the truck swings round to face north, the Headquarters unfolds out of it with its walls sliding out to full size, and it settles in a puff of dust (about 2.6 seconds). The HQ works straight away.',
+      'The landing boat is bigger to carry it, and runs its bow up onto the sand.',
+    ],
+  },
+  {
     version: '5.58', date: '21 Nov 2026', title: 'Landing',
     changes: [
       'The game now opens with your Settler arriving by sea: a landing craft sails in, drops its ramp on the beach, your Settler drives ashore and heads for its start spot, and the boat backs out and leaves.',
