@@ -120,7 +120,8 @@ function generateMap(size, seed, attempt = 0) {
   // your base's wall (v5.60): rock round your base down to the sea - an L from the west edge if the base is in the corner,
   // otherwise a U with a west side too - with 2 or 3 entrances cut in random places
   const seaD = Math.round(H0 / 15 / 50) * 50;
-  const yN = Math.round(S.y - R(290, 390) * k), xC = Math.round(S.x + R(480, 720) * k), xW = Math.round(S.x - R(420, 620) * k);
+  const bs = R(0.75, 1.4);   // the base's size (v5.60): from cramped to roomy
+  const yN = Math.round(S.y - R(290, 360) * k * Math.max(0.9, bs)), xC = Math.round(S.x + R(480, 640) * k * bs), xW = Math.round(S.x - R(420, 560) * k * bs);
   const jit = v => Math.round(v * k * R(-1, 1));
   const top = [[Math.round((Math.max(xW, -40) + xC) / 2), yN + jit(40)], [xC, yN + jit(30)], [xC + jit(40), Math.round(yN + (H0 - yN) * R(0.35, 0.65))], [xC + jit(30), H0 + seaD + 30]];
   const wall = xW < 140 * k ? [[-40, yN], ...top]
@@ -198,7 +199,7 @@ function generateMap(size, seed, attempt = 0) {
     const x = R(Math.max(xW, 0) + home.spread + 90 * k, xC - home.spread - 110 * k), y = R(yN + home.spread + 110 * k, H0 - home.spread - 50 * k);
     if (Math.hypot(x - S.x, y - S.y) > 210 * k + home.spread && !nearWall(x, y, home.spread + 90 * k)) hx = { x, y };
   }
-  const fields = [hx ? { ...home, x: Math.round(hx.x), y: Math.round(hx.y) } : base.fields[0]];
+  const fields = [hx ? { ...home, x: Math.round(hx.x), y: Math.round(hx.y) } : base.fields[0]];   // (no room for it: the map is rolled again, below)
   const want = base.fields.length - 1 + RI(-1, 1), wantMin = Math.max(1, base.fields.length - 3);
   for (let i = 0; i < want + RI(0, 2); i++) {
     const big = i < want, f = fieldOf(big), at = pick(f.spread + 90 * k, farFromStart((big ? 520 : 420) * k)); if (!at) continue;
@@ -227,8 +228,8 @@ function generateMap(size, seed, attempt = 0) {
   // ponds: a few small bodies of water
   const ponds = [];
   for (let i = RI(1, 4); i > 0; i--) { const pr = R(55, 130) * k, at = pick(pr + 40 * k, farFromStart(420 * k)); if (!at) continue; ponds.push([Math.round(at.x), Math.round(at.y), Math.round(pr), Math.round(pr * R(0.55, 0.9)), R(0, Math.PI)]); placed.push({ x: at.x, y: at.y, r: pr + 40 * k }); }
-  const short = gaps.length < 2 || fields.length < wantMin + 1 || plateaus.length < 2 || ridges.length < baseRidges.length + 2 || !ruins.length || !villages.length;   // too sparse: roll again
-  return { label: 'Random', random: true, short, size, seed, attempt, style, walls: baseRidges.length, entrances: gaps.length, wantFields: wantMin + 1, W: W0, H: H0, start: S, fields, island, ringW, ridges, forests, plateaus, ponds, river, bridges, ruins, villages };
+  const short = !hx || gaps.length < 2 || fields.length < wantMin + 1 || plateaus.length < 2 || ridges.length < baseRidges.length + 2 || !ruins.length || !villages.length;   // too sparse: roll again
+  return { label: 'Random', random: true, short, size, seed, attempt, style, baseSize: Math.round(bs * 100) / 100, walls: baseRidges.length, entrances: gaps.length, wantFields: wantMin + 1, W: W0, H: H0, start: S, fields, island, ringW, ridges, forests, plateaus, ponds, river, bridges, ruins, villages };
 }
 let mapChoice = 'large', randomSize = 'large', mapNumber = 0;
 try {
