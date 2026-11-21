@@ -257,23 +257,23 @@ const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 50
 const WALL_REACH = 150;              // walls, gates and guard towers can go this much further out than other buildings
 
 const STATS = {
-  settler:   { hp: 200, speed: 38, r: 22, sight: 180 },   // (r 16 until v5.59: it's a bigger truck now, with the folded HQ on its back)
-  soldier:   { hp: 60,  speed: 52, r: 9,  sight: 170, range: 85, dmg: 7, cooldown: 0.8 },
-  extractor: { hp: 300, speed: 34, r: 15, sight: 150, capacity: 500, rate: 50, unloadTime: 10 },   // (v5.52: a $500 load mined at $50/s, paid out bit by bit over 10 s in the Refinery; was 150, 30/s, 1.5 s)
-  buggy:     { hp: 140, speed: 95, r: 13, sight: 220, range: 110, dmg: 4,  cooldown: 0.25 },   // fast, machine gun (damage 5 until v5.41)
-  light:     { hp: 350, speed: 60, r: 15, sight: 200, range: 130, dmg: 30, cooldown: 1.5, tank: true },   // light tank: all-rounder
-  heavy:     { hp: 1000, speed: 40, r: 19, sight: 210, range: 140, dmg: 60, cooldown: 2.0, tank: true },   // heavy tank: slow, very tough
+  settler:   { hp: 200, speed: 48, r: 22, sight: 180 },   // (speed 38 until v5.62, +25%) // (r 16 until v5.59: it's a bigger truck now, with the folded HQ on its back)
+  soldier:   { hp: 60,  speed: 65, r: 9,  sight: 170, range: 85, dmg: 7, cooldown: 0.8 },   // (speed 52 until v5.62: every unit +25%)
+  extractor: { hp: 300, speed: 42, r: 15, sight: 150, capacity: 500, rate: 50, unloadTime: 10 },   // (speed 34 until v5.62, +25%) // (v5.52: a $500 load mined at $50/s, paid out bit by bit over 10 s in the Refinery; was 150, 30/s, 1.5 s)
+  buggy:     { hp: 140, speed: 119, r: 13, sight: 220, range: 110, dmg: 4,  cooldown: 0.25 },   // (speed 95 until v5.62, +25%) // fast, machine gun (damage 5 until v5.41)
+  light:     { hp: 350, speed: 75, r: 15, sight: 200, range: 130, dmg: 30, cooldown: 1.5, tank: true },   // (speed 60 until v5.62, +25%) // light tank: all-rounder
+  heavy:     { hp: 1000, speed: 50, r: 19, sight: 210, range: 140, dmg: 60, cooldown: 2.0, tank: true },   // (speed 40 until v5.62, +25%) // heavy tank: slow, very tough
   // artillery: very slow and fragile, but its shells fly further than a guard tower can shoot and wreck buildings.
   // It can only fire at what your side can see (its own sight is short), can't hit anything too close, and the
   // shells take a while to land, so moving units can dodge them.
-  artillery: { hp: 120, speed: 32, r: 13, sight: 150, range: 250, minRange: 80, dmg: 45, cooldown: 4, siege: true, splash: 40, flight: 1.3, spread: 14, vsBuilding: 3, vsVehicle: 0.6 },   // (speed 28 until v5.56)
-  sniper:    { hp: 45,  speed: 46, r: 9,  sight: 220, range: 160, dmg: 75, cooldown: 2.7, vsVehicle: 0.15, vsBuilding: 0.1, reveal: 0.5 },   // one-shots infantry from far away; useless vs vehicles
-  rocket:    { hp: 55,  speed: 45, r: 9,  sight: 170, range: 130, dmg: 40, cooldown: 2.5, rocket: true, vsVehicle: 2, vsHeavy: 2, vsBuilding: 2, vsInfantry: 0.4, vsAir: 1.5 },   // (vsHeavy 1.5 until v5.50: Heavy Tanks were too hard to stop)   // (and the only soldier that can hit aircraft)
+  artillery: { hp: 120, speed: 40, r: 13, sight: 150, range: 250, minRange: 80, dmg: 45, cooldown: 4, siege: true, splash: 40, flight: 1.3, spread: 14, vsBuilding: 3, vsVehicle: 0.6 },   // (speed 32 until v5.62, +25%) // (speed 28 until v5.56)
+  sniper:    { hp: 45,  speed: 58, r: 9,  sight: 220, range: 160, dmg: 75, cooldown: 2.7, vsVehicle: 0.15, vsBuilding: 0.1, reveal: 0.5 },   // (speed 46 until v5.62, +25%) // one-shots infantry from far away; useless vs vehicles
+  rocket:    { hp: 55,  speed: 56, r: 9,  sight: 170, range: 130, dmg: 40, cooldown: 2.5, rocket: true, vsVehicle: 2, vsHeavy: 2, vsBuilding: 2, vsInfantry: 0.4, vsAir: 1.5 },   // (speed 45 until v5.62, +25%) // (vsHeavy 1.5 until v5.50: Heavy Tanks were too hard to stop)   // (and the only soldier that can hit aircraft)
   // attack helicopter: flies over everything, fires 8 missiles (6 of 35 until v5.49.2), then goes home to its Helipad to reload (about 10 s) and patch up
-  heli:      { hp: 300, speed: 90, r: 14, sight: 220, range: 140, dmg: 45, cooldown: 1.0, air: true, ammo: 8, reload: 10, repair: 3, vsVehicle: 1.5, vsBuilding: 1, vsInfantry: 0.5 },   // anti-vehicle: double vs vehicles & buildings, weak vs infantry
-  grenadier: { hp: 55,  speed: 48, r: 9,  sight: 170, range: 95,  dmg: 16, cooldown: 2.0, splash: 38, flight: 0.55, vsVehicle: 0.5 },   // lobbed grenades: area damage, half vs vehicles
-  engineer:  { hp: 20,  speed: 48, r: 9,  sight: 150, repair: 30 },
-  civilian:  { hp: 40,  speed: 50, r: 8,  sight: 150, range: 75, dmg: 4, cooldown: 0.9 },   // villagers with handguns: weaker than a soldier, can't be bought   // no weapon, very fragile: repairs (hp per second) and captures
+  heli:      { hp: 300, speed: 112, r: 14, sight: 220, range: 140, dmg: 45, cooldown: 1.0, air: true, ammo: 8, reload: 10, repair: 3, vsVehicle: 1.5, vsBuilding: 1, vsInfantry: 0.5 },   // (speed 90 until v5.62, +25%) // anti-vehicle: double vs vehicles & buildings, weak vs infantry
+  grenadier: { hp: 55,  speed: 60, r: 9,  sight: 170, range: 95,  dmg: 16, cooldown: 2.0, splash: 38, flight: 0.55, vsVehicle: 0.5 },   // (speed 48 until v5.62, +25%) // lobbed grenades: area damage, half vs vehicles
+  engineer:  { hp: 20,  speed: 60, r: 9,  sight: 150, repair: 30 },   // (speed 48 until v5.62: every unit +25%)
+  civilian:  { hp: 40,  speed: 62, r: 8,  sight: 150, range: 75, dmg: 4, cooldown: 0.9 },   // (speed 50 until v5.62, +25%) // villagers with handguns: weaker than a soldier, can't be bought   // no weapon, very fragile: repairs (hp per second) and captures
   hq:        { hp: 900, size: 140, sight: 280 },   // the biggest building in the game
   barracks:  { hp: 500, size: 74, sight: 200, buildTime: 10, trainTime: 4, maxQueue: 5 },
   refinery:  { hp: 600, size: 84, sight: 200, buildTime: 12, trainTime: 6, maxQueue: 3 },

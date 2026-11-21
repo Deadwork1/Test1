@@ -2,8 +2,9 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
-    version: '5.62', date: '21 Nov 2026', title: 'Stronger SAM Sites',
+    version: '5.62', date: '21 Nov 2026', title: 'Faster units, stronger SAM Sites',
     changes: [
+      'Every unit moves 25% faster, so the game plays quicker: Soldier 65 (was 52), Scout Buggy 119 (95), Light Tank 75 (60), Heavy Tank 50 (40), Artillery 40 (32), Attack Helicopter 112 (90), Extractor 42 (34), and the same for everyone else. Faster Extractors make more trips, so money comes in a little quicker too.',
       'SAM Sites hit twice as hard: 100 damage a missile (was 50), so 3 hits bring down a helicopter in about 4.5 s (it took 6 hits, about 9 s). Same for the computer\'s SAM Sites.',
     ],
   },
