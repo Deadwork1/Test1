@@ -1893,9 +1893,9 @@ function findEnemyNear(e, radius) {
 }
 
 // Armour: rifles (soldiers, buggy machine gun, guard towers) only do half damage to tanks;
-// tank shells do half damage to infantry (but splash a little onto anyone standing next to the target). Rockets, grenades and snipers have their own rules.
+// tank shells do a quarter damage to infantry (v5.63, was half; but splash a little onto anyone standing next to the target). Rockets, grenades and snipers have their own rules.
 const RIFLES = { soldier: 1, buggy: 1, tower: 1, turret: 1, civilian: 1 };   // (handguns count as rifles: half damage to tanks)
-const armour = (attacker, t) => (isTank(t) && RIFLES[attacker] ? 0.5 : 1) * ((attacker === 'light' || attacker === 'heavy') && isInfantry(t) ? 0.5 : 1);
+const armour = (attacker, t) => (isTank(t) && RIFLES[attacker] ? 0.5 : 1) * ((attacker === 'light' || attacker === 'heavy') && isInfantry(t) ? 0.25 : 1);   // (tank shells vs infantry: a quarter since v5.63, was half)
 // tanks run over enemy infantry they drive into
 function crush(e) {
   e.rolling = e.cx !== undefined && Math.hypot(e.x - e.cx, e.y - e.cy) > 0.2;

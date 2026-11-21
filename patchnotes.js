@@ -2,6 +2,12 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.63', date: '21 Nov 2026', title: 'Tanks are weaker against infantry',
+    changes: [
+      'Tank shells now do a quarter of their damage to infantry (was half), more like the classic games: a Heavy Tank needs 4 shots to kill a Soldier (was 2), a Light Tank 8 (was 4). Use Rocket Soldiers, Grenadiers, Buggies or your own infantry to clear infantry. Tanks still run over infantry they drive into.',
+    ],
+  },
+  {
     version: '5.62', date: '21 Nov 2026', title: 'Faster units, stronger SAM Sites',
     changes: [
       'Every unit moves 25% faster, so the game plays quicker: Soldier 65 (was 52), Scout Buggy 119 (95), Light Tank 75 (60), Heavy Tank 50 (40), Artillery 40 (32), Attack Helicopter 112 (90), Extractor 42 (34), and the same for everyone else. Rocket Soldiers and Snipers swapped speeds: Rocket Soldiers 58, Snipers 56. Faster Extractors make more trips, so money comes in a little quicker too.',
