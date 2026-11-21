@@ -3478,9 +3478,10 @@ function drawBoat(L) {
 }
 // The Settler (v5.59): a big mobile-HQ truck, seen from above, nose along +x: a cab in your colour, six big wheels,
 // and the folded Headquarters on its back (panel seams, the star emblem, a folded radar dish, hazard stripes on the tail)
-function drawSettler(e, alpha = 1) {
-  const c = TEAMS[e.team];
-  ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.facing); ctx.globalAlpha *= alpha;
+function drawSettler(e) { ctx.save(); ctx.translate(e.x, e.y); drawTruck(e.team, e.facing); ctx.restore(); }
+function drawTruck(team, facing) {   // drawn at the current origin
+  const c = TEAMS[team];
+  ctx.save(); ctx.rotate(facing);
   ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(-23, -14, 52, 34);                              // shadow
   for (const wx of [-18, -6, 15]) for (const sg of [-1, 1]) {                                      // tyres
     ctx.fillStyle = '#1e1e1c'; ctx.beginPath(); ctx.roundRect(wx - 5, sg * 16 - 3.5, 10, 7, 2.5); ctx.fill();
@@ -4037,38 +4038,33 @@ function door(e, w, hgt) {
 
 // Headquarters: the command centre, drawn in a 140 x 140 box and scaled to the HQ's real size.
 // A helicopter takes off from its pad every so often and circles the building; the radar sweeps, lights chase and blink.
-// Deploying (v5.59): over HQ_UNFOLD seconds the truck swings round to face north, then the HQ unfolds out of it -
-// its walls slide out from the truck's footprint to the full building while the truck fades away - and it settles in a puff of dust
+// Deploying (v5.59): over HQ_UNFOLD seconds the truck swings round to face south and rolls forward to the front, then the HQ unfolds
+// out of its back - the walls slide out round it to the full building - and it settles in a puff of dust. The truck stays, as the HQ's entrance.
 const HQ_UNFOLD = 2.6;
 const ease = k => k < 0 ? 0 : k > 1 ? 1 : k * k * (3 - 2 * k);
 function drawHQ(real) {
   const k = real.size / 140, u = real.unfold === undefined ? 1 : real.unfold;
-  if (u >= 1) {
-    ctx.save(); ctx.translate(real.x - real.size / 2, real.y - real.size / 2); ctx.scale(k, k);
-    drawHQArt(real);
-    ctx.restore();
-    return;
+  const x0 = real.x - real.size / 2, y0 = real.y - real.size / 2;
+  const art = () => { ctx.save(); ctx.translate(x0, y0); ctx.scale(k, k); drawHQArt(real); ctx.restore(); };
+  if (u >= 1) { art(); return; }
+  const truckAt = (lx, ly, f) => { ctx.save(); ctx.translate(x0 + lx * k, y0 + ly * k); ctx.scale(k, k); drawTruck(real.team, f); ctx.restore(); };
+  if (u < 0.18) {   // 1: the truck swings round to face south, where the HQ's front will be
+    let d = Math.PI / 2 - real.unfoldFrom; d = Math.atan2(Math.sin(d), Math.cos(d));
+    truckAt(70, 70, real.unfoldFrom + d * ease(u / 0.18)); return;
   }
-  const truck = { x: real.x, y: real.y, team: real.team, facing: -Math.PI / 2 };
-  const turn = ease(u / 0.2), open = ease((u - 0.2) / 0.55), settle = ease((u - 0.75) / 0.25);
-  if (u < 0.2) {   // 1: the truck swings round to face north
-    let d = -Math.PI / 2 - real.unfoldFrom; d = Math.atan2(Math.sin(d), Math.cos(d));
-    truck.facing = real.unfoldFrom + d * turn; drawSettler(truck); return;
-  }
-  // 2: the building opens out of the truck - its outline grows from the truck's 32 x 52 to the full size
-  const w = 32 + (real.size - 32) * open, h = 52 + (real.size - 52) * open, bump = 1 + 0.025 * Math.sin(settle * Math.PI);
-  ctx.save(); ctx.translate(real.x, real.y); ctx.scale(bump, bump);
-  ctx.beginPath(); ctx.rect(-w / 2, -h / 2, w, h); ctx.clip();
-  ctx.translate(-real.size / 2, -real.size / 2); ctx.scale(k, k); drawHQArt(real);
+  if (u < 0.35) { truckAt(70, 70 + 34 * ease((u - 0.18) / 0.17), Math.PI / 2); return; }   // 2: it rolls forward into its spot at the front
+  // 3: the building unfolds out of the truck's back: its outline grows from the truck to the full HQ (the truck is drawn as part of it)
+  const open = ease((u - 0.35) / 0.45), settle = ease((u - 0.8) / 0.2), bump = 1 + 0.025 * Math.sin(settle * Math.PI);
+  const L = 54 + (-4 - 54) * open, T = 78 + (-4 - 78) * open, Rr = 86 + (144 - 86) * open, B = 131 + (144 - 131) * open;
+  ctx.save(); ctx.translate(real.x, real.y); ctx.scale(bump, bump); ctx.translate(-real.x, -real.y);
+  ctx.beginPath(); ctx.rect(x0 + L * k, y0 + T * k, (Rr - L) * k, (B - T) * k); ctx.clip(); art();
   ctx.restore();
   if (open < 1) {   // the walls' edges as they slide out
-    ctx.strokeStyle = 'rgba(40,40,36,0.85)'; ctx.lineWidth = 3; ctx.strokeRect(real.x - w / 2, real.y - h / 2, w, h);
-    ctx.strokeStyle = TEAMS[real.team].color; ctx.lineWidth = 1.5; ctx.strokeRect(real.x - w / 2 + 2, real.y - h / 2 + 2, w - 4, h - 4);
+    ctx.strokeStyle = 'rgba(40,40,36,0.85)'; ctx.lineWidth = 3; ctx.strokeRect(x0 + L * k, y0 + T * k, (Rr - L) * k, (B - T) * k);
+    ctx.strokeStyle = TEAMS[real.team].color; ctx.lineWidth = 1.5; ctx.strokeRect(x0 + L * k + 2, y0 + T * k + 2, (Rr - L) * k - 4, (B - T) * k - 4);
   }
-  const fade = 1 - ease((u - 0.2) / 0.3);
-  if (fade > 0) drawSettler(truck, fade);   // the truck folds away into it
-  if (u > 0.6) {   // 3: dust puffs at the corners as it settles
-    const dk = (u - 0.6) / 0.4, hs = real.size / 2;
+  if (u > 0.65) {   // 4: dust puffs at the corners as it settles
+    const dk = (u - 0.65) / 0.35, hs = real.size / 2;
     ctx.fillStyle = `rgba(170,150,110,${0.45 * (1 - dk)})`;
     for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) for (let j = 0; j < 3; j++) {
       ctx.beginPath(); ctx.arc(real.x + sx * (hs + 6 + dk * 18 + j * 6), real.y + sy * (hs + 4 + dk * 14 - j * 5), 6 + dk * 10 - j * 2, 0, Math.PI * 2); ctx.fill();
@@ -4208,10 +4204,10 @@ function drawHQArt(e) {
     const flick = Math.sin(t * 0.7 + i * 2.3 + row * 5) > 0.75;
     R(wx, 95 + row * 7, 7, 4, flick ? '#fff6c8' : '#a9d8ff');
   }
-  // entrance
-  R(56, 110, 28, 8, '#b8b3a7'); R(58, 116, 24, 5, '#cbc6ba');
-  R(60, 96, 20, 14, '#1f2a33'); R(62, 98, 7, 12, '#5f8fae'); R(71, 98, 7, 12, '#5f8fae');
-  R(56, 92, 28, 4, c.color); R(56, 96, 28, 1.5, 'rgba(0,0,0,0.4)');
+  // the entrance is the Settler truck itself (v5.59): it backs into a bay in the front wall when the HQ unfolds, and stays there, cab facing out
+  R(50, 74, 40, 38, 'rgba(0,0,0,0.35)'); R(51, 75, 38, 36, '#3a3730'); R(51, 75, 38, 3, c.color);   // the bay
+  R(53, 111, 34, 22, 'rgba(60,56,48,0.35)');                                                       // tyre-worn apron in front of it
+  ctx.save(); ctx.translate(70, 104); drawTruck(e.team, Math.PI / 2); ctx.restore();
   // roof machinery: fans and steam vents
   for (const [ax, ay] of [[20, 20], [20, 44]]) {
     R(ax + 2, ay + 3, 22, 18, 'rgba(0,0,0,0.3)'); R(ax, ay, 22, 18, '#b4b0a6'); R(ax, ay + 15, 22, 3, '#8d897f');
