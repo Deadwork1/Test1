@@ -284,7 +284,7 @@ const STATS = {
   turret:    { hp: 300, size: 30, sight: 170, buildTime: 3, range: 140, dmg: 5, cooldown: 0.5 },   // an Engineer dug in behind a machine gun (he's inside it: if it falls, so does he)
   radar:     { hp: 400, size: 64, sight: 750, buildTime: 14, radar: true },
   helipad:   { hp: 600, size: 70, sight: 180, buildTime: 12, trainTime: 15, maxQueue: 1 },   // home of one helicopter: it lands here to reload
-  sam:       { hp: 500, size: 44, sight: 240, buildTime: 12, range: 220, dmg: 50, cooldown: 1.5, antiAir: true },   // SAM site: shoots only at aircraft
+  sam:       { hp: 500, size: 44, sight: 240, buildTime: 12, range: 220, dmg: 100, cooldown: 1.5, antiAir: true },   // SAM site: shoots only at aircraft
   medbay:    { hp: 500, size: 84, sight: 180, buildTime: 10, walkOn: true, heal: 8, healVehicle: 15, slots: 5 },   // round pad units stand on to heal: up to 5 infantry or 1 vehicle at a time   // sweeps a huge circle: sees over rocks and up onto plateaus (not into forests)
   wall:      { hp: 400, size: 25, sight: 50 },
   gate:      { hp: 600, size: 75, sight: 60 },   // 3 tiles long: room for two units side by side

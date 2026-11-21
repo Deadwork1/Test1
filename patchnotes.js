@@ -2,6 +2,12 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.62', date: '21 Nov 2026', title: 'Stronger SAM Sites',
+    changes: [
+      'SAM Sites hit twice as hard: 100 damage a missile (was 50), so 3 hits bring down a helicopter in about 4.5 s (it took 6 hits, about 9 s). Same for the computer\'s SAM Sites.',
+    ],
+  },
+  {
     version: '5.61', date: '21 Nov 2026', title: 'Normal gets tanks a little later, Hard earns less',
     changes: [
       'On Normal the computer now waits until 2:30 before it starts its War Factory (it used to have one up by about 1:15), so its first tanks and extra Extractors come a little later. Easy is unchanged.',
