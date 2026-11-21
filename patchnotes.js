@@ -7,6 +7,7 @@ const PATCH_NOTES = [
       'The Settler is now a big mobile-HQ truck (about 1.5x the size), carrying the folded Headquarters on its back: panel seams, the star emblem and a folded radar dish.',
       'Deploying is animated (about 3 seconds): the truck swings round and rolls forward, its folded module splits and the halves slide out as the Headquarters\' walls, the cab drives in through the front door, and the building settles in a puff of dust. The HQ works straight away.',
       'The landing boat is bigger to carry it, and runs its bow up onto the sand.',
+      'Units can now walk onto the beach. The sea and the river\'s mouth are still off limits, nothing can be built on the sand, and only the open water stays always in view.',
     ],
   },
   {

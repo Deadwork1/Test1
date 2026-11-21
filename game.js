@@ -248,6 +248,9 @@ const mirror = ([x, y]) => [W - x, H - y];
 const RIDGES = MAP.ridges;
 const FORESTS = MAP.forests;
 const riverX = y => W / 2 + MAP.river.amp * Math.sin((y - H / 2) / MAP.river.period);
+// half the width of the river's channel across the beach: it widens as it reaches the sea (the background draws the same shape)
+function seaChanW(y) { const cy = coastY(riverX(H)), k = Math.max(0, Math.min(1, (y - (H - 10)) / (cy + 20 - (H - 10)))); return MAP.river.half * 1.1 * (1 + 1.5 * k * k * (3 - 2 * k)); }
+const SEA_VIEW_ROW = Math.ceil((H + SEA * 0.47) / 50);   // the first row of fog squares that is all water (the sea is always in view from there down)
 const ISLAND = { x: W / 2, y: H / 2, r: MAP.island.r };   // the middle ore field sits on an island
 // bridges: centre x, centre y, half-width, half-height
 const BRIDGES = [
@@ -312,7 +315,7 @@ function segDist(px, py, ax, ay, bx, by) {
       if (Math.abs(dI - ISLAND.r) < 34 || (Math.abs(x - riverX(y)) < MAP.river.half && dI > ISLAND.r)) {
         if (!(elev[r * TCOLS + c] && overhung(x, y))) t = T.WATER;   // a lookout plateau's rock juts out over the river here
       }
-      if (y >= H) t = T.WATER;   // the beach and the sea below the land: nobody on the ground goes there
+      if (y >= H) t = y >= coastY(x) - 4 || Math.abs(x - riverX(y)) < seaChanW(y + TC / 2) + 12 ? T.WATER : T.GRASS;   // the beach can be walked on (v5.59), the sea and the river's mouth can't
       if (t === T.WATER) elev[r * TCOLS + c] = 0;   // water is never high ground
       for (const b of BRIDGES) if (Math.abs(x - b.x) < b.hw && Math.abs(y - b.y) < b.hh) t = T.BRIDGE;
       terrain[r * TCOLS + c] = t;
@@ -1152,7 +1155,7 @@ function radarCells(x, y, r) {   // every fog square within r: a radar isn't blo
 }
 
 function updateFog() {
-  for (const f of fog) { f.vis.fill(0); f.vis.fill(1, (H / CELL) * COLS); f.exp.fill(1, (H / CELL) * COLS); }   // the sea is always in view (only scenery: nobody can be out there), so you see your boat come in (v5.58)
+  for (const f of fog) { f.vis.fill(0); f.vis.fill(1, SEA_VIEW_ROW * COLS); f.exp.fill(1, SEA_VIEW_ROW * COLS); }   // the open sea is always in view (only scenery: nobody can be out there), so you see your boat come in (v5.58)
   for (const e of game.ents) {
     if (e.team === NEUTRAL) continue;
     const f = fog[e.team];
@@ -2187,7 +2190,7 @@ function separate() {
       }
     }
     a.x = Math.min(W - a.r, Math.max(a.r, a.x));
-    a.y = Math.min(H - a.r, Math.max(a.r, a.y));
+    a.y = Math.min(HT - a.r, Math.max(a.r, a.y));   // (down onto the beach since v5.59; the water itself is blocked by the terrain)
   }
   for (const u of units) {
     if (!walkable(terrainAt(u.x, u.y), isVehicle(u)) || wallBlocks(u.x, u.y, u.team)) { u.x = u.px; u.y = u.py; }
