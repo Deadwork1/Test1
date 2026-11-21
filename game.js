@@ -3072,7 +3072,9 @@ function draw() {
     else if (e.air) drawHeli(e);
     else drawSoldier(e);
     if (e.ruin && !ruinWorks(e)) drawRuin(e);
+    if (e.hp < e.maxHp * DMG_DAMAGED) drawDamageMarks(e);
   }
+  for (const e of ents) if (e.hp < e.maxHp * DMG_DAMAGED) drawDamageSmoke(e);   // smoke and fire over everything on the ground
   for (const e of ents) if ((sel.has(e.id) || e.hp < e.maxHp) && e.type !== 'house') drawHealth(e);
   for (const e of ents) if (sel.has(e.id) && isBuilding(e)) drawNameTag(e);
   for (const e of ents) if (sel.has(e.id) && (e.type === 'tower' || e.type === 'turret' || e.type === 'sam')) drawRange(e.x, e.y, rangeOf(e));
@@ -3250,6 +3252,86 @@ function drawSelection(e) {
     ctx.strokeRect(e.x - hx, e.y - hy, hx * 2, hy * 2);
   } else {
     ctx.beginPath(); ctx.ellipse(e.x, e.y + e.r * 0.5, e.r + 5, (e.r + 5) * 0.6, 0, 0, Math.PI * 2); ctx.stroke();
+  }
+}
+
+// ---- Visible damage (v5.51) ----
+// Buildings and vehicles show how hurt they are: below 2/3 health scorch marks, cracks or dents and a thin wisp of smoke;
+// below 1/3 more scorching, flickering fires, thick black smoke and sparks. Infantry don't show it.
+const DMG_DAMAGED = 2 / 3, DMG_CRITICAL = 1 / 3;
+const DMG_VEHICLES = new Set(['settler', 'extractor', 'buggy', 'light', 'heavy', 'artillery', 'heli']);
+function dmgShows(e) { return e.built !== false && e.type !== 'house' && !(e.ruin && !ruinWorks(e)) && (isBuilding(e) || DMG_VEHICLES.has(e.type)); }
+function dmgRand(e, i) { const x = Math.sin(e.id * 127.1 + i * 311.7) * 43758.5453; return x - Math.floor(x); }   // the same marks every frame for a given unit
+function dmgSpots(e, n, salt) {   // spots spread over a building's footprint, or over a vehicle's hull (in its own turned frame)
+  const out = [];
+  if (isBuilding(e)) { const hx = halfX(e) * 0.75, hy = halfY(e) * 0.7; for (let i = 0; i < n; i++) out.push({ x: e.x + (dmgRand(e, salt + i * 2) * 2 - 1) * hx, y: e.y + (dmgRand(e, salt + i * 2 + 1) * 2 - 1) * hy, s: 0.6 + dmgRand(e, salt + i + 50) * 0.6 }); }
+  else { const r = e.r * 0.7; for (let i = 0; i < n; i++) out.push({ x: (dmgRand(e, salt + i * 2) * 2 - 1) * r, y: (dmgRand(e, salt + i * 2 + 1) * 2 - 1) * r * 0.6, s: 0.6 + dmgRand(e, salt + i + 50) * 0.6 }); }
+  return out;
+}
+function dmgScale(e) { return isBuilding(e) ? Math.max(0.5, Math.min(2.2, Math.min(halfX(e), halfY(e)) / 30)) : e.r / 14; }
+function dmgVehicleFrame(e) { ctx.translate(e.x, e.y - (e.air ? (e.alt || 0) * HELI_LIFT : 0)); ctx.rotate(e.facing || 0); }
+function drawDamageMarks(e) {
+  if (!dmgShows(e)) return;
+  const crit = e.hp < e.maxHp * DMG_CRITICAL, sc = dmgScale(e), wall = e.type === 'wall' || e.type === 'gate';
+  ctx.save();
+  if (!isBuilding(e)) dmgVehicleFrame(e);
+  else { ctx.beginPath(); ctx.rect(e.x - halfX(e), e.y - halfY(e), halfX(e) * 2, halfY(e) * 2); ctx.clip(); }   // marks stay on the building
+  // scorch marks: soft dark blotches
+  for (const p of dmgSpots(e, wall ? (crit ? 2 : 1) : crit ? 5 : 3, 1)) {
+    const r = (isBuilding(e) ? 11 : 5) * sc * p.s;
+    const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+    g.addColorStop(0, 'rgba(20,16,12,0.75)'); g.addColorStop(0.6, 'rgba(30,24,18,0.4)'); g.addColorStop(1, 'rgba(30,24,18,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
+  }
+  // cracks on buildings, dents and scrapes on vehicles
+  ctx.strokeStyle = 'rgba(15,12,10,0.8)'; ctx.lineWidth = isBuilding(e) ? 1.4 : 1; ctx.lineCap = 'round';
+  for (const [k, p] of dmgSpots(e, crit ? 4 : 2, 20).entries()) {
+    let x = p.x, y = p.y, a = dmgRand(e, 70 + k) * Math.PI * 2;
+    const len = (isBuilding(e) ? 7 : 3) * sc, steps = isBuilding(e) ? 4 : 2;
+    ctx.beginPath(); ctx.moveTo(x, y);
+    for (let j = 0; j < steps; j++) { a += (dmgRand(e, 90 + k * 7 + j) - 0.5) * 1.6; x += Math.cos(a) * len; y += Math.sin(a) * len; ctx.lineTo(x, y); }
+    ctx.stroke();
+  }
+  if (crit && isBuilding(e) && !wall) {   // holes punched through the roof
+    for (const p of dmgSpots(e, 2, 40)) { ctx.fillStyle = 'rgba(8,6,5,0.85)'; ctx.beginPath(); ctx.ellipse(p.x, p.y, 4.5 * sc * p.s, 3 * sc * p.s, dmgRand(e, p.x | 0), 0, Math.PI * 2); ctx.fill(); }
+  }
+  ctx.restore();
+}
+function drawDamageSmoke(e) {
+  if (!dmgShows(e)) return;
+  const crit = e.hp < e.maxHp * DMG_CRITICAL, sc = dmgScale(e), t = performance.now() / 1000, wall = e.type === 'wall' || e.type === 'gate';
+  if (wall && !crit) return;
+  // where the smoke comes from, in world space (vehicles: turned with the hull)
+  const src = dmgSpots(e, wall ? 1 : isBuilding(e) ? (crit ? 3 : 1) : 1, 40).map(p => {
+    if (isBuilding(e)) return p;
+    const lift = e.air ? (e.alt || 0) * HELI_LIFT : 0, c = Math.cos(e.facing || 0), s = Math.sin(e.facing || 0);
+    return { x: e.x + p.x * c - p.y * s, y: e.y - lift + p.x * s + p.y * c, s: p.s };
+  });
+  for (const [k, p] of src.entries()) {
+    const seed = dmgRand(e, 200 + k), n = crit ? 7 : 4, life = crit ? 2.2 : 2.6, rise = (crit ? 46 : 32) * Math.max(0.7, sc);
+    for (let i = 0; i < n; i++) {
+      const f = ((t / life) + i / n + seed) % 1;   // 0 = just out, 1 = gone
+      const x = p.x + f * 14 * Math.max(0.7, sc) + Math.sin((t + i) * 1.7 + seed * 9) * 2.5, y = p.y - f * rise;
+      const r = (crit ? 4 : 3) * Math.max(0.7, sc) * (0.6 + f * 1.8), a = (crit ? 0.6 : 0.45) * (1 - f) * Math.min(1, f * 6);
+      ctx.fillStyle = crit ? `rgba(28,26,24,${a})` : `rgba(95,93,88,${a})`;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    }
+    if (!crit) continue;
+    // fire: a few flickering tongues of flame
+    const fr = (isBuilding(e) ? 6 : 3.6) * Math.max(0.7, sc) * p.s;
+    for (let j = 0; j < 3; j++) {
+      const fl = 0.75 + 0.25 * Math.sin(t * 13 + j * 2.1 + seed * 20) + 0.1 * Math.sin(t * 29 + j);
+      const fx = p.x + (j - 1) * fr * 0.55, h = fr * 1.7 * fl, w = fr * 0.55;
+      ctx.fillStyle = 'rgba(255,120,30,0.85)';
+      ctx.beginPath(); ctx.moveTo(fx - w, p.y); ctx.quadraticCurveTo(fx - w * 0.6, p.y - h * 0.6, fx, p.y - h); ctx.quadraticCurveTo(fx + w * 0.6, p.y - h * 0.6, fx + w, p.y); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(255,220,90,0.9)';
+      ctx.beginPath(); ctx.moveTo(fx - w * 0.5, p.y); ctx.quadraticCurveTo(fx - w * 0.3, p.y - h * 0.35, fx, p.y - h * 0.6); ctx.quadraticCurveTo(fx + w * 0.3, p.y - h * 0.35, fx + w * 0.5, p.y); ctx.closePath(); ctx.fill();
+    }
+    // sparks now and then
+    if (Math.sin(t * 7 + seed * 40) > 0.6) for (let j = 0; j < 3; j++) {
+      const a = dmgRand(e, (t * 10 | 0) + j) * Math.PI * 2, d = 4 + dmgRand(e, (t * 10 | 0) + j + 9) * 8 * Math.max(0.7, sc);
+      ctx.fillStyle = 'rgba(255,240,170,0.95)'; ctx.fillRect(p.x + Math.cos(a) * d, p.y - 3 + Math.sin(a) * d * 0.6, 1.6, 1.6);
+    }
   }
 }
 
