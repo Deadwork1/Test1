@@ -97,9 +97,12 @@ try { if (MAPS[localStorage.getItem('mini-rts-map')]) mapChoice = localStorage.g
 const MAP = MAPS[mapChoice];
 
 // ---------- Settings (tweak these to balance the game) ----------
-const W = MAP.W, H = MAP.H;           // map size in world units
+const W = MAP.W, H = MAP.H;           // map size in world units (the land, where the game is played: both halves mirror each other in it)
+// v5.57: a sea along the south edge, added below the land (nothing on the land moved): HT is the whole picture, land plus sea
+const SEA = Math.round(H / 15 / 50) * 50, HT = H + SEA;   // Classic 100, Large 150, Huge 200
+const coastY = x => H + SEA * 0.3 + SEA * 0.08 * Math.sin(x / 260) + SEA * 0.05 * Math.sin(x / 97 + 1.3) + SEA * 0.025 * Math.sin(x / 41);   // where the beach meets the water
 const CELL = 50;                      // fog-of-war grid size
-const COLS = W / CELL, ROWS = H / CELL;
+const COLS = W / CELL, ROWS = HT / CELL;
 const START_CREDITS = 1000;
 const INCOME = 1;                     // small trickle per second so nobody gets stuck at $0
 const BUILD_RADIUS = 300;             // how far from your HQ you can place buildings
@@ -217,7 +220,7 @@ function resize() {
   canvas.width = Math.round(scr.w * scr.dpr);
   canvas.height = Math.round(scr.h * scr.dpr);
   const small = scr.h < 500;
-  MM.w = small ? 150 : 200; MM.h = MM.w * H / W;
+  MM.w = small ? 150 : 200; MM.h = MM.w * HT / W;
   MM.x = scr.w - MM.w - 10; MM.y = 56;
   clampCam();
 }
@@ -227,7 +230,7 @@ function clampCam() {
   const s = scale(), hw = scr.w / 2 / s, hh = scr.h / 2 / s;
   const mx = 30 / s, top = 60 / s, bottom = 64 / s;
   cam.x = hw * 2 > W + mx * 2 ? W / 2 : Math.min(W - hw + mx, Math.max(hw - mx, cam.x));
-  cam.y = hh * 2 > H + top + bottom ? H / 2 : Math.min(H - hh + bottom, Math.max(hh - top, cam.y));
+  cam.y = hh * 2 > HT + top + bottom ? HT / 2 : Math.min(HT - hh + bottom, Math.max(hh - top, cam.y));
 }
 function setZoom(z) { cam.zoom = Math.min(2.2, Math.max(0.45 * 2400 / W, z)); }   // can zoom out further on bigger maps
 
@@ -235,7 +238,7 @@ const toWorld = (sx, sy) => { const s = scale(); return { x: (sx - scr.w / 2) / 
 
 // ---------- Terrain (rocks, river, bridges, forests) ----------
 // The map is a grid of 25×25 tiles. Layout is mirrored so both sides are fair.
-const TC = 25, TCOLS = W / TC, TROWS = H / TC;
+const TC = 25, TCOLS = W / TC, TROWS = HT / TC;
 const T = { GRASS: 0, ROCK: 1, WATER: 2, BRIDGE: 3, FOREST: 4, CLIFF: 5 };
 const terrain = new Uint8Array(TCOLS * TROWS);
 const elev = new Uint8Array(TCOLS * TROWS);   // 1 = high ground (plateau tops and their ramps)
@@ -309,6 +312,7 @@ function segDist(px, py, ax, ay, bx, by) {
       if (Math.abs(dI - ISLAND.r) < 34 || (Math.abs(x - riverX(y)) < MAP.river.half && dI > ISLAND.r)) {
         if (!(elev[r * TCOLS + c] && overhung(x, y))) t = T.WATER;   // a lookout plateau's rock juts out over the river here
       }
+      if (y >= H) t = T.WATER;   // the beach and the sea below the land: nobody on the ground goes there
       if (t === T.WATER) elev[r * TCOLS + c] = 0;   // water is never high ground
       for (const b of BRIDGES) if (Math.abs(x - b.x) < b.hw && Math.abs(y - b.y) < b.hh) t = T.BRIDGE;
       terrain[r * TCOLS + c] = t;
@@ -593,21 +597,21 @@ function gateYield(e, nav) {
 // ---------- Background (drawn once) ----------
 const bg = document.createElement('canvas');
 (function drawBackground() {
-  bg.width = W; bg.height = H;
+  bg.width = W; bg.height = HT;
   const b = bg.getContext('2d');
   try { paintAll(); } catch (err) { console.warn('background art failed, using a plain one', err); }   // the game still runs
   function paintAll() {
-  b.fillStyle = '#4a6b35'; b.fillRect(0, 0, W, H);
+  b.fillStyle = '#4a6b35'; b.fillRect(0, 0, W, HT);
   let seed = 7;
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  for (let i = 0; i < 2600 * (W * H) / (2400 * 1500); i++) {
+  for (let i = 0; i < 2600 * (W * HT) / (2400 * 1500); i++) {
     b.fillStyle = rnd() < 0.5 ? 'rgba(30,50,20,0.18)' : 'rgba(120,150,80,0.15)';
-    b.beginPath(); b.arc(rnd() * W, rnd() * H, 6 + rnd() * 30, 0, Math.PI * 2); b.fill();
+    b.beginPath(); b.arc(rnd() * W, rnd() * HT, 6 + rnd() * 30, 0, Math.PI * 2); b.fill();
   }
   // a few rocky / dry patches for variety
-  for (let i = 0; i < 14 * (W * H) / (2400 * 1500); i++) {
+  for (let i = 0; i < 14 * (W * HT) / (2400 * 1500); i++) {
     b.fillStyle = 'rgba(110,95,60,0.25)';
-    b.beginPath(); b.ellipse(rnd() * W, rnd() * H, 60 + rnd() * 120, 30 + rnd() * 60, rnd() * 3, 0, Math.PI * 2); b.fill();
+    b.beginPath(); b.ellipse(rnd() * W, rnd() * HT, 60 + rnd() * 120, 30 + rnd() * 60, rnd() * 3, 0, Math.PI * 2); b.fill();
   }
   const each = (type, fn) => {
     for (let r = 0; r < TROWS; r++) for (let c = 0; c < TCOLS; c++)
@@ -620,13 +624,13 @@ const bg = document.createElement('canvas');
   const small = document.createElement('canvas'); small.width = TCOLS; small.height = TROWS;
   const allMasks = [], keep = m => { m.keep = true; return m; };
   const free = c => { c.width = c.height = 0; };   // hand the memory back straight away
-  const tmp = document.createElement('canvas'); tmp.width = W; tmp.height = H;   // one scratch canvas reused for every layer
+  const tmp = document.createElement('canvas'); tmp.width = W; tmp.height = HT;   // one scratch canvas reused for every layer
   function mask(types, blur, level) {
     const sc = small.getContext('2d'), img = sc.createImageData(TCOLS, TROWS);
     const pick = typeof types === 'function' ? types : i => types.includes(terrain[i]);
     for (let i = 0; i < terrain.length; i++) if (pick(i)) { img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = img.data[i * 4 + 3] = 255; }
     sc.putImageData(img, 0, 0);
-    const m = document.createElement('canvas'); m.width = W / HS; m.height = H / HS; allMasks.push(m);
+    const m = document.createElement('canvas'); m.width = W / HS; m.height = HT / HS; allMasks.push(m);
     const mc = m.getContext('2d');
     mc.fillStyle = '#000'; mc.fillRect(0, 0, m.width, m.height);
     mc.filter = `blur(${blur / HS}px)`; mc.imageSmoothingEnabled = true;
@@ -642,19 +646,19 @@ const bg = document.createElement('canvas');
   // paint a fill (colour, or a function that draws a texture) through a mask, optionally shifted
   function paint(m, fill, dx = 0, dy = 0) {
     const t = tmp, tc = t.getContext('2d');
-    tc.save(); tc.globalCompositeOperation = 'source-over'; tc.clearRect(0, 0, W, H);
-    if (typeof fill === 'string') { tc.fillStyle = fill; tc.fillRect(0, 0, W, H); } else fill(tc);
+    tc.save(); tc.globalCompositeOperation = 'source-over'; tc.clearRect(0, 0, W, HT);
+    if (typeof fill === 'string') { tc.fillStyle = fill; tc.fillRect(0, 0, W, HT); } else fill(tc);
     tc.globalCompositeOperation = 'destination-in'; tc.imageSmoothingEnabled = true;
-    tc.drawImage(m, 0, 0, W, H);
+    tc.drawImage(m, 0, 0, W, HT);
     tc.restore();
     b.drawImage(t, dx, dy);
     if (!m.keep) free(m);
   }
   const speckle = (base, cols, n, rMin, rMax) => tc => {
-    tc.fillStyle = base; tc.fillRect(0, 0, W, H);
-    for (let i = 0; i < n * (W * H) / (2400 * 1500); i++) {
+    tc.fillStyle = base; tc.fillRect(0, 0, W, HT);
+    for (let i = 0; i < n * (W * HT) / (2400 * 1500); i++) {
       tc.fillStyle = cols[Math.floor(rnd() * cols.length)];
-      tc.beginPath(); tc.ellipse(rnd() * W, rnd() * H, rMin + rnd() * (rMax - rMin), (rMin + rnd() * (rMax - rMin)) * 0.6, rnd() * 3, 0, Math.PI * 2); tc.fill();
+      tc.beginPath(); tc.ellipse(rnd() * W, rnd() * HT, rMin + rnd() * (rMax - rMin), (rMin + rnd() * (rMax - rMin)) * 0.6, rnd() * 3, 0, Math.PI * 2); tc.fill();
     }
   };
 
@@ -667,8 +671,8 @@ const bg = document.createElement('canvas');
   paint(mask(wet, 30, 0.72), '#24537d');                       // deep middle
   paint(water, tc => {                                         // ripples
     tc.strokeStyle = 'rgba(170,215,240,0.28)'; tc.lineWidth = 2;
-    for (let i = 0; i < 900 * (W * H) / (2400 * 1500); i++) {
-      const x = rnd() * W, y = rnd() * H, l = 6 + rnd() * 14;
+    for (let i = 0; i < 900 * (W * HT) / (2400 * 1500); i++) {
+      const x = rnd() * W, y = rnd() * HT, l = 6 + rnd() * 14;
       tc.beginPath(); tc.moveTo(x, y); tc.quadraticCurveTo(x + l / 2, y - 3, x + l, y); tc.stroke();
     }
   });
@@ -700,13 +704,13 @@ const bg = document.createElement('canvas');
   const crag = tc => {   // craggy rock: blotches plus short vertical cracks, like a sheer face
     speckle('#5b4d3c', ['#6d5d48', '#4a3e30', '#7a6a53', '#3d332a'], 2200, 3, 9)(tc);
     tc.strokeStyle = 'rgba(30,24,18,0.5)'; tc.lineWidth = 1.5;
-    for (let i = 0; i < 4000 * (W * H) / (2400 * 1500); i++) { const x = rnd() * W, y = rnd() * H; tc.beginPath(); tc.moveTo(x, y); tc.lineTo(x + (rnd() - .5) * 4, y + 6 + rnd() * 8); tc.stroke(); }
+    for (let i = 0; i < 4000 * (W * HT) / (2400 * 1500); i++) { const x = rnd() * W, y = rnd() * HT; tc.beginPath(); tc.moveTo(x, y); tc.lineTo(x + (rnd() - .5) * 4, y + 6 + rnd() * 8); tc.stroke(); }
   };
   for (let k = 22; k > 0; k -= 6) paint(face, crag, 0, k);                                       // cliff face, seen from the south (several layers = height)
-  paint(face, tc => { tc.fillStyle = 'rgba(0,0,0,0.3)'; tc.fillRect(0, 0, W, H); }, 0, 22);
+  paint(face, tc => { tc.fillStyle = 'rgba(0,0,0,0.3)'; tc.fillRect(0, 0, W, HT); }, 0, 22);
   paint(top, speckle('#577a3c', ['#5f8442', '#4e6f35', '#668a48'], 1500, 6, 26));              // the raised top
   paint(mask([T.CLIFF], 8, 0.5), crag);                                                        // rough rim
-  paint(mask([T.CLIFF], 8, 0.62), tc => { tc.fillStyle = 'rgba(190,175,150,0.35)'; tc.fillRect(0, 0, W, H); }, -2, -3);   // sunlit lip
+  paint(mask([T.CLIFF], 8, 0.62), tc => { tc.fillStyle = 'rgba(190,175,150,0.35)'; tc.fillRect(0, 0, W, HT); }, -2, -3);   // sunlit lip
   // ramps: a sloping dirt track cut into the cliff, lit at the top and in shade at the bottom, with rocky
   // banks either side, worn wheel ruts, scattered stones and a fan of loose earth where it meets the ground
   const plats = [];
@@ -796,8 +800,8 @@ const bg = document.createElement('canvas');
   paint(mask(rockTypes, 24, 0.66), speckle('#878175', ['#918b7f', '#7d776c', '#9a9487'], 700, 3, 10), -2, -3);   // weathered top
   paint(body, tc => {                                          // cracks
     tc.strokeStyle = 'rgba(40,36,32,0.45)'; tc.lineWidth = 1.5;
-    for (let i = 0; i < 1600 * (W * H) / (2400 * 1500); i++) {
-      let x = rnd() * W, y = rnd() * H; tc.beginPath(); tc.moveTo(x, y);
+    for (let i = 0; i < 1600 * (W * HT) / (2400 * 1500); i++) {
+      let x = rnd() * W, y = rnd() * HT; tc.beginPath(); tc.moveTo(x, y);
       for (let k = 0; k < 3; k++) { x += (rnd() - .5) * 14; y += 4 + rnd() * 6; tc.lineTo(x, y); }
       tc.stroke();
     }
@@ -816,7 +820,31 @@ const bg = document.createElement('canvas');
     const [ox, oy] = v.out || [0, 230];   // the track leading out of the village
     track(dx0, dy0, dx0 + ox * k, dy0 + oy * k, 12);
   }
-  b.strokeStyle = 'rgba(0,0,0,0.5)'; b.lineWidth = 6; b.strokeRect(3, 3, W - 6, H - 6);
+  // the sea along the south edge (v5.57): a sandy beach, surf, shallows going out to deep water, and the river's mouth
+  {
+    const band = (off, fill) => { b.beginPath(); b.moveTo(0, HT); for (let x = 0; x <= W; x += 8) b.lineTo(x, coastY(x) + off); b.lineTo(W, HT); b.closePath(); b.fillStyle = fill; b.fill(); };
+    b.beginPath(); b.moveTo(0, HT); for (let x = 0; x <= W; x += 8) b.lineTo(x, H - 8 + 3 * Math.sin(x / 53) + 2 * Math.sin(x / 23)); b.lineTo(W, HT); b.closePath();
+    b.fillStyle = '#c4ad73'; b.fill();                                            // the beach starts right where the grass ends
+    band(-26, '#cdb77c'); band(-12, '#b9a36b'); band(-4, '#8f8a62');            // dry sand, wet sand, damp edge
+    const half = MAP.river.half, cy = coastY(riverX(H)), mouth = (w, col) => {   // the river cuts through the beach, opening out as it meets the sea
+      const y0 = cy - 70, y1 = cy + 40; b.beginPath();
+      for (let y = y0; y <= y1; y += 4) { const k = (y - y0) / (y1 - y0); b.lineTo(riverX(y) - half * w * (1 + 1.6 * k * k), y); }
+      for (let y = y1; y >= y0; y -= 4) { const k = (y - y0) / (y1 - y0); b.lineTo(riverX(y) + half * w * (1 + 1.6 * k * k), y); }
+      b.closePath(); b.fillStyle = col; b.fill(); };
+    mouth(1.35, '#8f8a62'); mouth(1.0, '#2f6390'); mouth(0.55, '#24537d');
+    const D = HT - H;
+    band(0, '#3e8bab'); band(D * 0.2, '#2f6f9c'); band(D * 0.42, '#255d8a'); band(D * 0.6, '#1d4c76');   // shallows to deep water
+    b.lineCap = 'round';
+    for (let k = 0; k < 2; k++) {                                                // surf: two broken white lines along the shore
+      b.strokeStyle = k ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.7)'; b.lineWidth = k ? 2 : 3;
+      for (let x = 0; x < W; x += 30 + rnd() * 30) { const l = 25 + rnd() * 50; b.beginPath(); for (let t = 0; t <= l; t += 6) b.lineTo(x + t, coastY(x + t) + 3 + k * 12 + Math.sin((x + t) / 9) * 1.5); b.stroke(); }
+    }
+    b.strokeStyle = 'rgba(200,230,245,0.3)'; b.lineWidth = 2;                   // swell further out
+    for (let i = 0; i < W / 18; i++) { const x = rnd() * W, y = coastY(x) + 20 + rnd() * (HT - coastY(x) - 24), l = 10 + rnd() * 22; b.beginPath(); b.moveTo(x, y); b.quadraticCurveTo(x + l / 2, y - 4, x + l, y); b.stroke(); }
+    for (let i = 0; i < W / 300; i++) { const x = rnd() * W, y = coastY(x) - 14 - rnd() * 8; b.fillStyle = 'rgba(120,100,70,0.6)'; b.beginPath(); b.ellipse(x, y, 4 + rnd() * 5, 2 + rnd() * 2, rnd() * 3, 0, Math.PI * 2); b.fill(); }   // pebbles on the beach
+    b.lineCap = 'butt';
+  }
+  b.strokeStyle = 'rgba(0,0,0,0.5)'; b.lineWidth = 6; b.strokeRect(3, 3, W - 6, HT - 6);
   for (const m of allMasks) free(m);
   free(tmp);
   }
@@ -824,7 +852,7 @@ const bg = document.createElement('canvas');
 
 // a small copy of the background for the minimap (much cheaper to draw every frame)
 const mmBg = document.createElement('canvas');
-mmBg.width = 400; mmBg.height = Math.round(400 * H / W);
+mmBg.width = 400; mmBg.height = Math.round(400 * HT / W);
 mmBg.getContext('2d').drawImage(bg, 0, 0, mmBg.width, mmBg.height);
 
 // ---------- Game state ----------
@@ -3049,7 +3077,7 @@ function draw() {
 
   // only draw the part of the background that's on screen
   const vx = Math.max(0, cam.x - scr.w / 2 / s), vy = Math.max(0, cam.y - scr.h / 2 / s);
-  const vw = Math.min(W - vx, scr.w / s + 2), vh = Math.min(H - vy, scr.h / s + 2);
+  const vw = Math.min(W - vx, scr.w / s + 2), vh = Math.min(HT - vy, scr.h / s + 2);
   if (vw > 0 && vh > 0) ctx.drawImage(bg, vx, vy, vw, vh, vx, vy, vw, vh);
 
   for (const o of game.ore) if (exploredAt(o.x, o.y)) drawOre(o);
@@ -3147,7 +3175,7 @@ function draw() {
 
   // fog on top of the world
   ctx.imageSmoothingEnabled = true;
-  ctx.drawImage(fogCanvas, 0, 0, COLS, ROWS, 0, 0, W, H);
+  ctx.drawImage(fogCanvas, 0, 0, COLS, ROWS, 0, 0, W, HT);
 
   if (game.placing) drawPlacement();
 
@@ -4589,7 +4617,7 @@ const input = { pointers: new Map(), mode: null, sx: 0, sy: 0, camX: 0, camY: 0,
 
 const inMinimap = (x, y) => !MM.hidden && x >= MM.x && x <= MM.x + MM.w && y >= MM.y && y <= MM.y + MM.h;
 function minimapJump(x, y) {
-  cam.x = (x - MM.x) / MM.w * W; cam.y = (y - MM.y) / MM.h * H; clampCam();
+  cam.x = (x - MM.x) / MM.w * W; cam.y = (y - MM.y) / MM.h * HT; clampCam();
 }
 
 canvas.addEventListener('pointerdown', ev => {

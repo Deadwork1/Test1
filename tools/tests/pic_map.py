@@ -16,7 +16,7 @@ with sync_playwright() as p:
     pg.add_style_tag(content="body > *:not(canvas){display:none !important} canvas{position:fixed;left:0;top:0}")
     print(m, pg.evaluate("""(()=>{ game.paused=true; for (const s of game.ents.filter(e=>e.type==='settler')) deploy(s);
       window.drawMinimap=()=>{}; fog[0].vis.fill(1); fog[0].exp.fill(1); fogCanvas.getContext('2d').clearRect(0,0,fogCanvas.width,fogCanvas.height);
-      const fitS=Math.min(scr.w/W, scr.h/H); cam.zoom=fitS*640/scr.h; cam.x=W/2; cam.y=H/2; draw(); window.draw=()=>{};
+      const HH=(typeof HT!=='undefined'?HT:H), fitS=Math.min(scr.w/W, scr.h/HH); cam.zoom=fitS*640/scr.h; cam.x=W/2; cam.y=HH/2; draw(); window.draw=()=>{};
       return W+'x'+H+' ore '+game.ore.length; })()"""), errs[:3])
     pg.locator('#c').screenshot(path=out, type='jpeg', quality=88); pg.close()
     b.close()

@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.57', date: '21 Nov 2026', title: 'To the sea',
+    changes: [
+      'Every map now ends in a sea along its south edge: a sandy beach, surf and deep water, with the river running out into it.',
+      'The sea was added below the old map, so nothing on the land has moved. Ground units can\'t go onto the beach or into the water.',
+    ],
+  },
+  {
     version: '5.56', date: '21 Nov 2026', title: 'Artillery tweak',
     changes: [
       'Artillery now costs $500 (was $450) and moves a little faster: speed 32, up from 28 (about 14% quicker).',
