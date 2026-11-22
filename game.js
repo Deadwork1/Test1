@@ -3323,20 +3323,23 @@ function aiPlaceSam(hq, refineries) {
 // on their pads until every one is ready (or 4 minutes have passed, with at least 2), then sent together. If that wave
 // also does less damage than it cost, it stops buying helicopters for the rest of the game (the ones it has keep flying).
 // If the wave pays for itself, it goes back to raiding as before and the count starts again.
+// Defence (v5.65): whenever your units are on its half of the map (past the river), its helicopters that are ready go after
+// them first. Deaths on defence don't count as cheap losses, and after giving up on raids it keeps its usual Helipads filled for defence only.
 const HELI_CHEAP_LOSSES = 3, HELI_WAVE_WAIT = 240;
 const heliDamage = () => ((game.track && game.track.hits[1].heli) || { damageValue: 0 }).damageValue;
-const aiHeliPads = D => !D.helis || game.ai.heliMode === 'done' ? 0 : game.ai.heliMode === 'wave' ? D.helis * 2 : D.helis;
+const aiHeliPads = D => !D.helis ? 0 : game.ai.heliMode === 'wave' ? D.helis * 2 : D.helis;   // (after giving up on raids: its usual pads, for defence)
 function aiHelis(D) {
   if (!D.helis) return;
   const ai = game.ai, mine = game.ents.filter(h => h.team === 1 && h.air && h.hp > 0);
   ai.heliMode = ai.heliMode || 'raid'; ai.heliCheap = ai.heliCheap || 0;
   // which of its helicopters have died since it last looked, and how much they had done since the one before
   const ids = new Set(mine.map(h => h.id)), dmg = heliDamage();
-  for (const id of ai.heliIds || []) if (!ids.has(id) && !(ai.heliWave && ai.heliWave.ids.includes(id))) {
+  ai.heliDef = (ai.heliDef || []).filter(id => { const h = byId(id); return h && h.hp > 0 && !(h.landed && !h.order) || !ids.has(id); });
+  for (const id of ai.heliIds || []) if (!ids.has(id) && !(ai.heliWave && ai.heliWave.ids.includes(id)) && !ai.heliDef.includes(id)) {   // (lost on defence: doesn't count)
     if (dmg - (ai.heliDmgMark || 0) < COST.heli) ai.heliCheap++; else ai.heliCheap = 0;
     ai.heliDmgMark = dmg;
   }
-  ai.heliIds = [...ids];
+  ai.heliIds = [...ids]; ai.heliDef = ai.heliDef.filter(id => ids.has(id));
   if (ai.heliMode === 'raid' && ai.heliCheap >= HELI_CHEAP_LOSSES) { ai.heliMode = 'wave'; ai.heliWaveSince = game.time; }
   // the bigger wave: when it's out, wait for every one of its helicopters to be shot down or back home, then judge it
   const wv = ai.heliWave;
@@ -3345,7 +3348,8 @@ function aiHelis(D) {
     ai.heliWave = null; ai.heliCheap = 0; ai.heliDmgMark = dmg;
     ai.heliMode = paid ? 'raid' : 'done';
   }
-  if (ai.heliMode !== 'done') for (const p of game.ents) if (p.team === 1 && p.type === 'helipad' && p.built && !padHeli(p) && !p.queue && game.credits[1] >= COST.heli + (D.heliSpare ?? AI_SPARE)) produce(p, 'heli');
+  let room = ai.heliMode === 'done' ? D.helis - mine.length - game.ents.filter(p => p.team === 1 && p.type === 'helipad' && p.queue).length : Infinity;   // (defence only: just its usual number, even with the wave's extra pads)
+  for (const p of game.ents) if (room > 0 && p.team === 1 && p.type === 'helipad' && p.built && !padHeli(p) && !p.queue && game.credits[1] >= COST.heli + (D.heliSpare ?? AI_SPARE) && produce(p, 'heli')) room--;
   const sams = [...ai.known.values()].filter(k => k.type === 'sam');
   const safe = (x, y) => !sams.some(k => Math.hypot(k.x - x, k.y - y) < STATS.sam.range + 60);
   const target = h => { let best = null, bd = Infinity;   // the closest of your buildings it knows of (not walls or gates), away from SAM Sites (v5.65: it used to go for Extractors and Artillery first, then Refineries)
@@ -3353,6 +3357,15 @@ function aiHelis(D) {
     return best; };
   const ready = h => h.landed && !h.order && h.ammo >= STATS.heli.ammo && h.hp >= h.maxHp * 0.8;
   for (const h of mine) if (!h.landed && h.hp < h.maxHp * 0.4 && padOf(h)) { if (!h.order || h.order.type !== 'return') h.order = { type: 'return' }; }
+  // defence first: your units it can see on its half of the map
+  const home = hqOf(1), mySide = home ? Math.sign(home.x - riverX(home.y)) : 0;
+  const intruders = mySide ? game.ents.filter(u => u.team === 0 && isUnit(u) && u.hp > 0 && !u.air && Math.sign(u.x - riverX(u.y)) === mySide && visibleAt(u.x, u.y, 1) && !hiddenFrom(u, 1) && safe(u.x, u.y)) : [];
+  if (intruders.length) for (const h of mine) {
+    if (!h.landed || h.order || h.ammo < STATS.heli.ammo / 2 || h.hp < h.maxHp * 0.5) continue;
+    let t = null, td = Infinity; for (const u of intruders) { const d = Math.hypot(u.x - h.x, u.y - h.y); if (d < td && canHit(h, u)) { td = d; t = u; } }
+    if (t) { h.order = { type: 'attack', target: t.id }; if (!ai.heliDef.includes(h.id)) ai.heliDef.push(h.id); }
+  }
+  if (ai.heliMode === 'done') return;   // given up on raids: defence only
   if (ai.heliMode === 'wave' && !ai.heliWave) {   // hold them all on their pads until the wave is ready, then send them together
     const pads = game.ents.filter(p => p.team === 1 && p.type === 'helipad' && p.built).length, set = mine.filter(ready);
     const full = pads >= D.helis * 2 && set.length >= pads, late = game.time - (ai.heliWaveSince || 0) > HELI_WAVE_WAIT && set.length >= 2;

@@ -1,6 +1,7 @@
 # The computer gives up on helicopters (v5.65): after 3 that died having done less damage than their price, it tries one bigger
 # wave (twice its Helipads: 2 on Normal, 4 on Hard, all sent together); if that wave doesn't pay for itself it stops buying
-# helicopters for the rest of the game, and if it does, it goes back to raiding as before.
+# helicopters for raids (it keeps its usual Helipads filled for defence), and if it does, it goes back to raiding as before.
+# Defence: its helicopters go after your units on its half of the map first; losses there don't count.
 # Usage: python3 tests/test_ai_heli_giveup.py <game folder> <port>
 import sys, http.server, threading, functools, json
 from playwright.sync_api import sync_playwright
@@ -41,13 +42,28 @@ with sync_playwright() as p:
           out.sent=game.ents.filter(h=>h.team===1&&h.air&&h.order&&h.order.type==='attack').length; out.waveSize=(game.ai.heliWave||{ids:[]}).ids.length;
           // the wave does little and is shot down: it gives up
           killAll(50); out.modeAfter=game.ai.heliMode; game.credits[1]=1e6; aiHelis(D); U(20*20); aiHelis(D);
-          out.boughtAfter=pads.filter(p=>p.queue||padHeli(p)).length; out.padsWanted=aiHeliPads(D);
+          const hs=game.ents.filter(h=>h.team===1&&h.air&&h.hp>0); out.boughtAfter=hs.length; out.raiding=hs.filter(h=>h.order).length; out.padsWanted=aiHeliPads(D);
+          // one of your tanks on its half: they go after it (defence still works after giving up)
+          const h1=hqOf(1), side=Math.sign(h1.x-riverX(h1.y)); let sp=null; for(let k=0;k<400&&!sp;k++){ const a=Math.random()*6.28, d=150+Math.random()*60, x=h1.x+Math.cos(a)*d, y=h1.y+Math.sin(a)*d; if(Math.sign(x-riverX(y))===side && siteIsFree(x,y,20)) sp={x,y}; }   // (right by its HQ, where it can see)
+          const foe=spawn('light',0,sp.x,sp.y); foe.passive=true; U(4); out.seen=visibleAt(foe.x,foe.y,1); aiHelis(D);
+          out.defending=hs.filter(h=>h.order&&h.order.target===foe.id).length; foe.hp=0; U(2);
           return JSON.stringify(out); })()"""))
         print(diffname, r)
         check(r['after1'] == 1 and r['afterGood'] == 0, f'{diffname}: a helicopter that dies cheaply counts; one that paid for itself resets the count')
         check(r['mode'] == 'wave' and r['wantPads'] == pads, f'{diffname}: after 3 cheap losses it tries a bigger wave with {pads} Helipads')
         check(r['heldWhileShort'] == 0 and r['sent'] == pads and r['waveSize'] == pads, f'{diffname}: it holds them until all {pads} are ready, then sends them together')
-        check(r['modeAfter'] == 'done' and r['boughtAfter'] == 0 and r['padsWanted'] == 0, f'{diffname}: the wave did less than it cost: no more helicopters or Helipads')
+        usual = pads // 2
+        check(r['modeAfter'] == 'done' and r['raiding'] == 0, f'{diffname}: the wave did less than it cost: no more raids')
+        check(r['padsWanted'] == usual and r['boughtAfter'] == usual, f'{diffname}: but it keeps its usual {usual} helicopter(s), for defence')
+        check(r['seen'] and r['defending'] == usual, f'{diffname}: your tank on its half of the map: its helicopters go after it')
+        r = json.loads(pg.evaluate("""(()=>{ const ai=game.ai; ai.heliMode='raid'; ai.heliCheap=0; game.credits[1]=0;
+          for(const h of game.ents.filter(h=>h.team===1&&h.air)) h.hp=0; U(2); aiHelis(D);
+          const h1=hqOf(1), side=Math.sign(h1.x-riverX(h1.y)); let sp=null; for(let k=0;k<400&&!sp;k++){ const a=Math.random()*6.28, d=150+Math.random()*60, x=h1.x+Math.cos(a)*d, y=h1.y+Math.sin(a)*d; if(Math.sign(x-riverX(y))===side && siteIsFree(x,y,20)) sp={x,y}; }   // (right by its HQ, where it can see)
+          const foe=spawn('light',0,sp.x,sp.y); foe.passive=true; const hh=one(); U(4); aiHelis(D); const went=!!(hh.order&&hh.order.target===foe.id);
+          hh.hp=0; U(2); aiHelis(D); foe.hp=0; U(2);
+          return JSON.stringify({went, cheap:ai.heliCheap}); })()"""))
+        print(r)
+        check(r['went'] and r['cheap'] == 0, f'{diffname}: a helicopter lost on defence is not a cheap loss')
         if diffname == 'hard':
             # a wave that pays for itself: back to raiding
             pg.evaluate("location.reload()"); pg.wait_for_timeout(1500); pg.click('#ovBtn'); pg.evaluate("runAI=()=>{}"); pg.evaluate(SETUP)
