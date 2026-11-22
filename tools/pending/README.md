@@ -5,7 +5,7 @@ Apply with `git apply tools/pending/settler.patch` from the repo root (made agai
 
 - War Factory sells a Settler: $2,000 (the dearest thing in the game) and 40 s (the slowest; Power Plants speed it up as usual).
 - It drives out like any vehicle and deploys anywhere there's room into a second HQ with the full HQ build area.
-  No limit on how many. Every extra HQ makes building and training 25% faster for its side (stacks on Power Plants,
+  No limit on how many. Every extra HQ makes building (buildings and turrets going up) and training 25% faster for its side (stacks on Power Plants,
   which still stop at double on their own; triple speed at most in all). The HQ's info line shows the bonus. You lose only when every HQ and Settler is gone (already how the game counts it). HQs still can't be sold.
 - The computer (Normal and Hard; Easy has no War Factory) buys one only when all of these hold: its home ore is running out,
   the nearest fresh ore on its side is too far for a stepping stone or two (600+ beyond its build area), the field there has

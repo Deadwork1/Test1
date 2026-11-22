@@ -141,10 +141,10 @@ index 70f9fbc..f2d93f0 100644
      ? 'Oil Derrick — pays $' + STATS.derrick.pay + ' every ' + STATS.derrick.payEvery + 's (next in ' + Math.ceil(STATS.derrick.payEvery - (sel[0].payT || 0)) + 's)'
 diff --git a/tools/tests/test_settler.py b/tools/tests/test_settler.py
 new file mode 100644
-index 0000000..0ae4330
+index 0000000..54b8e3b
 --- /dev/null
 +++ b/tools/tests/test_settler.py
-@@ -0,0 +1,80 @@
+@@ -0,0 +1,86 @@
 +# New Settlers (v5.65): bought at the War Factory ($2,000, 40 s, the dearest and slowest thing in the game), deployed anywhere as
 +# a second HQ with its own build area, and every extra HQ makes building and training 25% faster (up to 3x with Power Plants); you lose only when every HQ and Settler is gone; the computer buys one only to reach far ore.
 +# Usage: python3 tests/test_settler.py <game folder> <port>
@@ -198,6 +198,12 @@ index 0000000..0ae4330
 +    check(r['maxed'] == 2.5 and r['still'] == 2.5, 'it stacks on Power Plants (which still stop at double on their own)')
 +    check(r['capped'] == 3, 'all together it stops at triple speed')
 +    check(r['back'] == 1.25, 'losing the extra HQs loses their speed-up')
++    r = json.loads(pg.evaluate("""(()=>{ const time=t=>{ let sp=null; for(let k=0;k<500&&!sp;k++){ const c=hqOf(0), x=c.x-600+Math.random()*1200, y=c.y-600+Math.random()*1200; if(x>80&&y>80&&x<W-80&&y<H-80&&siteIsFree(x,y,STATS[t].size)) sp={x,y}; }
++        const b=spawn(t,0,sp.x,sp.y); let k=0; while(!b.built && k<20*60){ U(1); k++; } const s=k/20; b.hp=0; U(1); return s; };
++      const withTwo=time('barracks'); for(const h of game.ents.filter(e=>e.team===0&&e.type==='hq').slice(1)) h.hp=0; U(1); const withOne=time('barracks');
++      return JSON.stringify({withTwo, withOne, hqs:game.ents.filter(e=>e.team===0&&e.type==='hq').length}); })()"""))
++    print(r)
++    check(abs(r['withOne'] / r['withTwo'] - 1.25) < 0.05, 'buildings go up 25%% faster with a second HQ too (Barracks %.1f s vs %.1f s)' % (r['withTwo'], r['withOne']))
 +    # the computer (Huge, Hard): its home ore spent, a rich field far off on its side
 +    r = json.loads(pg.evaluate("""(()=>{ const ai=game.ai; runAI=realAI; game.time=700; ai.wavesSent=3; game.credits[1]=6000;
 +      deploy(game.ents.find(e=>e.team===1&&e.type==='settler')); const h=hqOf(1);
