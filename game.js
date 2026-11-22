@@ -2081,7 +2081,12 @@ function updateEngineer(e, dt) {
   if (!o) return;
   if (o.type === 'move') { if (navigate(e, o.x, o.y, dt)) e.order = null; return; }
   if (o.type === 'buildTurret') {   // walk to the spot, then build the turret there
-    if (Math.hypot(e.x - o.x, e.y - o.y) > e.r + 14) { if (navigate(e, o.x, o.y, dt) === 'fail') { e.order = null; if (e.team === 0) flash = { text: "The Engineer can't get there", t: performance.now() }; } return; }
+    const far = Math.hypot(e.x - o.x, e.y - o.y);
+    if (far > e.r + 14) {   // (in a crowd he may be stopped just short: close enough once he can get no nearer)
+      const nav = navigate(e, o.x, o.y, dt);
+      if (nav === 'fail') { e.order = null; if (e.team === 0) flash = { text: "The Engineer can't get there", t: performance.now() }; return; }
+      if (!(nav === true && far < 60)) return;
+    }
     const res = buildTurret(e);
     if (res === 'money' || res === 'spot') { if (e.team === 0) flash = { text: res === 'money' ? `Not enough money for a ${NAMES[o.kind]} ($${COST[o.kind]})` : `Can't build the ${NAMES[o.kind]} there: ${turretSiteProblem(e.team, o.kind, o.x, o.y) || 'blocked'}`, t: performance.now() }; e.order = null; }
     return;

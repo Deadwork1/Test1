@@ -43,13 +43,15 @@ with sync_playwright() as p:
     check(not r['startBuilt'] and 6 <= r['secsToBuild'] <= 14, 'the Machine Gun takes its build time to go up (about 8 s)')
     # --- the rules: not within 300 of an enemy building, not where you can't see
     r = json.loads(pg.evaluate("""(()=>{ const eb=spawn('barracks',1,hq.x+900,hq.y-700); eb.built=true; eb.progress=1;
-      for (let a=0;a<3;a++) { const s=spawn('soldier',0,eb.x-250,eb.y); s.passive=true; } U(10);
+      const hiddenBlocks=!turretSiteOk(0,'mg',eb.x-eb.size/2-200,eb.y) && turretSiteProblem(0,'mg',eb.x-eb.size/2-200,eb.y)==='Too close to an enemy building';   // (only if that spot is in view at all)
+      for (let a=0;a<3;a++) { const s=spawn('soldier',0,eb.x-eb.size/2-120,eb.y+a*20); s.passive=true; } { const s=spawn('soldier',0,eb.x-eb.size/2-380,eb.y+40); s.passive=true; } U(10);
       const near=turretSiteOk(0,'mg',eb.x-200,eb.y), far=turretSiteOk(0,'mg',eb.x-eb.size/2-330,eb.y);
       const unseen=turretSiteOk(0,'mg',W-200,200), why=turretSiteProblem(0,'mg',eb.x-200,eb.y), why2=turretSiteProblem(0,'mg',W-200,200);
-      eb.hp=0; U(2); return JSON.stringify({near, far, unseen, why, why2}); })()"""))
+      eb.hp=0; U(2); return JSON.stringify({near, far, unseen, why, why2, hiddenBlocks}); })()"""))
     print(r)
     check(not r['near'] and r['why'] == 'Too close to an enemy building', 'no turret within 300 of an enemy building')
     check(r['far'], 'a turret just outside the 300 ring is fine')
+    check(not r['hiddenBlocks'], "an enemy building you haven't found doesn't block you (no peeking through the fog)")
     check(not r['unseen'] and r['why2'] == "You can't see there", 'no turret on ground you can\'t see')
     # --- damage: each turret against a soldier, a light tank and a helicopter
     r = json.loads(pg.evaluate("""(()=>{ const out={};

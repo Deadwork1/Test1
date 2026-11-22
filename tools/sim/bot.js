@@ -33,8 +33,8 @@ const myTurrets = () => game.ents.filter(e => e.team === 0 && (isTurretType(e.ty
 function putTurretAtEntrance() {
   const n = myTurrets().length, kind = n % 2 && unlocked(0, 'cannon') ? 'cannon' : 'mg';
   if (game.credits[0] < COST[kind] + 50) return false;
-  const en = game.ents.find(e => e.team === 0 && e.type === 'engineer' && !e.retake && (!e.order || e.order.type === 'move'));
-  if (!en) { const b = game.ents.find(b => b.team === 0 && b.type === 'barracks' && b.built && !b.qTypes.includes('engineer')); if (b && game.credits[0] >= COST.engineer + COST[kind]) window.produce(b, 'engineer'); return false; }
+  const en = game.ents.find(e => e.team === 0 && e.type === 'engineer' && !e.retake && (!e.order || e.order.type === 'move' || e.order.type === 'repair'));   // (a repairer can be spared)
+  if (!en) { const b = game.ents.find(b => b.team === 0 && b.type === 'barracks' && b.built && !b.qTypes.includes('engineer')); if (b && game.credits[0] >= COST.engineer + 50) window.produce(b, 'engineer'); return false; }
   const ents = findEntrances(0), hq = hqOf(0);
   const spots = ents.length ? [gapTowerSpots(ents[n % ents.length])[Math.floor(n / ents.length) % 2]] : [{ x: hq.x + (W / 2 - hq.x) * 0.15, y: hq.y - 150 }];
   for (const spot of spots) for (let k = 0; k < 40; k++) {
