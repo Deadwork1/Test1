@@ -8,6 +8,7 @@ const PATCH_NOTES = [
       'Machine Gun Turret ($300, needs a Barracks): fast fire, shreds infantry, weak against vehicles, can\'t hit aircraft. Cannon Turret ($500, needs a War Factory): heavy shells, strong against vehicles, weak against infantry, can\'t hit aircraft.',
       'Missile Turret ($600, needs a Helipad): a tower with the longest range, firing salvos of two homing missiles at anything, aircraft hardest. Laser Turret ($1,000, needs a Tech Centre): one huge beam that hits anything, but it takes about 4.5 s to charge (watch its legs spin faster).',
       'Turrets can go anywhere you can see, even far from your base, but never within 300 of an enemy building you know about (the red rings when you place one). They don\'t need anyone inside, can be sold, and can\'t be captured.',
+      'Engineers cost $150 (was $100), so a turret costs its price plus $150: Machine Gun $450, Cannon $650, Missile $750, Laser $1,150 in all.',
       'SAM Sites now wait underground and pop up when an enemy aircraft comes in range, then sink back when the sky is clear. Their range is 240 (was 220).',
       'Snipers now need a Power Plant (they needed a Guard Tower). The computer builds turrets with its Engineers too: at its entrances first, then at the pinch by the river or its Oil Derricks, choosing the kind from what it has seen of your army.',
     ],

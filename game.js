@@ -253,7 +253,7 @@ const BUILD_RADIUS = 300;             // how far from your HQ you can place buil
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
 
 // v5.52 prices (your picks, with the $500 loads): Sniper 250 (was 200), Buggy 400 (250), Light Tank 700 (400), Heavy Tank 1000 (700), Extractor 300 (150); v5.56: Artillery 500 (450)
-const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, mg: 300, cannon: 500, missile: 600, laser: 1000, wall: 20, gate: 150, soldier: 100, extractor: 300, buggy: 400, grenadier: 160, engineer: 100, rocket: 200, sniper: 250, light: 700, heavy: 1000, artillery: 500, tech: 600, radar: 300, medbay: 400, helipad: 500, heli: 800, sam: 600 };
+const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, mg: 300, cannon: 500, missile: 600, laser: 1000, wall: 20, gate: 150, soldier: 100, extractor: 300, buggy: 400, grenadier: 160, engineer: 150, rocket: 200, sniper: 250, light: 700, heavy: 1000, artillery: 500, tech: 600, radar: 300, medbay: 400, helipad: 500, heli: 800, sam: 600 };
 const WALL_REACH = 150;              // walls, gates and SAM Sites can go this much further out than other buildings
 // Turrets (v5.64): an Engineer builds them anywhere you can see, but never this close to an enemy building
 const TURRET_TYPES = ['mg', 'cannon', 'missile', 'laser'], TURRET_KEEP_OUT = 300;
