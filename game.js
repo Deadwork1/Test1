@@ -2734,7 +2734,7 @@ function runAI(dt) {
   const wantTech = D.heavyTanks && sent >= 2 && of('factory').some(f => f.built) && !of('tech').length && unlocked(1, 'tech') && !aiBlocked('tech');
   const wantRadar = D.walls && sent >= 1 && !of('radar').length && unlocked(1, 'radar') && !aiBlocked('radar');   // Normal and Hard
   const wantMedbay = D.walls && sent >= 1 && of('factory').some(f => f.built) && !of('medbay').length && unlocked(1, 'medbay') && !aiBlocked('medbay');   // Normal and Hard: somewhere to patch up the wounded (v5.61: only once its War Factory is up)
-  const wantPad = D.helis && sent >= 2 && of('factory').some(f => f.built) && of('helipad').length < D.helis && !of('helipad').some(p => !padHeli(p))   /* no second pad while one stands empty */ && unlocked(1, 'helipad') && !aiBlocked('helipad');   // 1 on Normal, 2 on Hard
+  const wantPad = D.helis && sent >= 2 && of('factory').some(f => f.built) && of('helipad').length < aiHeliPads(D) && (game.ai.heliMode === 'wave' || !of('helipad').some(p => !padHeli(p)))   /* no second pad while one stands empty (except while it builds up a bigger wave) */ && unlocked(1, 'helipad') && !aiBlocked('helipad');   // 1 on Normal, 2 on Hard
   const wantSam = D.sams && ai.seenAir && of('sam').length < D.sams && unlocked(1, 'sam') && !aiBlocked('sam');
   const extrasDone = (refineries.length >= reqRefineries || aiBlocked('refinery')) && entranceDefs >= wantTowers && !wantFactory && !wantTech;
   const building = game.time < (ai.buildUntil || 0) && !extrasDone;
@@ -2800,7 +2800,7 @@ function runAI(dt) {
   const pendingTurrets = of('engineer').reduce((n, en) => n + (en.turretAt ? COST[en.turretAt.kind] : 0), 0);   // Engineers already on their way or waiting at the spot
   const turretSaving = pendingTurrets || (turretNeed && (entranceNext || !building) ? COST[nextKind] + (of('engineer').length ? 0 : COST.engineer) : 0);
   if (defended) reserve += turretSaving;   // saving for its turrets, and an Engineer to build them (v5.64)
-  const padEmpty = D.heliSave && army.length >= D.minWave + D.guard && of('helipad').some(p => p.built && !padHeli(p) && !p.queue);   // Hard: an empty Helipad makes its Barracks wait (not its War Factories), so it can afford the helicopter, but only once it has a full wave's worth of troops (v5.49.6: it used to starve its army waiting)
+  const padEmpty = D.heliSave && game.ai.heliMode !== 'done' && army.length >= D.minWave + D.guard && of('helipad').some(p => p.built && !padHeli(p) && !p.queue);   // Hard: an empty Helipad makes its Barracks wait (not its War Factories), so it can afford the helicopter, but only once it has a full wave's worth of troops (v5.49.6: it used to starve its army waiting)
   if (padEmpty) reserve += COST.heli;
   if (wantSam && defended) reserve += COST.sam;   // your aircraft are about: a SAM Site comes before more troops and tanks
   const vReserve = reserve - (padEmpty ? COST.heli : 0);   // vehicles don't wait for the Tech Centre savings, or for a helicopter
@@ -3318,19 +3318,52 @@ function aiPlaceSam(hq, refineries) {
 }
 // The computer's helicopters: each Helipad keeps one. Fully armed and patched up, it raids the closest of your buildings it knows of,
 // keeping clear of SAM Sites it has spotted; badly hurt, it flies home.
+// Giving up on helicopters (v5.65): a helicopter that dies having done less damage than its own price is a cheap loss.
+// After 3 cheap losses it tries one bigger wave: twice its usual Helipads (2 on Normal, 4 on Hard), all helicopters held
+// on their pads until every one is ready (or 4 minutes have passed, with at least 2), then sent together. If that wave
+// also does less damage than it cost, it stops buying helicopters for the rest of the game (the ones it has keep flying).
+// If the wave pays for itself, it goes back to raiding as before and the count starts again.
+const HELI_CHEAP_LOSSES = 3, HELI_WAVE_WAIT = 240;
+const heliDamage = () => ((game.track && game.track.hits[1].heli) || { damageValue: 0 }).damageValue;
+const aiHeliPads = D => !D.helis || game.ai.heliMode === 'done' ? 0 : game.ai.heliMode === 'wave' ? D.helis * 2 : D.helis;
 function aiHelis(D) {
   if (!D.helis) return;
-  for (const p of game.ents) if (p.team === 1 && p.type === 'helipad' && p.built && !padHeli(p) && !p.queue && game.credits[1] >= COST.heli + (D.heliSpare ?? AI_SPARE)) produce(p, 'heli');
-  const sams = [...game.ai.known.values()].filter(k => k.type === 'sam');
-  const safe = (x, y) => !sams.some(k => Math.hypot(k.x - x, k.y - y) < STATS.sam.range + 60);
-  for (const h of game.ents) {
-    if (h.team !== 1 || !h.air || h.hp <= 0) continue;
-    if (!h.landed && h.hp < h.maxHp * 0.4 && padOf(h)) { if (!h.order || h.order.type !== 'return') h.order = { type: 'return' }; continue; }
-    if (!h.landed || h.order || h.ammo < STATS.heli.ammo || h.hp < h.maxHp * 0.8) continue;
-    let best = null, bd = Infinity;   // the closest of your buildings it knows of (not walls or gates), away from SAM Sites (v5.65: it used to go for Extractors and Artillery first, then Refineries)
-    for (const [id, k] of game.ai.known) if (!isWallType(k.type) && safe(k.x, k.y)) { const b = byId(id); const d = Math.hypot(k.x - h.x, k.y - h.y); if (b && b.team === 0 && d < bd) { bd = d; best = b; } }
-    if (best) h.order = { type: 'attack', target: best.id };
+  const ai = game.ai, mine = game.ents.filter(h => h.team === 1 && h.air && h.hp > 0);
+  ai.heliMode = ai.heliMode || 'raid'; ai.heliCheap = ai.heliCheap || 0;
+  // which of its helicopters have died since it last looked, and how much they had done since the one before
+  const ids = new Set(mine.map(h => h.id)), dmg = heliDamage();
+  for (const id of ai.heliIds || []) if (!ids.has(id) && !(ai.heliWave && ai.heliWave.ids.includes(id))) {
+    if (dmg - (ai.heliDmgMark || 0) < COST.heli) ai.heliCheap++; else ai.heliCheap = 0;
+    ai.heliDmgMark = dmg;
   }
+  ai.heliIds = [...ids];
+  if (ai.heliMode === 'raid' && ai.heliCheap >= HELI_CHEAP_LOSSES) { ai.heliMode = 'wave'; ai.heliWaveSince = game.time; }
+  // the bigger wave: when it's out, wait for every one of its helicopters to be shot down or back home, then judge it
+  const wv = ai.heliWave;
+  if (wv && !wv.ids.some(id => { const h = byId(id); return h && h.hp > 0 && !(h.landed && !h.order); })) {
+    const paid = dmg - wv.dmg >= wv.ids.length * COST.heli;
+    ai.heliWave = null; ai.heliCheap = 0; ai.heliDmgMark = dmg;
+    ai.heliMode = paid ? 'raid' : 'done';
+  }
+  if (ai.heliMode !== 'done') for (const p of game.ents) if (p.team === 1 && p.type === 'helipad' && p.built && !padHeli(p) && !p.queue && game.credits[1] >= COST.heli + (D.heliSpare ?? AI_SPARE)) produce(p, 'heli');
+  const sams = [...ai.known.values()].filter(k => k.type === 'sam');
+  const safe = (x, y) => !sams.some(k => Math.hypot(k.x - x, k.y - y) < STATS.sam.range + 60);
+  const target = h => { let best = null, bd = Infinity;   // the closest of your buildings it knows of (not walls or gates), away from SAM Sites (v5.65: it used to go for Extractors and Artillery first, then Refineries)
+    for (const [id, k] of ai.known) if (!isWallType(k.type) && safe(k.x, k.y)) { const b = byId(id); const d = Math.hypot(k.x - h.x, k.y - h.y); if (b && b.team === 0 && d < bd) { bd = d; best = b; } }
+    return best; };
+  const ready = h => h.landed && !h.order && h.ammo >= STATS.heli.ammo && h.hp >= h.maxHp * 0.8;
+  for (const h of mine) if (!h.landed && h.hp < h.maxHp * 0.4 && padOf(h)) { if (!h.order || h.order.type !== 'return') h.order = { type: 'return' }; }
+  if (ai.heliMode === 'wave' && !ai.heliWave) {   // hold them all on their pads until the wave is ready, then send them together
+    const pads = game.ents.filter(p => p.team === 1 && p.type === 'helipad' && p.built).length, set = mine.filter(ready);
+    const full = pads >= D.helis * 2 && set.length >= pads, late = game.time - (ai.heliWaveSince || 0) > HELI_WAVE_WAIT && set.length >= 2;
+    if ((full || late) && set.length) {
+      const t = target(set[0]);
+      if (t) { for (const h of set) h.order = { type: 'attack', target: t.id }; ai.heliWave = { ids: set.map(h => h.id), dmg }; }
+    }
+    return;
+  }
+  if (ai.heliWave) return;   // (the wave finds its own next targets once its first is gone)
+  for (const h of mine) { if (!ready(h)) continue; const t = target(h); if (t) h.order = { type: 'attack', target: t.id }; }
 }
 // an entrance turret: just behind each gap in its base wall in turn (main one first), near a rocky end, then a second at each from the other end
 function aiEntranceTurretSpot(hq, kind) {

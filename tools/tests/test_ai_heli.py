@@ -19,7 +19,7 @@ JS = r'''(()=>{ const U=update; window.update=()=>{}; window.draw=()=>{}; const 
    out.log.push({min:m, pads:game.ents.filter(e=>e.team===1&&e.type==='helipad').length, helis:hs.length, flying:hs.filter(h=>!h.landed).length, sams:game.ents.filter(e=>e.team===1&&e.type==='sam').length, sent:game.ai.wavesSent||0, factory:game.ents.some(e=>e.team===1&&e.type==='factory'&&e.built), cash:Math.round(game.credits[1]), army:game.ents.filter(e=>e.team===1&&isCombat(e)&&!e.air).length, atHome:game.ents.filter(e=>e.team===1&&isCombat(e)&&!e.air&&!e.role).length, waveSize:game.ai.waveSize});
    if (m===14 && !shown) { shown=true; const pad=put('helipad',hq.x-170,hq.y+40); const h=releaseUnit(pad,'heli'); const eh=hqOf(1); if(eh){ h.order={type:'move',x:eh.x-300,y:eh.y+200}; } }   // let it see one of yours
  }
- const r=buildReport(); out.result=r.result; out.enemyHelisMade=r.made.enemy.heli||0; out.enemyHeli=r.byUnit.enemy.heli||null; out.heliKilled=r.whoKilled.enemy.heli||null; out.samKilled=r.whoKilled.enemy.sam||null; out.seenAir=!!game.ai.seenAir;
+ const r=buildReport(); out.result=r.result; out.enemyHelisMade=r.made.enemy.heli||0; out.enemyHeli=r.byUnit.enemy.heli||null; out.heliKilled=r.whoKilled.enemy.heli||null; out.samKilled=r.whoKilled.enemy.sam||null; out.seenAir=!!game.ai.seenAir; out.heliMode=game.ai.heliMode; out.cheap=game.ai.heliCheap;
  out.yourExtractorsLost=r.lost.you.extractor||0;
  return out; })()
 '''
