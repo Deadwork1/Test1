@@ -2730,6 +2730,7 @@ function runAI(dt) {
   // Normal (which waits until 2:30 to start its War Factory) saves for its first one even in a build phase or with a wave due, and builds nothing cheaper
   // in front of it: that War Factory is its economy, as Extractors are bought there (v5.61)
   const firstFactory = !!D.factoryAt && wantFactory && !of('factory').length;
+  // (and on every level, its first War Factory is still saved for when an attack is due and it's short of troops: without it, a computer stuck on one Extractor could never get out, v5.64)
   const wantTech = D.heavyTanks && sent >= 2 && of('factory').some(f => f.built) && !of('tech').length && unlocked(1, 'tech') && !aiBlocked('tech');
   const wantRadar = D.walls && sent >= 1 && !of('radar').length && unlocked(1, 'radar') && !aiBlocked('radar');   // Normal and Hard
   const wantMedbay = D.walls && sent >= 1 && of('factory').some(f => f.built) && !of('medbay').length && unlocked(1, 'medbay') && !aiBlocked('medbay');   // Normal and Hard: somewhere to patch up the wounded (v5.61: only once its War Factory is up)
@@ -2796,7 +2797,9 @@ function runAI(dt) {
     if (refineries.length < reqRefineries && !aiBlocked('refinery')) reserve += COST.refinery;
     else if (entranceDefs < wantTowers) reserve += COST.mg + COST.engineer;
   }
-  if (turretNeed && defended && (entranceNext || !building)) reserve += COST[nextKind];   // saving for its next turret (v5.64)
+  const pendingTurrets = of('engineer').reduce((n, en) => n + (en.turretAt ? COST[en.turretAt.kind] : 0), 0);   // Engineers already on their way or waiting at the spot
+  const turretSaving = pendingTurrets || (turretNeed && (entranceNext || !building) ? COST[nextKind] + (of('engineer').length ? 0 : COST.engineer) : 0);
+  if (defended) reserve += turretSaving;   // saving for its turrets, and an Engineer to build them (v5.64)
   const padEmpty = D.heliSave && army.length >= D.minWave + D.guard && of('helipad').some(p => p.built && !padHeli(p) && !p.queue);   // Hard: an empty Helipad makes its Barracks wait (not its War Factories), so it can afford the helicopter, but only once it has a full wave's worth of troops (v5.49.6: it used to starve its army waiting)
   if (padEmpty) reserve += COST.heli;
   if (wantSam && defended) reserve += COST.sam;   // your aircraft are about: a SAM Site comes before more troops and tanks
@@ -2806,7 +2809,7 @@ function runAI(dt) {
   if (defended && (!building || otherExtrasDone || firstFactory)) reserve += wantFactory ? COST.factory : wantTech ? COST.tech : 0;
   // an attack is due but there aren't enough troops yet: troops come first, savings wait (it never stops attacking)
   const waveDue = game.time >= D.attackAfter && game.time >= (ai.nextWave || 0);
-  if (waveDue && army.filter(u => !u.role).length < D.minWave + 4) reserve = Math.min(reserve, (xWanted ? COST.extractor : 0) + (wantSam && defended ? COST.sam : 0) + (padEmpty ? COST.heli : 0) + (firstFactory && defended ? COST.factory : 0) + (turretNeed && entranceNext && defended ? COST[nextKind] : 0));   // (its entrance turrets too, v5.64)   // (a SAM Site it needs, and on Hard a helicopter for an empty pad, still come first)
+  if (waveDue && army.filter(u => !u.role).length < D.minWave + 4) reserve = Math.min(reserve, (xWanted ? COST.extractor : 0) + (wantSam && defended ? COST.sam : 0) + (padEmpty ? COST.heli : 0) + (wantFactory && !of('factory').length && defended ? COST.factory : 0) + (defended && (pendingTurrets || (turretNeed && entranceNext)) ? turretSaving : 0));   // (its turrets too, v5.64)   // (a SAM Site it needs, and on Hard a helicopter for an empty pad, still come first)
   const queued = barracks.reduce((n, b) => n + b.queue, 0) + of('factory').reduce((n, f) => n + f.queue, 0);
   const qBuggies = of('factory').reduce((n, b) => n + b.qTypes.filter(t => t === 'buggy').length, 0);
   const wantBuggy = D.buggies && unlocked(1, 'buggy') && of('buggy').length + qBuggies < (of('soldier').length + 2) / ((game.ai.seen && game.ai.seen.snipers >= 3) ? 1.3 : 2);   // ~1 per 2 soldiers, more if you field snipers/grenadiers
@@ -2857,12 +2860,12 @@ function runAI(dt) {
   // turrets (v5.64): an Engineer walks out and builds one - first at its entrances (as many as it used to have Guard Towers), then one more
   // at the pinch on its side of the river or by an Oil Derrick (from 5 minutes). Which kind depends on what it has seen of your army.
   // (the Engineer goes as soon as it has half the price; it waits at the spot for the rest)
-  const turretDue = turretNeed && game.time - (ai.lastTurret || -99) > (entranceNext ? 20 : 60) && (entranceNext || game.time - (ai.turretLostAt || -999) > 180)
-    && game.credits[1] >= COST[nextKind] * 0.5 + (of('engineer').length ? 0 : COST.engineer);
+  const turretSoon = turretNeed && game.time - (ai.lastTurret || -99) > (entranceNext ? 20 : 60) && (entranceNext || game.time - (ai.turretLostAt || -999) > 180);
+  const turretDue = turretSoon && game.credits[1] >= COST[nextKind] * 0.5;   // (an Engineer for it is trained as soon as one is wanted, below)
   const idleEng = of('engineer').find(en => !en.raid && !en.retake && !en.turretAt && (!en.order || en.order.type === 'move'));
   if (turretDue && idleEng) { const spot = entranceNext ? aiEntranceTurretSpot(hq, nextKind) : aiTurretSpot(hq, nextKind); if (spot) { idleEng.turretAt = { ...spot, kind: nextKind, entrance: entranceNext }; idleEng.order = null; ai.lastTurret = game.time; } }
   const engCount = of('engineer').length + qOf('engineer');
-  const wantEngineer = engCount < (D.engineerCap || 3) && (((D.engineers > 0 || brokenRuin) && needsFix && repairers < D.engineers + (brokenRuin ? 1 : 0)) || raidDue || retakeDue || (turretDue && !idleEng));
+  const wantEngineer = engCount < (D.engineerCap || 3) + (turretSoon && !idleEng ? 1 : 0) && (((D.engineers > 0 || brokenRuin) && needsFix && repairers < D.engineers + (brokenRuin ? 1 : 0)) || raidDue || retakeDue || (turretSoon && !idleEng));
   // War Factory first: buggies (about one per two soldiers) and tanks (a share of its army; heavies once it has a Tech Centre).
   // While it wants a vehicle, the barracks hold back so the money can build up.
   const qF = t => of('factory').reduce((n, f) => n + f.qTypes.filter(q => q === t).length, 0);
@@ -2913,7 +2916,14 @@ function runAI(dt) {
     }
     if (en.turretAt) {   // walk to the spot and build the turret (another spot if this one won't do; wait if it's short of money)
       const sp = en.turretAt;
-      if (Math.hypot(en.x - sp.x, en.y - sp.y) > en.r + 12) { if (!en.order || en.order.type !== 'move') en.order = { type: 'move', x: sp.x, y: sp.y }; continue; }
+      if (Math.hypot(en.x - sp.x, en.y - sp.y) > en.r + 12) {
+        if (!en.order || en.order.type !== 'move') {   // (its last walk ended short of the spot: after a few goes, the spot can't be reached - pick another)
+          en.turretWalks = (en.turretWalks || 0) + 1;
+          if (en.turretWalks > 4) { const nsp = sp.entrance ? aiEntranceTurretSpot(hq, sp.kind) : aiTurretSpot(hq, sp.kind); en.turretWalks = 0; en.turretAt = nsp ? { ...nsp, kind: sp.kind, entrance: sp.entrance } : null; continue; }
+          en.order = { type: 'move', x: sp.x, y: sp.y };
+        }
+        continue;
+      }
       en.order = { type: 'buildTurret', kind: sp.kind, x: sp.x, y: sp.y };
       const r = buildTurret(en);
       if (typeof r === 'object') { r.entrance = !!sp.entrance; continue; }
