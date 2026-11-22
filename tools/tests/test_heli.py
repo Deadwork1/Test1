@@ -42,7 +42,8 @@ JS = r'''(()=>{ const U=update; window.update=()=>{}; window.draw=()=>{}; const 
  const h2=game.ents.find(e=>e.type==='heli'&&e.hp>0);
  const sam=spawn('sam',1,pad.x+500,pad.y-60); sam.built=true; sam.progress=1; sam.hp=sam.maxHp;
  const sol2=spawn('soldier',0,sam.x-150,sam.y); sol2.passive=true; sol2.order={type:'move',x:sol2.x,y:sol2.y};
- const tw=spawn('tower',1,sam.x+40,sam.y+300); tw.built=true; tw.progress=1; tw.hp=tw.maxHp;
+ const tw=spawn('mg',1,sam.x+40,sam.y+300);   // (a Machine Gun Turret since v5.64: it can't hit aircraft either)
+ tw.built=true; tw.progress=1; tw.hp=tw.maxHp;
  h2.order={type:'move',x:sam.x,y:sam.y+180};   // inside the SAM's reach and over the tower
  run(10,()=>h2.order&&h2.order.arrived); const s0=sol2.hp; let ks=0; while(ks<20*30 && h2.hp>0){ h2.ammo=0; h2.order={type:'move',x:h2.x,y:h2.y,arrived:true}; U(0.05); ks++; } const tSam=+(ks/20).toFixed(1);
  out.sam={killedHeliSec:tSam, heliDead:h2.hp<=0, ignoredSoldier: sol2.hp===s0, towerTargetedHeli: tw.target===h2.id};

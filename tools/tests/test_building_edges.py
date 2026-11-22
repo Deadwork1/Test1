@@ -39,7 +39,7 @@ with sync_playwright() as p:
       startHarvest(ex, node);   // you tap the ore while it's unloading
       out.extractorToOre = watch(ex, () => Math.hypot(ex.x - node.x, ex.y - node.y) < 40 || ex.mining, 40);
       // 2) tank behind a narrow gap between its own tower and power plant, attacking an enemy beyond it
-      const tw = put('tower', 0, 1000, 1500), pw = put('power', 0, 1000 + 23 + 30 + 34, 1500);   // edges about 34 apart
+      const tw = put('cannon', 0, 1000, 1500), pw = put('power', 0, 1000 + 22 + 30 + 34, 1500);   // (a Cannon Turret, size 44, since v5.64)   // edges about 34 apart
       const tank = spawn('light', 0, 1043, 1640), foe = spawn('soldier', 1, 1043, 1250); foe.passive = true;
       tank.order = { type: 'attack', target: foe.id };
       out.gapBetween = Math.round((pw.x - halfX(pw)) - (tw.x + halfX(tw)));

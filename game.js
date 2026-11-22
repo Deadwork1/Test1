@@ -253,8 +253,12 @@ const BUILD_RADIUS = 300;             // how far from your HQ you can place buil
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
 
 // v5.52 prices (your picks, with the $500 loads): Sniper 250 (was 200), Buggy 400 (250), Light Tank 700 (400), Heavy Tank 1000 (700), Extractor 300 (150); v5.56: Artillery 500 (450)
-const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, tower: 500, wall: 20, gate: 150, soldier: 100, extractor: 300, buggy: 400, grenadier: 160, engineer: 100, turret: 125, rocket: 200, sniper: 250, light: 700, heavy: 1000, artillery: 500, tech: 600, radar: 300, medbay: 400, helipad: 500, heli: 800, sam: 600 };
-const WALL_REACH = 150;              // walls, gates and guard towers can go this much further out than other buildings
+const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, mg: 300, cannon: 500, missile: 600, laser: 1000, wall: 20, gate: 150, soldier: 100, extractor: 300, buggy: 400, grenadier: 160, engineer: 100, rocket: 200, sniper: 250, light: 700, heavy: 1000, artillery: 500, tech: 600, radar: 300, medbay: 400, helipad: 500, heli: 800, sam: 600 };
+const WALL_REACH = 150;              // walls, gates and SAM Sites can go this much further out than other buildings
+// Turrets (v5.64): an Engineer builds them anywhere you can see, but never this close to an enemy building
+const TURRET_TYPES = ['mg', 'cannon', 'missile', 'laser'], TURRET_KEEP_OUT = 300;
+const isTurretType = t => t === 'mg' || t === 'cannon' || t === 'missile' || t === 'laser';
+const isDefenceType = t => isTurretType(t) || t === 'sam';
 
 const STATS = {
   settler:   { hp: 200, speed: 48, r: 22, sight: 180 },   // (speed 38 until v5.62, +25%) // (r 16 until v5.59: it's a bigger truck now, with the folded HQ on its back)
@@ -280,11 +284,14 @@ const STATS = {
   factory:   { hp: 800, size: 90, sight: 200, buildTime: 14, trainTime: 7, maxQueue: 3 },
   tech:      { hp: 600, size: 70, sight: 180, buildTime: 16 },
   power:     { hp: 400, size: 60, sight: 160, buildTime: 10 },
-  tower:     { hp: 700, size: 46, sight: 230, buildTime: 12, range: 170, dmg: 14, cooldown: 0.9 },
-  turret:    { hp: 300, size: 30, sight: 170, buildTime: 3, range: 140, dmg: 5, cooldown: 0.5 },   // an Engineer dug in behind a machine gun (he's inside it: if it falls, so does he)
+  // Turrets (v5.64), built by Engineers: a machine gun for infantry, a cannon for vehicles, a missile tower that hits anything (aircraft best), a laser that hits anything hard but slowly
+  mg:        { hp: 400, size: 40, sight: 200, buildTime: 8,  range: 160, dmg: 8,  cooldown: 0.35, vsVehicle: 0.25, vsBuilding: 0.5 },
+  cannon:    { hp: 600, size: 44, sight: 210, buildTime: 10, range: 180, dmg: 50, cooldown: 2.0, vsVehicle: 1.5, vsInfantry: 0.25 },
+  missile:   { hp: 500, size: 44, sight: 230, buildTime: 10, range: 230, dmg: 35, cooldown: 3.5, salvo: 2, hitsAir: true, vsAir: 1.5, vsVehicle: 1, vsHeavy: 1, vsBuilding: 1, vsInfantry: 0.5 },
+  laser:     { hp: 600, size: 44, sight: 220, buildTime: 14, range: 180, dmg: 150, cooldown: 4.5, hitsAir: true },
   radar:     { hp: 400, size: 64, sight: 750, buildTime: 14, radar: true },
   helipad:   { hp: 600, size: 70, sight: 180, buildTime: 12, trainTime: 15, maxQueue: 1 },   // home of one helicopter: it lands here to reload
-  sam:       { hp: 500, size: 44, sight: 240, buildTime: 12, range: 220, dmg: 100, cooldown: 1.5, antiAir: true },   // SAM site: shoots only at aircraft
+  sam:       { hp: 500, size: 44, sight: 260, buildTime: 12, range: 240, dmg: 100, cooldown: 1.5, antiAir: true },   // SAM site: shoots only at aircraft
   medbay:    { hp: 500, size: 84, sight: 180, buildTime: 10, walkOn: true, heal: 8, healVehicle: 15, slots: 5 },   // round pad units stand on to heal: up to 5 infantry or 1 vehicle at a time   // sweeps a huge circle: sees over rocks and up onto plateaus (not into forests)
   wall:      { hp: 400, size: 25, sight: 50 },
   gate:      { hp: 600, size: 75, sight: 60 },   // 3 tiles long: room for two units side by side
@@ -295,7 +302,7 @@ const STATS = {
 const PRODUCES = { barracks: ['soldier', 'grenadier', 'rocket', 'sniper', 'engineer'], factory: ['buggy', 'light', 'artillery', 'heavy', 'extractor'], helipad: ['heli'] };   // (Extractors were bought at the Refinery until v5.55; each Refinery still comes with one free)
 const HAS_DOOR = t => !!PRODUCES[t] || t === 'refinery';   // buildings whose front door must stay clear (the Refinery for its unloading bay)
 // Tech tree: what else you need (finished, and still standing) before you can build or train something
-const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['tower'], heavy: ['tech'], artillery: ['power'], radar: ['power'], medbay: ['barracks'], helipad: ['factory'], sam: ['power'] };
+const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['power'], mg: ['barracks'], cannon: ['factory'], missile: ['helipad'], laser: ['tech'], heavy: ['tech'], artillery: ['power'], radar: ['power'], medbay: ['barracks'], helipad: ['factory'], sam: ['power'] };
 const hasBuilt = (team, type) => game.ents.some(b => b.team === team && b.type === type && b.built && ruinWorks(b));   // (a captured ruin counts once it's repaired to half)
 const missingFor = (team, type) => (REQUIRES[type] || []).filter(t => !hasBuilt(team, t));
 const unlocked = (team, type) => missingFor(team, type).length === 0;
@@ -329,7 +336,7 @@ const POWER_BONUS = 0.25, POWER_MAX = 2;
 const powerBoost = team => Math.min(POWER_MAX, 1 + POWER_BONUS * game.ents.filter(b => b.team === team && b.type === 'power' && b.built && ruinWorks(b)).length);
 // how many times longer than normal this side takes to build things (difficulty slow-down ÷ power boost)
 const slowOf = e => (e.team === 1 ? diff().slow : 1) / powerBoost(e.team);
-const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', rocket: 'Rocket Soldier', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', tower: 'Guard Tower', turret: 'Turret', power: 'Power Plant', radar: 'Radar', medbay: 'Medbay', wall: 'Wall', gate: 'Gate', derrick: 'Oil Derrick', house: 'House', civilian: 'Civilian', helipad: 'Helipad', heli: 'Attack Helicopter', sam: 'SAM Site' };
+const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', rocket: 'Rocket Soldier', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', mg: 'Machine Gun Turret', cannon: 'Cannon Turret', missile: 'Missile Turret', laser: 'Laser Turret', power: 'Power Plant', radar: 'Radar', medbay: 'Medbay', wall: 'Wall', gate: 'Gate', derrick: 'Oil Derrick', house: 'House', civilian: 'Civilian', helipad: 'Helipad', heli: 'Attack Helicopter', sam: 'SAM Site' };
 
 const TEAMS = [
   { name: 'You',   color: '#3b82f6', dark: '#1d3f8f', light: '#93c5fd' },
@@ -1152,7 +1159,7 @@ function spawn(type, team, x, y) {
   return e;
 }
 
-function isBuildingType(t) { return t === 'derrick' || t === 'house' || t === 'hq' || t === 'barracks' || t === 'refinery' || t === 'factory' || t === 'tech' || t === 'power' || t === 'tower' || t === 'turret' || t === 'radar' || t === 'medbay' || t === 'wall' || t === 'gate' || t === 'helipad' || t === 'sam'; }
+function isBuildingType(t) { return t === 'derrick' || t === 'house' || t === 'hq' || t === 'barracks' || t === 'refinery' || t === 'factory' || t === 'tech' || t === 'power' || isTurretType(t) || t === 'radar' || t === 'medbay' || t === 'wall' || t === 'gate' || t === 'helipad' || t === 'sam'; }
 const isWallType = t => t === 'wall' || t === 'gate';
 const GATE_HALF = TC * 1.5;   // a gate is 3 tiles long
 const gateHalf = vertical => vertical ? { hx: TC / 2, hy: GATE_HALF } : { hx: GATE_HALF, hy: TC / 2 };
@@ -1161,7 +1168,7 @@ const halfY = e => e.type === 'gate' ? gateHalf(e.vertical).hy : e.size / 2;
 const isBuilding = e => isBuildingType(e.type);
 const isUnit = e => !isBuilding(e);
 // who can shoot at what: only Rocket Soldiers and SAM sites can hit aircraft, and SAM sites shoot at nothing else
-const canHit = (e, t) => t.air ? !!(e.type === 'rocket' || STATS[e.type].antiAir) : !STATS[e.type].antiAir;
+const canHit = (e, t) => t.air ? !!(e.type === 'rocket' || STATS[e.type].antiAir || STATS[e.type].hitsAir) : !STATS[e.type].antiAir;   // (Missile and Laser turrets hit aircraft too, v5.64)
 // Damage, with a note of who did it (for the game report: which unit types killed what, and how much value they destroyed).
 // Value destroyed = the share of the target's health taken off, times its price (things with no price, like Civilians and the HQ, count as $0).
 function hurt(t, amount, srcType, srcTeam) {
@@ -1404,7 +1411,7 @@ function deploy(settler) {
 // Your build area: a circle round the HQ plus one round every other finished building (walls and gates don't count),
 // so it grows as your base spreads out.
 function buildAreaSources(team) {
-  return game.ents.filter(b => b.team === team && isBuilding(b) && b.built && !isWallType(b.type) && !isNeutralType(b.type) && b.type !== 'turret')
+  return game.ents.filter(b => b.team === team && isBuilding(b) && b.built && !isWallType(b.type) && !isNeutralType(b.type) && !isTurretType(b.type))   // (turrets don't widen your build area)
     .map(b => ({ x: b.x, y: b.y, r: b.size / 2 + (b.type === 'hq' ? BUILD_RADIUS : b.ruin ? RUIN_BUILD : BUILD_RADIUS_OTHER), b }));   // (a captured ruin only reaches across its own clearing)
 }
 function inBuildArea(team, x, y, extra = 0) {
@@ -1415,7 +1422,7 @@ function inBuildArea(team, x, y, extra = 0) {
 function canPlace(team, type, x, y) {
   const size = STATS[type].size;
   if (!unlocked(team, type)) return false;
-  if (!inBuildArea(team, x, y, type === 'tower' || type === 'sam' ? WALL_REACH : 0) || !siteIsFree(x, y, size)) return false;
+  if (!inBuildArea(team, x, y, type === 'sam' ? WALL_REACH : 0) || !siteIsFree(x, y, size)) return false;
   if (team === 1 && diff().walls && hqOf(1)) {   // the computer keeps its planned wall lines and gates clear
     if (!game.ai.wallPlans) { const pl = findEntrances(1).map(planGapWall).filter(Boolean); game.ai.wallPlans = pl.length ? pl : [aiWallPlan(hqOf(1))]; game.ai.gateTried = []; }
     if (game.ai.wallPlans.some(pl => [...pl.tiles, pl.gate].some(t => Math.abs(t.x - x) < size / 2 + 22 && Math.abs(t.y - y) < size / 2 + 22))) return false;
@@ -1766,13 +1773,12 @@ function update(dt) {
 
   for (const e of game.ents) {
     if (e.boarded || e.landing) continue;   // your Settler on its boat, or driving off the ramp (the landing moves it)
-    if (e.order && e.order.type === 'man' && isInfantry(e)) { updateManning(e, dt); continue; }
     if (e.type === 'settler') { if (e.order && navigate(e, e.order.x, e.order.y, dt)) e.order = null; }
     else if (e.air) updateHeli(e, dt);
     else if (isCombat(e)) updateSoldier(e, dt);
     else if (e.type === 'engineer') updateEngineer(e, dt);
     else if (e.type === 'extractor') updateExtractor(e, dt);
-    else if (e.type === 'tower' || e.type === 'turret' || e.type === 'sam') updateTower(e, dt);
+    else if (isDefenceType(e.type)) updateTower(e, dt);
     else if (e.type === 'derrick') updateDerrick(e, dt);
     else if (isBuilding(e)) updateBuilding(e, dt);
   }
@@ -1803,9 +1809,8 @@ function update(dt) {
         const mine = game.stats[e.team], theirs = game.stats[1 - e.team];
         if (isBuilding(e)) { mine.buildingsLost++; theirs.destroyed++; } else { mine.unitsLost++; theirs.kills++; }
         if (game.track) game.track.lost[e.team][e.type] = (game.track.lost[e.team][e.type] || 0) + 1;
-        creditKill(e, e.type === 'turret' && e.crew ? 1 : 0);
-        if (e.type === 'turret' && e.crew) { mine.unitsLost++; theirs.kills++; }   // the gunner goes down with it
-        if (e.type === 'turret' && e.team === 1) game.ai.turretLostAt = game.time;
+        creditKill(e);
+        if (isTurretType(e.type) && e.team === 1) game.ai.turretLostAt = game.time;
       }
       game.selected.delete(e.id);
       if (isBuilding(e)) bldDirty = true;
@@ -1843,6 +1848,7 @@ function update(dt) {
         const S = STATS[r.srcType] || STATS.rocket;
         if (r.src && isUnit(t)) { t.hitBy = r.src; t.hitAt = game.time; }
         const mult = r.srcType === 'sam' ? 1
+          : r.srcType === 'missile' ? (t.air ? S.vsAir : isInfantry(t) ? S.vsInfantry : isBuilding(t) ? S.vsBuilding : S.vsVehicle)   // Missile Turret: anything, aircraft best
           : r.srcType === 'heli' ? (isInfantry(t) ? S.vsInfantry : isBuilding(t) ? S.vsBuilding : S.vsVehicle)   // helicopter missiles: made for tanks and buildings
           : (t.air ? S.vsAir : isInfantry(t) ? S.vsInfantry : isBuilding(t) ? S.vsBuilding : t.type === 'heavy' ? S.vsHeavy : S.vsVehicle);   // the heavy tank's thick armour shrugs off some of it
         hurt(t, r.dmg * mult * (r.srcType === 'rocket' ? uphill(r.fromX, r.fromY, t) : 1), r.srcType, r.team);
@@ -1852,7 +1858,7 @@ function update(dt) {
   }
   game.rockets = game.rockets.filter(r => !r.done);
   for (const fx of game.effects) fx.t += dt;
-  game.effects = game.effects.filter(fx => fx.t < (fx.kind === 'shot' ? 0.08 : fx.kind === 'text' ? 1.2 : fx.kind === 'spark' ? 0.3 : fx.kind === 'blast' ? 0.45 : 0.6));
+  game.effects = game.effects.filter(fx => fx.t < (fx.kind === 'shot' ? 0.08 : fx.kind === 'text' ? 1.2 : fx.kind === 'spark' ? 0.3 : fx.kind === 'blast' ? 0.45 : fx.kind === 'beam' ? 0.35 : 0.6));
 
   defendBuildings();
   runAI(dt);
@@ -1892,9 +1898,9 @@ function findEnemyNear(e, radius) {
   return best;
 }
 
-// Armour: rifles (soldiers, buggy machine gun, guard towers) only do half damage to tanks;
+// Armour: rifles (soldiers, buggy machine gun, handguns) only do half damage to tanks (turrets have their own multipliers);
 // tank shells do a quarter damage to infantry (v5.63, was half; but splash a little onto anyone standing next to the target). Rockets, grenades and snipers have their own rules.
-const RIFLES = { soldier: 1, buggy: 1, tower: 1, turret: 1, civilian: 1 };   // (handguns count as rifles: half damage to tanks)
+const RIFLES = { soldier: 1, buggy: 1, civilian: 1 };   // (handguns count as rifles: half damage to tanks)
 const armour = (attacker, t) => (isTank(t) && RIFLES[attacker] ? 0.5 : 1) * ((attacker === 'light' || attacker === 'heavy') && isInfantry(t) ? 0.25 : 1);   // (tank shells vs infantry: a quarter since v5.63, was half)
 // tanks run over enemy infantry they drive into
 function crush(e) {
@@ -1911,7 +1917,7 @@ function crush(e) {
   e.cx = e.x; e.cy = e.y;
 }
 
-// artillery picks its own targets by what it's for: guard towers first, then other buildings, then units
+// artillery picks its own targets by what it's for: turrets and SAM Sites first, then other buildings, then units
 // a spot within this unit's range of a building that it can actually get to (nearest first), for when the building itself is boxed in
 function approachSpot(e, b) {
   const d = Math.max(halfX(b), halfY(b)) + rangeOf(e) * 0.8, spots = [];
@@ -1929,7 +1935,7 @@ function findSiegeTarget(e, radius) {
     if (!visibleAt(o.x, o.y, e.team)) continue;
     const d = edgeDist(e.x, e.y, o);
     if (d > radius || (isUnit(o) && d < min)) continue;
-    const score = d + (o.type === 'tower' || o.type === 'turret' ? 0 : isBuilding(o) ? 300 : 600);
+    const score = d + (isDefenceType(o.type) ? 0 : isBuilding(o) ? 300 : 600);
     if (score < bestScore) { bestScore = score; best = o; }
   }
   return best;
@@ -2068,12 +2074,18 @@ function updateSoldier(e, dt) {   // soldiers and buggies
 }
 
 // Engineers: walk to a building, then either repair it (yours) or capture it (theirs). They're very fragile, so escort them.
-const canCapture = b => isBuilding(b) && !isWallType(b.type) && b.type !== 'tower' && b.type !== 'turret' && b.type !== 'sam' && b.type !== 'house' && b.built;   // any finished building except walls, gates and guard towers. Capturing the enemy HQ wins the game, the same as destroying it
+const canCapture = b => isBuilding(b) && !isWallType(b.type) && !isDefenceType(b.type) && b.type !== 'house' && b.built;   // any finished building except walls, gates, turrets and SAM Sites. Capturing the enemy HQ wins the game, the same as destroying it
 function updateEngineer(e, dt) {
   const o = e.order;
   e.working = false;
   if (!o) return;
   if (o.type === 'move') { if (navigate(e, o.x, o.y, dt)) e.order = null; return; }
+  if (o.type === 'buildTurret') {   // walk to the spot, then build the turret there
+    if (Math.hypot(e.x - o.x, e.y - o.y) > e.r + 14) { if (navigate(e, o.x, o.y, dt) === 'fail') { e.order = null; if (e.team === 0) flash = { text: "The Engineer can't get there", t: performance.now() }; } return; }
+    const res = buildTurret(e);
+    if (res === 'money' || res === 'spot') { if (e.team === 0) flash = { text: res === 'money' ? `Not enough money for a ${NAMES[o.kind]} ($${COST[o.kind]})` : `Can't build the ${NAMES[o.kind]} there: ${turretSiteProblem(e.team, o.kind, o.x, o.y) || 'blocked'}`, t: performance.now() }; e.order = null; }
+    return;
+  }
   const b = byId(o.target);
   if (!b) { e.order = null; return; }
   if (o.type === 'repair' && (b.team !== e.team || b.hp >= b.maxHp)) { e.order = null; return; }
@@ -2095,49 +2107,37 @@ function updateEngineer(e, dt) {
   }
 }
 
-// An Engineer builds a Turret where he stands (he's used up). It's empty: it only fires once an infantry unit climbs in to man it.
-// Needs open grass, clear of buildings and ore, and the Turret's price.
-const turretSpotOk = (x, y) => terrainAt(x, y) === T.GRASS && siteIsFree(x, y, STATS.turret.size);
-function digIn(en) {
-  if (!en || en.type !== 'engineer' || en.hp <= 0) return 'gone';
-  if (game.credits[en.team] < COST.turret) return 'money';
-  if (!turretSpotOk(en.x, en.y)) return 'spot';
-  spend(en.team, COST.turret);
-  const t = spawn('turret', en.team, en.x, en.y);
+// Turrets (v5.64): an Engineer walks to the spot and builds one there (he's used up and the turret goes up on its own over its build time).
+// The spot: open ground you can see, clear of buildings and ore, and never within TURRET_KEEP_OUT of an enemy building.
+// (only enemy buildings this side has found count: you can't learn what's hidden in the fog by trying to build next to it)
+const knowsBuilding = (team, b) => team === 0 ? exploredAt(b.x, b.y) : (game.ai.known.has(b.id) || visibleAt(b.x, b.y, 1));
+function nearEnemyBuilding(team, x, y) {
+  return game.ents.some(b => isBuilding(b) && b.team !== team && b.team !== NEUTRAL && b.hp > 0 && !isWallType(b.type) && edgeDist(x, y, b) < TURRET_KEEP_OUT && knowsBuilding(team, b));
+}
+function turretSiteOk(team, type, x, y) {
+  return unlocked(team, type) && visibleAt(x, y, team) && siteIsFree(x, y, STATS[type].size) && !nearEnemyBuilding(team, x, y);
+}
+function turretSiteProblem(team, type, x, y) {   // why a spot won't do, for the info box (null = fine)
+  if (!visibleAt(x, y, team)) return "You can't see there";
+  if (nearEnemyBuilding(team, x, y)) return 'Too close to an enemy building';
+  if (!siteIsFree(x, y, STATS[type].size)) return "Can't build here";
+  return null;
+}
+function buildTurret(en) {   // the Engineer has arrived: pay, and the turret starts going up where he stood
+  const o = en.order;
+  if (!o || o.type !== 'buildTurret') return 'gone';
+  if (game.credits[en.team] < COST[o.kind]) return 'money';
+  if (!turretSiteOk(en.team, o.kind, o.x, o.y)) return 'spot';
+  spend(en.team, COST[o.kind]);
+  const t = spawn(o.kind, en.team, o.x, o.y);
+  t.built = false; t.progress = 0; t.hp = Math.max(1, t.maxHp * 0.1);
   if (game.stats[en.team]) game.stats[en.team].buildings++;
   if (en.team === 1) game.ai.turretsBuilt = (game.ai.turretsBuilt || 0) + 1;
-  game.effects.push({ kind: 'dust', x: en.x, y: en.y, t: 0 });
-  en.hp = 0; en.deployed = true;   // the Engineer is used up building it
+  game.effects.push({ kind: 'dust', x: o.x, y: o.y, t: 0 });
+  en.hp = 0; en.deployed = true; en.order = null;   // the Engineer is used up building it
   game.selected.delete(en.id);
   bldDirty = true;
   return t;
-}
-
-// an infantry unit climbs into an empty Turret (anyone's: an enemy's empty Turret becomes yours) and mans the gun
-const canMan = (u, t) => t && t.type === 'turret' && t.built && !t.crew && t.hp > 0 && isInfantry(u);
-function updateManning(e, dt) {
-  const t = byId(e.order.target);
-  if (!canMan(e, t)) { e.order = null; return; }
-  if (edgeDist(e.x, e.y, t) > e.r + 16) { if (navigate(e, t.x, t.y, dt) === 'fail') e.order = null; return; }
-  const was = t.team;
-  t.crew = { type: e.type, hp: e.hp, maxHp: e.maxHp };
-  t.cooldown = 0.3; t.target = null;
-  if (was !== e.team) {
-    t.team = e.team; game.ai.known.delete(t.id); bldDirty = true;
-    if (e.team === 0 || was === 0 || visibleAt(t.x, t.y)) game.effects.push({ kind: 'text', x: t.x, y: t.y - 26, text: e.team === 0 ? 'Turret taken!' : was === 0 ? 'Turret lost!' : 'Turret taken by the enemy', t: 0, color: e.team === 0 ? '#7dff7d' : '#ff6b6b' });
-    if (game.selected.has(t.id) && e.team !== 0) game.selected.delete(t.id);
-  }
-  const wasSelected = game.selected.has(e.id);
-  e.hp = 0; e.deployed = true; e.order = null;   // he's on the gun now (not a death)
-  if (wasSelected && e.team === 0) { game.selected.delete(e.id); if (game.selected.size === 0) game.selected.add(t.id); }
-}
-// the gunner climbs back out; the Turret is empty again
-function unloadTurret(t) {
-  if (!t || t.type !== 'turret' || !t.crew) return null;
-  const u = spawn(t.crew.type, t.team, t.x, t.y + t.size / 2 + 12);
-  u.hp = Math.min(u.maxHp, t.crew.hp); u.facing = Math.PI / 2;
-  t.crew = null; t.target = null;
-  return u;
 }
 
 function captureBuilding(b, team) {
@@ -2199,29 +2199,49 @@ function updateBuilding(e, dt) {
   }
 }
 
-// guard towers shoot the nearest enemy in range on their own
+// Turrets and SAM Sites shoot the nearest enemy in range on their own (v5.64)
+const SAM_RISE = 1;   // seconds for a SAM Site to come up out of the ground (or sink back)
 function updateTower(e, dt) {
   if (!e.built) return updateBuilding(e, dt);
-  const s = STATS[e.type];   // (Guard Towers and Turrets)
-  if (e.type === 'turret' && !e.crew) { e.target = null; return; }   // nobody on the gun
+  const s = STATS[e.type];
   e.cooldown -= dt;
+  if (e.type === 'laser') {   // its three legs turn round the core, faster and faster as it charges
+    const charge = Math.max(0, Math.min(1, 1 - e.cooldown / s.cooldown));
+    e.spin = (e.spin || 0) + (0.4 + 13.6 * charge * charge) * dt;
+  }
   let t = e.target && byId(e.target);
   if (!t || t.hp <= 0 || t.team === e.team || t.team === NEUTRAL || !canHit(e, t) || hiddenFrom(t, e.team) || !visibleAt(t.x, t.y, e.team) || edgeDist(e.x, e.y, t) > rangeOf(e) || !canShoot(e, t)) { t = findEnemyNear(e, rangeOf(e)); e.target = t ? t.id : null; }
-  if (!t) return;
-  e.aim = Math.atan2(t.y - e.y, t.x - e.x);
-  if (e.cooldown <= 0) {
-    e.cooldown = s.cooldown;
-    if (s.antiAir) {   // SAM site: a homing missile
-      game.rockets.push({ x: e.x, y: e.y - 8, target: t.id, tx: t.x, ty: t.y, team: e.team, dmg: s.dmg, life: 2, fromX: e.x, fromY: e.y, src: e.id, srcType: e.type });
-      e.fired = game.time;
-      return;
-    }
-    hurt(t, s.dmg * armour(e.type, t) * uphill(e.x, e.y, t), e.type, e.team);
-    const muzzle = e.type === 'turret' ? 16 : 20;
-    game.effects.push({ kind: 'shot', x: e.x + Math.cos(e.aim) * muzzle, y: e.y + Math.sin(e.aim) * muzzle - (e.type === 'turret' ? 2 : 6),
-                        x2: t.x, y2: t.y, team: e.team, t: 0, heavy: e.type === 'tower' });
-    if (isCombat(t) && !t.order && canHit(t, e)) t.order = { type: 'attack', target: e.id };   // units charge the tower
+  if (e.type === 'sam') {   // the SAM Site waits underground and comes up only while an aircraft is in range
+    e.up = Math.max(0, Math.min(1, (e.up || 0) + (t ? dt : -dt) / SAM_RISE));
+    if (e.up < 1) { if (e.cooldown < 0.3) e.cooldown = 0.3; return; }
   }
+  if (!t) { if (e.cooldown < 0) e.cooldown = 0; return; }
+  e.aim = Math.atan2(t.y - e.y, t.x - e.x);
+  if (e.cooldown > 0) return;
+  e.cooldown = s.cooldown;
+  if (e.type === 'sam') {   // a homing missile
+    game.rockets.push({ x: e.x, y: e.y - 8, target: t.id, tx: t.x, ty: t.y, team: e.team, dmg: s.dmg, life: 2, fromX: e.x, fromY: e.y, src: e.id, srcType: e.type });
+    e.fired = game.time;
+    return;
+  }
+  if (e.type === 'missile') {   // a salvo of homing missiles, one from each pod
+    for (let k = 0; k < s.salvo; k++) {
+      const side = k % 2 ? 1 : -1, px = e.x + Math.cos(e.aim) * 10 - Math.sin(e.aim) * 8 * side, py = e.y - 12 + Math.sin(e.aim) * 10 + Math.cos(e.aim) * 8 * side;
+      game.rockets.push({ x: px, y: py, target: t.id, tx: t.x, ty: t.y, team: e.team, dmg: s.dmg, life: 2.2, fromX: e.x, fromY: e.y, src: e.id, srcType: e.type });
+    }
+    e.fired = game.time;
+  } else if (e.type === 'laser') {   // one big beam that can't miss
+    hurt(t, s.dmg, e.type, e.team);
+    game.effects.push({ kind: 'beam', x: e.x + Math.cos(e.aim) * 22, y: e.y + Math.sin(e.aim) * 22, x2: t.x, y2: t.y, team: e.team, t: 0 });
+    e.fired = game.time;
+  } else {   // machine gun and cannon
+    const mult = isInfantry(t) ? (s.vsInfantry || 1) : isBuilding(t) ? (s.vsBuilding || 1) : (s.vsVehicle || 1);
+    hurt(t, s.dmg * mult * uphill(e.x, e.y, t), e.type, e.team);
+    const muzzle = e.type === 'cannon' ? 34 : 24;
+    game.effects.push({ kind: 'shot', x: e.x + Math.cos(e.aim) * muzzle, y: e.y + Math.sin(e.aim) * muzzle, x2: t.x, y2: t.y, team: e.team, t: 0, heavy: e.type === 'cannon' });
+    if (e.type === 'cannon') game.effects.push({ kind: 'blast', x: t.x, y: t.y, r: 14, t: 0 });
+  }
+  if (isCombat(t) && !t.order && canHit(t, e)) t.order = { type: 'attack', target: e.id };   // units charge the turret
 }
 
 // ---------- Aircraft: attack helicopters ----------
@@ -2564,7 +2584,7 @@ function aiWallPlan(hq) {
 // Engineer raid: pick one of your buildings it knows about (not the HQ), then sneak round the edge of the map to it and capture it
 // what an attack wave heads for
 function aiWaveTarget(from, targets, focus) {
-  const pref = focus === 'defences' ? ['tower', 'gate', 'refinery', 'extractor'] : focus === 'economy' ? ['refinery', 'extractor', 'power'] : [];
+  const pref = focus === 'defences' ? ['mg', 'cannon', 'missile', 'laser', 'sam', 'gate', 'refinery', 'extractor'] : focus === 'economy' ? ['refinery', 'extractor', 'power'] : [];
   for (const kind of pref) {
     let best = null, bd = Infinity;
     for (const t of targets) if (t.type === kind) { const d = Math.hypot(t.x - from.x, t.y - from.y); if (d < bd) { bd = d; best = t; } }
@@ -2576,7 +2596,7 @@ function aiWaveTarget(from, targets, focus) {
 }
 
 function aiRaidPlan(en) {
-  const prize = { refinery: 5, factory: 5, tech: 6, power: 3, barracks: 4, tower: 2 };
+  const prize = { refinery: 5, factory: 5, tech: 6, power: 3, barracks: 4 };
   let best = null, bestS = -1;
   for (const [id] of game.ai.known) {
     const b = byId(id);
@@ -2692,7 +2712,12 @@ function runAI(dt) {
   // how far along its building plan is: by waves sent, or on Normal and Hard by time too (as if it had sent its first wave after 5 minutes and its second after 8),
   // so waiting to gather a full wave doesn't hold up its War Factory, Radar, Medbay, walls and second Refinery
   const sent = Math.max(ai.wavesSent || 0, D.walls ? (game.time > 480 ? 2 : game.time > 300 ? 1 : 0) : 0);
+  // its defences (v5.64: turrets built by its Engineers; the first ones guard its entrances, like its Guard Towers used to)
+  const defs = game.ents.filter(e => e.team === 1 && (isTurretType(e.type) || (e.type === 'engineer' && e.turretAt)));
+  const entranceDefs = defs.filter(e => isTurretType(e.type) ? e.entrance : e.turretAt.entrance).length;
   const wantTowers = sent === 0 ? (D.towers && barracks.some(b => b.built) && extractors.length >= 3 && game.time > 150 ? 1 : 0) : sent === 1 ? Math.min(1, D.towers) : D.towers;   // first tower early, at the choke point
+  const extraDefs = game.time > 300 ? (D.turrets || 0) : 0, entranceNext = entranceDefs < wantTowers;
+  const nextKind = aiTurretKind(D, defs), turretNeed = defs.length < wantTowers + extraDefs;
   // Hard puts down a second refinery straight away (after a minute); everyone builds the rest once its economy and first wave are going
   const reqRefineries = !D.factory ? D.refineries : extractors.length >= 3 && sent >= 1 ? D.refineries : D.earlyRefinery && game.time > 60 ? 2 : 1;   // (Easy has no War Factory to buy Extractors at, so it builds its Refineries for their free ones, v5.55)
   // the build phase lasts until this stage's extras are built (or 90s, so it never stalls)
@@ -2705,14 +2730,13 @@ function runAI(dt) {
   const wantMedbay = D.walls && sent >= 1 && of('factory').some(f => f.built) && !of('medbay').length && unlocked(1, 'medbay') && !aiBlocked('medbay');   // Normal and Hard: somewhere to patch up the wounded (v5.61: only once its War Factory is up)
   const wantPad = D.helis && sent >= 2 && of('factory').some(f => f.built) && of('helipad').length < D.helis && !of('helipad').some(p => !padHeli(p))   /* no second pad while one stands empty */ && unlocked(1, 'helipad') && !aiBlocked('helipad');   // 1 on Normal, 2 on Hard
   const wantSam = D.sams && ai.seenAir && of('sam').length < D.sams && unlocked(1, 'sam') && !aiBlocked('sam');
-  const extrasDone = (refineries.length >= reqRefineries || aiBlocked('refinery')) && (of('tower').length >= wantTowers || aiBlocked('tower')) && !wantFactory && !wantTech;
+  const extrasDone = (refineries.length >= reqRefineries || aiBlocked('refinery')) && entranceDefs >= wantTowers && !wantFactory && !wantTech;
   const building = game.time < (ai.buildUntil || 0) && !extrasDone;
   if (refineries.length === 0) aiPlaceRefinery(hq);
   else if (barracks.length === 0) aiPlace(hq, 'barracks');
   else if (wantSam && cash >= COST.sam) aiPlaceSam(hq, refineries);   // your aircraft are about: a SAM Site first
   else if (of('power').length < D.plants && cash >= COST.power) aiPlace(hq, 'power');
   else if (refineries.length < reqRefineries && cash >= COST.refinery && !aiBlocked('refinery')) aiPlaceRefinery(hq);
-  else if (of('tower').length < wantTowers && cash >= COST.tower && !aiBlocked('tower')) aiPlaceTower(hq);
   else if (wantFactory && cash >= COST.factory) aiPlace(hq, 'factory');   // War Factory before any extra Barracks (v5.61: Hard used to build its 2nd and 3rd Barracks first)
   else if (barracks.length < D.barracks && cash >= 900) aiPlace(hq, 'barracks');
   else if (wantTech && cash >= COST.tech) aiPlace(hq, 'tech');
@@ -2765,18 +2789,19 @@ function runAI(dt) {
   if (expanding && defended) reserve += expanding;   // saving for a stepping stone or a new refinery
   if (building && defended) {   // in a build phase: save for the next thing it wants, not for units
     if (refineries.length < reqRefineries && !aiBlocked('refinery')) reserve += COST.refinery;
-    else if (of('tower').length < wantTowers && !aiBlocked('tower')) reserve += COST.tower;
+    else if (entranceDefs < wantTowers) reserve += COST.mg + COST.engineer;
   }
+  if (turretNeed && defended && (entranceNext || !building)) reserve += COST[nextKind];   // saving for its next turret (v5.64)
   const padEmpty = D.heliSave && army.length >= D.minWave + D.guard && of('helipad').some(p => p.built && !padHeli(p) && !p.queue);   // Hard: an empty Helipad makes its Barracks wait (not its War Factories), so it can afford the helicopter, but only once it has a full wave's worth of troops (v5.49.6: it used to starve its army waiting)
   if (padEmpty) reserve += COST.heli;
   if (wantSam && defended) reserve += COST.sam;   // your aircraft are about: a SAM Site comes before more troops and tanks
   const vReserve = reserve - (padEmpty ? COST.heli : 0);   // vehicles don't wait for the Tech Centre savings, or for a helicopter
   // the War Factory (and later the Tech Centre) are worth saving for whenever home is safe
-  const otherExtrasDone = (refineries.length >= reqRefineries || aiBlocked('refinery')) && (of('tower').length >= wantTowers || aiBlocked('tower'));
+  const otherExtrasDone = (refineries.length >= reqRefineries || aiBlocked('refinery')) && entranceDefs >= wantTowers;
   if (defended && (!building || otherExtrasDone || firstFactory)) reserve += wantFactory ? COST.factory : wantTech ? COST.tech : 0;
   // an attack is due but there aren't enough troops yet: troops come first, savings wait (it never stops attacking)
   const waveDue = game.time >= D.attackAfter && game.time >= (ai.nextWave || 0);
-  if (waveDue && army.filter(u => !u.role).length < D.minWave + 4) reserve = Math.min(reserve, (xWanted ? COST.extractor : 0) + (wantSam && defended ? COST.sam : 0) + (padEmpty ? COST.heli : 0) + (firstFactory && defended ? COST.factory : 0));   // (a SAM Site it needs, and on Hard a helicopter for an empty pad, still come first)
+  if (waveDue && army.filter(u => !u.role).length < D.minWave + 4) reserve = Math.min(reserve, (xWanted ? COST.extractor : 0) + (wantSam && defended ? COST.sam : 0) + (padEmpty ? COST.heli : 0) + (firstFactory && defended ? COST.factory : 0) + (turretNeed && entranceNext && defended ? COST[nextKind] : 0));   // (its entrance turrets too, v5.64)   // (a SAM Site it needs, and on Hard a helicopter for an empty pad, still come first)
   const queued = barracks.reduce((n, b) => n + b.queue, 0) + of('factory').reduce((n, f) => n + f.queue, 0);
   const qBuggies = of('factory').reduce((n, b) => n + b.qTypes.filter(t => t === 'buggy').length, 0);
   const wantBuggy = D.buggies && unlocked(1, 'buggy') && of('buggy').length + qBuggies < (of('soldier').length + 2) / ((game.ai.seen && game.ai.seen.snipers >= 3) ? 1.3 : 2);   // ~1 per 2 soldiers, more if you field snipers/grenadiers
@@ -2824,12 +2849,13 @@ function runAI(dt) {
   for (let i = retake.length - 1; i >= 0; i--) if (game.time - ((ai.retakeFail || {})[retake[i].id] || -999) < 180) retake.splice(i, 1);
   const retaking = of('engineer').some(en => en.retake) || ai.retakePending;
   const retakeDue = (D.engineers > 0 || D.derricks) && retake.length && !retaking && game.time - (ai.lastRetake || -99) > 45;
-  // turrets: now and then an Engineer digs in at an entrance (then by its Oil Derricks), up to 1 / 2 / 3 on Easy / Normal / Hard
-  const turretsPlanned = of('turret').length + of('engineer').filter(en => en.turretAt).length + (ai.turretPending ? 1 : 0);
-  const turretDue = D.turrets && game.time > 300 && turretsPlanned < D.turrets && (ai.turretsBuilt || 0) + (turretsPlanned - of('turret').length) < D.turretsTotal
-    && game.time - (ai.lastTurret || -99) > 60 && game.time - (ai.turretLostAt || -999) > 180 && game.credits[1] >= COST.engineer + COST.turret;
+  // turrets (v5.64): an Engineer walks out and builds one - first at its entrances (as many as it used to have Guard Towers), then one more
+  // at the pinch on its side of the river or by an Oil Derrick (from 5 minutes). Which kind depends on what it has seen of your army.
+  // (the Engineer goes as soon as it has half the price; it waits at the spot for the rest)
+  const turretDue = turretNeed && game.time - (ai.lastTurret || -99) > (entranceNext ? 20 : 60) && (entranceNext || game.time - (ai.turretLostAt || -999) > 180)
+    && game.credits[1] >= COST[nextKind] * 0.5 + (of('engineer').length ? 0 : COST.engineer);
   const idleEng = of('engineer').find(en => !en.raid && !en.retake && !en.turretAt && (!en.order || en.order.type === 'move'));
-  if (turretDue && idleEng) { const spot = aiTurretSpot(hq); if (spot) { idleEng.turretAt = spot; idleEng.order = null; ai.lastTurret = game.time; } }
+  if (turretDue && idleEng) { const spot = entranceNext ? aiEntranceTurretSpot(hq, nextKind) : aiTurretSpot(hq, nextKind); if (spot) { idleEng.turretAt = { ...spot, kind: nextKind, entrance: entranceNext }; idleEng.order = null; ai.lastTurret = game.time; } }
   const engCount = of('engineer').length + qOf('engineer');
   const wantEngineer = engCount < (D.engineerCap || 3) && (((D.engineers > 0 || brokenRuin) && needsFix && repairers < D.engineers + (brokenRuin ? 1 : 0)) || raidDue || retakeDue || (turretDue && !idleEng));
   // War Factory first: buggies (about one per two soldiers) and tanks (a share of its army; heavies once it has a Tech Centre).
@@ -2880,13 +2906,14 @@ function runAI(dt) {
       for (const u of escort) if (!u.order || u.order.type === 'move') { u.order = { type: 'attackmove', x: en.x + (t.x - en.x) * 0.5, y: en.y + (t.y - en.y) * 0.5 }; u.passive = false; }
       continue;
     }
-    if (ai.turretPending && !en.raid && !en.retake && !en.turretAt && !en.order) { const spot = aiTurretSpot(hq); ai.turretPending = false; if (spot) en.turretAt = spot; }
-    if (en.turretAt) {   // walk to the spot and dig in (pick another spot if this one has been taken)
-      const s = en.turretAt;
-      if (Math.hypot(en.x - s.x, en.y - s.y) > 10) { if (!en.order || en.order.type !== 'move') en.order = { type: 'move', x: s.x, y: s.y }; continue; }
+    if (en.turretAt) {   // walk to the spot and build the turret (another spot if this one won't do; wait if it's short of money)
+      const sp = en.turretAt;
+      if (Math.hypot(en.x - sp.x, en.y - sp.y) > en.r + 12) { if (!en.order || en.order.type !== 'move') en.order = { type: 'move', x: sp.x, y: sp.y }; continue; }
+      en.order = { type: 'buildTurret', kind: sp.kind, x: sp.x, y: sp.y };
+      const r = buildTurret(en);
+      if (typeof r === 'object') { r.entrance = !!sp.entrance; continue; }
       en.order = null;
-      const r = digIn(en);
-      if (r === 'spot') { en.turretAt = aiTurretSpot(hq); if (!en.turretAt) en.turretAt = null; }
+      if (r === 'spot') { const nsp = sp.entrance ? aiEntranceTurretSpot(hq, sp.kind) : aiTurretSpot(hq, sp.kind); en.turretAt = nsp ? { ...nsp, kind: sp.kind, entrance: sp.entrance } : null; }
       continue;
     }
     if (ai.raidPending && !en.raid && !en.order) { en.raid = aiRaidPlan(en); ai.raidPending = false; }
@@ -2898,12 +2925,6 @@ function runAI(dt) {
   }
 
   // ---- army ----
-  // crew its empty Turrets: the nearest spare infantry climbs in (and goes again if that one is killed on the way)
-  for (const t of of('turret')) {
-    if (!t.built || t.crew || army.some(u => u.order && u.order.type === 'man' && u.order.target === t.id)) continue;
-    const crew = army.filter(u => isInfantry(u) && (!u.role || u.role === 'guard') && u.type !== 'sniper').sort((a, b) => Math.hypot(a.x - t.x, a.y - t.y) - Math.hypot(b.x - t.x, b.y - t.y))[0];
-    if (crew) { crew.order = { type: 'man', target: t.id }; crew.role = 'gunner'; crew.passive = true; }
-  }
   const rally = aiRally(hq);
   const targets = game.ents.filter(e => e.team === 0 && !isWallType(e.type) && visibleAt(e.x, e.y, 1) && !hiddenFrom(e, 1)).map(e => ({ x: e.x, y: e.y, type: e.type }));
   for (const [id, k] of ai.known) if (!beingRetaken(byId(id) || {}, 1)) targets.push(k);
@@ -3231,9 +3252,11 @@ function pinchSpots() {
 
 // where the computer digs in its next Turret: just inside a way into its base (clear of its planned walls), at the pinch on its side of
 // the river, or by one of its Oil Derricks - each about equally likely to be its first choice
-function aiTurretSpot(hq) {
-  const turrets = game.ents.filter(e => e.team === 1 && (e.type === 'turret' || (e.type === 'engineer' && e.turretAt)));
-  const taken = (x, y) => turrets.some(t => { const p = t.type === 'turret' ? t : t.turretAt; return Math.hypot(p.x - x, p.y - y) < 90; });
+const aiTurretsAndPlans = () => game.ents.filter(e => e.team === 1 && (isTurretType(e.type) || (e.type === 'engineer' && e.turretAt))).map(t => isTurretType(t.type) ? t : t.turretAt);
+const aiOnWallPlan = (x, y, pad = 45) => (game.ai.wallPlans || []).some(pl => [...pl.tiles, pl.gate].some(t => Math.abs(t.x - x) < pad && Math.abs(t.y - y) < pad));
+function aiTurretSpot(hq, kind = 'mg') {
+  const turrets = aiTurretsAndPlans();
+  const taken = (x, y) => turrets.some(p => Math.hypot(p.x - x, p.y - y) < 90);
   const onPlan = (x, y) => (game.ai.wallPlans || []).some(pl => [...pl.tiles, pl.gate].some(t => Math.abs(t.x - x) < 45 && Math.abs(t.y - y) < 45));
   const mySide = p => (p.x - W / 2) * (hq.x - W / 2) > 0;   // on the computer's half of the map
   const pinches = pinchSpots().filter(mySide).map(p => ({ x: p.x, y: p.y, pull: 0, lowGround: true }));
@@ -3247,7 +3270,7 @@ function aiTurretSpot(hq) {
     for (const [da, dd] of [[0, 0], [0.5, 0], [-0.5, 0], [0, 30], [0.8, 20], [-0.8, 20]]) {
       const x = p.x + Math.cos(a + da) * (p.pull + dd), y = p.y + Math.sin(a + da) * (p.pull + dd);
       if (p.lowGround && elevAt(x, y)) continue;   // in the pass itself, not up on a plateau
-      if (!taken(x, y) && !onPlan(x, y) && turretSpotOk(x, y)) return { x, y };
+      if (!taken(x, y) && !onPlan(x, y) && turretSiteOk(1, kind, x, y)) return { x, y };
     }
   }
   return null;
@@ -3298,26 +3321,36 @@ function aiHelis(D) {
     if (best) h.order = { type: 'attack', target: best.id };
   }
 }
-function aiPlaceTower(hq) {
-  // first choice: just inside the choke point, so it covers where attackers come in
-  const ents = findEntrances(1), have = game.ents.filter(e => e.team === 1 && e.type === 'tower').length;
-  if (ents.length && have < ents.length * 2) {   // one per entrance in turn (main one first), then a second at each from the other rocky end
+// an entrance turret: just behind each gap in its base wall in turn (main one first), near a rocky end, then a second at each from the other end
+function aiEntranceTurretSpot(hq, kind) {
+  const ents = findEntrances(1), have = aiTurretsAndPlans().filter(p => p.entrance).length;
+  const ok = (x, y) => !aiOnWallPlan(x, y, STATS[kind].size / 2 + 22) && turretSiteOk(1, kind, x, y) && !aiTurretsAndPlans().some(p => Math.hypot(p.x - x, p.y - y) < 60);
+  if (ents.length) {
     const ch = ents[have % ents.length], spot = gapTowerSpots(ch)[Math.floor(have / ents.length) % 2];
     for (let tries = 0; tries < 25; tries++) {
       const x = spot.x + (Math.random() - 0.5) * tries * 3, y = spot.y + (Math.random() - 0.5) * tries * 3;
-      if (placeBuilding(1, 'tower', x, y)) return true;
+      if (ok(x, y)) return { x, y };
     }
   }
   const gate = game.ents.find(e => e.type === 'gate' && e.team === 1);
-  if (gate) {
-    for (let tries = 0; tries < 30; tries++) {
-      const a = Math.random() * Math.PI * 2, d = 50 + Math.random() * 90;
-      const x = gate.x + Math.cos(a) * d, y = gate.y + Math.sin(a) * d;
-      if (Math.hypot(x - hq.x, y - hq.y) > Math.hypot(gate.x - hq.x, gate.y - hq.y)) continue;   // stay on the inside of the wall
-      if (placeBuilding(1, 'tower', x, y)) return true;
-    }
+  if (gate) for (let tries = 0; tries < 30; tries++) {
+    const a = Math.random() * Math.PI * 2, d = 50 + Math.random() * 90, x = gate.x + Math.cos(a) * d, y = gate.y + Math.sin(a) * d;
+    if (Math.hypot(x - hq.x, y - hq.y) < Math.hypot(gate.x - hq.x, gate.y - hq.y) && ok(x, y)) return { x, y };   // on the inside of the wall
   }
-  return aiPlace(hq, 'tower');
+  for (let tries = 0; tries < 40; tries++) {   // otherwise toward the middle of the map from its HQ
+    const a = Math.atan2(H / 2 - hq.y, W / 2 - hq.x) + (Math.random() - 0.5) * 1.6, d = 150 + Math.random() * 120, x = hq.x + Math.cos(a) * d, y = hq.y + Math.sin(a) * d;
+    if (ok(x, y)) return { x, y };
+  }
+  return null;
+}
+// which turret to build next, from what it has seen of your army: a Laser now and then on Hard once it has a Tech Centre and money to spare,
+// a Missile Turret once it has seen your aircraft (if it has a Helipad), Cannons against vehicles, Machine Guns against infantry
+function aiTurretKind(D, defs) {
+  const ai = game.ai, seen = ai.seen || { infantry: 0, vehicles: 0 }, have = k => defs.filter(d => (isTurretType(d.type) ? d.type : d.turretAt.kind) === k).length;
+  if (D.heavyTanks && unlocked(1, 'laser') && game.credits[1] >= COST.laser + 300 && have('laser') < 1) return 'laser';
+  if (ai.seenAir && unlocked(1, 'missile') && have('missile') < 1) return 'missile';
+  if (unlocked(1, 'cannon') && seen.vehicles * 2 >= seen.infantry && have('cannon') <= have('mg')) return 'cannon';
+  return unlocked(1, 'mg') ? 'mg' : 'mg';
 }
 
 // ---------- Drawing ----------
@@ -3345,8 +3378,7 @@ function draw() {
     if (e.type === 'hq') drawHQ(e);
     else if (e.type === 'barracks') drawBarracks(e);
     else if (e.type === 'refinery') drawRefinery(e);
-    else if (e.type === 'tower') drawTower(e);
-    else if (e.type === 'turret') drawTurret(e);
+    else if (isDefenceType(e.type)) drawDefence(e);
     else if (e.type === 'power') drawPower(e);
     else if (e.type === 'radar') drawRadar(e);
     else if (e.type === 'medbay') drawMedbay(e);
@@ -3364,7 +3396,6 @@ function draw() {
     else if (e.type === 'derrick') drawDerrick(e);
     else if (e.type === 'house') drawHouse(e);
     else if (e.type === 'helipad') drawHelipad(e);
-    else if (e.type === 'sam') drawSam(e);
     else if (e.air) drawHeli(e);
     else drawSoldier(e);
     if (e.ruin && !ruinWorks(e)) drawRuin(e);
@@ -3373,12 +3404,19 @@ function draw() {
   for (const e of ents) if (e.hp < e.maxHp * DMG_DAMAGED) drawDamageSmoke(e);   // smoke and fire over everything on the ground
   for (const e of ents) if ((sel.has(e.id) || e.hp < e.maxHp) && e.type !== 'house') drawHealth(e);
   for (const e of ents) if (sel.has(e.id) && isBuilding(e)) drawNameTag(e);
-  for (const e of ents) if (sel.has(e.id) && (e.type === 'tower' || e.type === 'turret' || e.type === 'sam')) drawRange(e.x, e.y, rangeOf(e));
+  for (const e of ents) if (sel.has(e.id) && isDefenceType(e.type)) drawRange(e.x, e.y, rangeOf(e));
   for (const e of ents) if (sel.has(e.id) && e.type === 'artillery' && e.team === 0) drawRange(e.x, e.y, rangeOf(e));
 
   for (const fx of game.effects) {
     if (fx.kind !== 'marker' && fx.kind !== 'text' && !visibleAt(fx.x, fx.y)) continue;
-    if (fx.kind === 'shot') {
+    if (fx.kind === 'beam') {   // the Laser Turret's shot: a thick glowing beam with a white core that fades out
+      const k = 1 - fx.t / 0.35;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = `rgba(120,230,255,${0.55 * k})`; ctx.lineWidth = 9 * k + 1; ctx.beginPath(); ctx.moveTo(fx.x, fx.y); ctx.lineTo(fx.x2, fx.y2); ctx.stroke();
+      ctx.strokeStyle = `rgba(255,255,255,${k})`; ctx.lineWidth = 3 * k + 0.5; ctx.beginPath(); ctx.moveTo(fx.x, fx.y); ctx.lineTo(fx.x2, fx.y2); ctx.stroke();
+      ctx.fillStyle = `rgba(200,250,255,${0.8 * k})`; ctx.beginPath(); ctx.arc(fx.x2, fx.y2, 10 * k + 2, 0, Math.PI * 2); ctx.fill();
+      ctx.lineCap = 'butt';
+    } else if (fx.kind === 'shot') {
       ctx.strokeStyle = fx.heavy ? '#ffe9a0' : fx.team === 0 ? '#dbeafe' : '#fee2e2'; ctx.lineWidth = fx.heavy ? 3 : 1.5;
       ctx.beginPath(); ctx.moveTo(fx.x, fx.y); ctx.lineTo(fx.x2, fx.y2); ctx.stroke();
     } else if (fx.kind === 'boom') {
@@ -3447,8 +3485,8 @@ function draw() {
 
 function drawPlacement() {
   const type = game.placing.type, size = STATS[type].size;
-  const extra = isWallType(type) || type === 'tower' || type === 'sam' ? WALL_REACH : 0;
-  const areas = buildAreaSources(0);
+  const extra = isWallType(type) || type === 'sam' ? WALL_REACH : 0;
+  const areas = game.placing.turret ? [] : buildAreaSources(0);
   if (areas.length) {   // the build area: all the circles merged into one shape
     ctx.fillStyle = 'rgba(125,255,125,0.08)';
     ctx.beginPath();
@@ -3475,6 +3513,25 @@ function drawPlacement() {
     return;
   }
   const g = game.placing.ghost;
+  if (game.placing.turret) {   // a turret: anywhere you can see, but not within TURRET_KEEP_OUT of an enemy building (their no-build rings show in red)
+    const cx = g ? g.x : cam.x, cy = g ? g.y : cam.y;
+    ctx.strokeStyle = 'rgba(255,90,90,0.45)'; ctx.fillStyle = 'rgba(255,60,60,0.06)'; ctx.setLineDash([8, 8]); ctx.lineWidth = 2;
+    for (const b of game.ents) {
+      if (!isBuilding(b) || b.team === 0 || b.team === NEUTRAL || isWallType(b.type) || b.hp <= 0 || !knowsBuilding(0, b) || Math.hypot(b.x - cx, b.y - cy) > 1400) continue;
+      ctx.beginPath(); ctx.arc(b.x, b.y, Math.max(halfX(b), halfY(b)) + TURRET_KEEP_OUT, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    if (!g) return;
+    const ok = turretSiteOk(0, type, g.x, g.y) && game.credits[0] >= COST[type];
+    drawRange(g.x, g.y, STATS[type].range * (elevAt(g.x, g.y) ? HIGH_RANGE : 1));
+    ctx.fillStyle = ok ? 'rgba(80,255,80,0.3)' : 'rgba(255,60,60,0.3)'; ctx.strokeStyle = ok ? '#7dff7d' : '#ff6b6b'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(g.x, g.y, size / 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText(NAMES[type], g.x, g.y - size / 2 - 18);
+    ctx.font = '11px system-ui';
+    ctx.fillText(ok ? 'Tap again to send your Engineer' : (game.credits[0] < COST[type] ? 'Not enough money' : turretSiteProblem(0, type, g.x, g.y) || "Can't build here"), g.x, g.y - size / 2 - 5);
+    return;
+  }
   if (!g) return;
   if (type === 'gate') {
     const ok = canPlaceWallPiece(0, 'gate', g.x, g.y, g.vertical) && game.credits[0] >= COST.gate;
@@ -3487,7 +3544,7 @@ function drawPlacement() {
     return;
   }
   const ok = canPlace(0, type, g.x, g.y) && game.credits[0] >= COST[type];
-  if (type === 'tower') drawRange(g.x, g.y, STATS.tower.range);
+  if (type === 'sam') drawRange(g.x, g.y, STATS.sam.range);
   ctx.fillStyle = ok ? 'rgba(80,255,80,0.3)' : 'rgba(255,60,60,0.3)';
   ctx.strokeStyle = ok ? '#7dff7d' : '#ff6b6b'; ctx.lineWidth = 2;
   ctx.fillRect(g.x - size / 2, g.y - size / 2, size, size);
@@ -4364,30 +4421,7 @@ function drawHelipad(e) {
   ctx.fillStyle = '#fff'; ctx.fillRect(4, -1.5, 2, 3); ctx.restore();
 }
 // SAM site: a concrete ring with a turning launcher of four missiles that points at its target
-function drawSam(e) {
-  if (!e.built) return drawConstruction(e);
-  const c = TEAMS[e.team], h = e.size / 2;
-  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.arc(e.x + 4, e.y + 5, h, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#9a9a92'; ctx.beginPath(); ctx.arc(e.x, e.y, h, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = '#6c6c65'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(e.x, e.y, h - 3, 0, Math.PI * 2); ctx.stroke();
-  for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2 + Math.PI / 8; ctx.fillStyle = k % 2 ? '#f2c94c' : '#2a2a2a'; ctx.beginPath(); ctx.arc(e.x, e.y, h - 3, a, a + Math.PI / 8); ctx.arc(e.x, e.y, h - 7, a + Math.PI / 8, a, true); ctx.fill(); }
-  ctx.fillStyle = '#55574f'; ctx.beginPath(); ctx.arc(e.x, e.y, h - 9, 0, Math.PI * 2); ctx.fill();
-  const a = e.aim !== undefined ? e.aim : (e.team === 0 ? -Math.PI / 2 : Math.PI / 2);
-  ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(a);
-  ctx.fillStyle = c.dark; ctx.fillRect(-8, -10, 14, 20);   // launcher frame
-  ctx.fillStyle = c.color; ctx.fillRect(-6, -8, 4, 16);
-  const recent = e.fired && game.time - e.fired < 1.2;
-  for (let k = 0; k < 4; k++) {
-    const y = -7.5 + k * 5;
-    if (recent && k === 0) continue;   // one has just gone
-    ctx.fillStyle = '#ecebe4'; ctx.fillRect(-3, y - 1.6, 17, 3.2);
-    ctx.fillStyle = '#c62828'; ctx.beginPath(); ctx.moveTo(14, y - 1.6); ctx.lineTo(18, y); ctx.lineTo(14, y + 1.6); ctx.fill();
-    ctx.fillStyle = '#777'; ctx.fillRect(-3, y - 2.6, 3, 1); ctx.fillRect(-3, y + 1.6, 3, 1);
-  }
-  ctx.restore();
-  ctx.fillStyle = '#ddd'; ctx.beginPath(); ctx.arc(e.x - h + 8, e.y + h - 8, 3, 0, Math.PI * 2); ctx.fill();   // radar dish
-  ctx.strokeStyle = '#7dff7d'; ctx.lineWidth = 1; const sw = performance.now() / 300; ctx.beginPath(); ctx.moveTo(e.x - h + 8, e.y + h - 8); ctx.lineTo(e.x - h + 8 + Math.cos(sw) * 5, e.y + h - 8 + Math.sin(sw) * 5); ctx.stroke();
-}
+
 function drawHQArt(e) {
   const c = TEAMS[e.team], t = performance.now() / 1000 + (e.id || 0) * 3.7;
   const R = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(x, y, w, h); };
@@ -4609,55 +4643,125 @@ function drawRefinery(e) {
   drawQueue(e);
 }
 
-function drawTower(e) {
-  if (!e.built) return drawConstruction(e);
-  const c = TEAMS[e.team], h = e.size / 2;
-  // sandbagged base
-  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.arc(e.x + 4, e.y + 5, h, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#c2ad7c'; ctx.strokeStyle = '#7d6c45'; ctx.lineWidth = 1;
-  for (let i = 0; i < 12; i++) {
-    const a = i / 12 * Math.PI * 2;
-    ctx.beginPath(); ctx.ellipse(e.x + Math.cos(a) * (h - 5), e.y + Math.sin(a) * (h - 5), 6, 4, a + Math.PI / 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  }
-  ctx.fillStyle = '#6f6a5e'; ctx.beginPath(); ctx.arc(e.x, e.y, h - 10, 0, Math.PI * 2); ctx.fill();
-  // turret that turns toward its target
-  const a = e.aim !== undefined ? e.aim : -Math.PI / 2;
-  ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(a);
-  ctx.fillStyle = '#2a2a2a'; ctx.fillRect(4, -3, 22, 6);                       // barrel
-  if (e.cooldown > STATS.tower.cooldown - 0.08) { ctx.fillStyle = '#ffe9a0'; ctx.beginPath(); ctx.arc(28, 0, 5, 0, Math.PI * 2); ctx.fill(); }
-  ctx.fillStyle = c.dark; ctx.beginPath(); ctx.arc(0, 0, 11, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = c.color; ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.beginPath(); ctx.arc(-3, -3, 3, 0, Math.PI * 2); ctx.fill();
-  ctx.restore();
-}
 
-// a Turret: a sandbag ring round a dug-in machine gun, with its gunner behind it once someone mans it
-function drawTurret(e) {
-  const c = TEAMS[e.team], h = e.size / 2;
-  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.arc(e.x + 3, e.y + 4, h, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#6b5b3e'; ctx.beginPath(); ctx.arc(e.x, e.y, h - 4, 0, Math.PI * 2); ctx.fill();   // the dug-out pit
-  if (!e.built) {   // still digging in: a half-built ring of sandbags
-    const n = Math.max(1, Math.round(10 * e.progress));
-    ctx.fillStyle = '#c2ad7c'; ctx.strokeStyle = '#7d6c45'; ctx.lineWidth = 1;
-    for (let i = 0; i < n; i++) { const a = i / 10 * Math.PI * 2 - Math.PI / 2; ctx.beginPath(); ctx.ellipse(e.x + Math.cos(a) * (h - 3), e.y + Math.sin(a) * (h - 3), 5, 3.5, a + Math.PI / 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
-    ctx.fillStyle = '#e8d9a8'; ctx.beginPath(); ctx.arc(e.x, e.y, 4, 0, Math.PI * 2); ctx.fill();   // a hard hat: the Engineer at work
-    return;
+
+
+
+// ---------- Turret art (v5.64): Machine Gun, Cannon, Missile tower (stepped tiers with an antenna), Laser (spinning legs), and the SAM Site that hides underground ----------
+// Each draws at the origin, about 44 across; the caller moves to the turret first.
+const TURRET_ART = (() => {
+  const circ = (x, y, r, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); };
+  const poly = (pts, col) => { ctx.fillStyle = col; ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); ctx.fill(); };
+  const ngon = (n, r, rot = 0) => Array.from({ length: n }, (_, i) => [Math.cos(rot + i / n * Math.PI * 2) * r, Math.sin(rot + i / n * Math.PI * 2) * r]);
+  const shadow = (r, sq) => { ctx.fillStyle = 'rgba(0,0,0,0.33)'; if (sq) ctx.fillRect(-r + 4, -r + 5, r * 2, r * 2); else { ctx.beginPath(); ctx.arc(4, 5, r, 0, Math.PI * 2); ctx.fill(); } };
+  const sandbags = (r, n) => { ctx.fillStyle = '#c2ad7c'; ctx.strokeStyle = '#7d6c45'; ctx.lineWidth = 1; for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; ctx.beginPath(); ctx.ellipse(Math.cos(a) * r, Math.sin(a) * r, 5.5, 3.8, a + Math.PI / 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); } };
+  const flash = (x, r) => { circ(x, 0, r, '#ffe9a0'); circ(x, 0, r * 0.5, '#fff'); };
+  function mgA(c, a, fire) {   // sandbagged ring, twin-barrel gun on a round mount with a shield
+    shadow(22); circ(0, 0, 21, '#6b5b3e'); sandbags(17, 12); circ(0, 0, 12, '#5d5a52');
+    ctx.save(); ctx.rotate(a);
+    ctx.fillStyle = '#262626'; ctx.fillRect(4, -4.5, 19, 2.6); ctx.fillRect(4, 1.9, 19, 2.6);   // twin barrels
+    if (fire) { flash(25, 4); }
+    ctx.fillStyle = '#3d3d3d'; ctx.fillRect(-4, -6, 11, 12);   // gun body
+    poly([[6, -9], [9, -9], [9, 9], [6, 9]], '#4a4a44');        // gun shield
+    circ(-3, 0, 6.5, c.dark); circ(-3, 0, 4.8, c.color); circ(-4.5, -1.5, 1.8, 'rgba(255,255,255,0.35)');
+    ctx.restore();
   }
-  ctx.fillStyle = '#c2ad7c'; ctx.strokeStyle = '#7d6c45'; ctx.lineWidth = 1;
-  for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; ctx.beginPath(); ctx.ellipse(e.x + Math.cos(a) * (h - 3), e.y + Math.sin(a) * (h - 3), 5, 3.5, a + Math.PI / 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+  function cnA(c, a, fire) {   // octagon concrete base, boxy armoured turret, long barrel
+    shadow(23); poly(ngon(8, 23, Math.PI / 8), '#857f72'); poly(ngon(8, 19.5, Math.PI / 8), '#9f998b');
+    for (let k = 0; k < 8; k++) { const [x, y] = ngon(8, 16, k / 8 * Math.PI * 2)[0]; circ(x, y, 1.3, '#6d675b'); }   // bolts
+    ctx.save(); ctx.rotate(a);
+    ctx.fillStyle = '#2a2a2a'; ctx.fillRect(8, -3.2, 26, 6.4); ctx.fillStyle = '#1b1b1b'; ctx.fillRect(30, -4.4, 5, 8.8);   // barrel + muzzle brake
+    if (fire) flash(37, 6.5);
+    poly([[-12, -11], [9, -9], [12, 0], [9, 9], [-12, 11]], c.dark); poly([[-9, -8], [7, -6.5], [9, 0], [7, 6.5], [-9, 8]], c.color);
+    ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.fillRect(-7, -6, 6, 3); ctx.fillStyle = c.dark; ctx.fillRect(-5, -2, 6, 4);   // hatch
+    ctx.restore();
+  }
+  function msHead(c, a, fire) {
+    ctx.save(); ctx.rotate(a);
+    for (const sd of [-1, 1]) {
+      ctx.fillStyle = '#3a3c36'; ctx.fillRect(-8, sd * 7 - 5, 20, 10);
+      for (let k = 0; k < 3; k++) { const yy = sd * 7 - 3.3 + k * 3.3; circ(12, yy, 1.5, fire && sd < 0 && k === 0 ? '#111' : '#c62828'); }
+      ctx.fillStyle = c.color; ctx.fillRect(-8, sd * 7 - 5, 4, 10);
+    }
+    circ(0, 0, 7.5, c.dark); circ(1, 0, 5, c.color); ctx.fillStyle = '#cfe8ff'; ctx.fillRect(3, -2, 4, 4);
+    ctx.restore();
+  }
+  function antenna(c, mx, my, sweep, blink, lean = 12) {
+    ctx.strokeStyle = '#3a3c36'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx - lean / 2, my - lean); ctx.stroke();
+    const tx = mx - lean / 2, ty = my - lean;
+    ctx.strokeStyle = '#d9d9d2'; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(tx - Math.cos(sweep) * 8, ty - Math.sin(sweep) * 8 * 0.6); ctx.lineTo(tx + Math.cos(sweep) * 8, ty + Math.sin(sweep) * 8 * 0.6); ctx.stroke();
+    circ(tx, ty, 2, c.color); if (blink) { circ(tx, ty, 5, 'rgba(255,80,60,0.35)'); circ(tx, ty, 2, '#ff5040'); }
+  }
+  function tall2(c, a, fire, sweep, blink) {
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(11, 10, 23, 18, 0.6, 0, Math.PI * 2); ctx.fill();
+    const tiers = [[0, 22, '#77756d', '#8f8d84'], [-5, 16, '#6e6c65', '#86847b'], [-10, 11, '#66645d', '#7c7a72']];
+    tiers.forEach(([dy, r, edge, top], i) => {
+      ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.arc(1.5, dy + 2.5, r, 0, Math.PI * 2); ctx.fill();   // each tier casts onto the one below
+      circ(0, dy, r, edge); circ(0, dy - 1.2, r - 2.2, top);
+      if (i === 0) for (let k = 0; k < 12; k++) { const q = k / 12 * Math.PI * 2; circ(Math.cos(q) * 20, Math.sin(q) * 20, 1.1, '#5f5d56'); }
+      if (i === 1) for (let k = 0; k < 8; k++) { const q = k / 8 * Math.PI * 2; ctx.fillStyle = k % 2 ? '#f2c94c' : '#2a2a2a'; ctx.beginPath(); ctx.arc(0, dy - 1.2, r - 2.2, q, q + Math.PI / 8); ctx.arc(0, dy - 1.2, r - 4.2, q + Math.PI / 8, q, true); ctx.fill(); }
+    });
+    ctx.save(); ctx.translate(0, -12); ctx.scale(1.1, 1.1); msHead(c, a, fire); ctx.restore();
+    antenna(c, -13, 13, sweep, blink, 18);
+  }
+  function lzE2(c, a, charge, spin, beam) {
+    const glow = 0.25 + 0.75 * charge;
+    circ(4, 5, 13, 'rgba(0,0,0,0.3)');
+    for (let k = 0; k < 3; k++) { const q = spin + k * Math.PI * 2 / 3;
+      ctx.save(); ctx.translate(4, 5); ctx.rotate(q); poly([[4, -5], [24, -3], [27, 0], [24, 3], [4, 5]], 'rgba(0,0,0,0.22)'); ctx.restore();   // leg shadow, offset like every other shadow
+      ctx.save(); ctx.rotate(q);
+      poly([[4, -5], [24, -3], [24, 3], [4, 5]], '#6a6e78'); ctx.fillStyle = '#80858f'; ctx.fillRect(6, -1, 16, 2);
+      circ(23, 0, 4, '#555963'); circ(23, 0, 1.8, c.color);
+      ctx.restore(); }
+    if (charge > 0.3) {   // motion blur ring once the legs are spinning fast
+      ctx.strokeStyle = `rgba(200,210,225,${0.5 * (charge - 0.3)})`; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(0, 0, 21, 0, Math.PI * 2); ctx.stroke(); }
+    circ(0, 0, 11, '#4a4e57');
+    ctx.save(); ctx.rotate(a);
+    ctx.strokeStyle = '#c9ced8'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 13, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = `rgba(120,230,255,${0.6 * glow})`; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(0, 0, 13, 0, Math.PI * 2); ctx.stroke();
+    poly([[11, -4], [21, -2], [21, 2], [11, 4]], c.dark);
+    const g = ctx.createRadialGradient(22, 0, 0, 22, 0, 3 + 6 * charge + 4 * beam); g.addColorStop(0, `rgba(235,255,255,${Math.min(1, glow + beam)})`); g.addColorStop(1, 'rgba(120,230,255,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(22, 0, 3 + 6 * charge + 4 * beam, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    const g2 = ctx.createRadialGradient(0, 0, 0, 0, 0, 8); g2.addColorStop(0, `rgba(240,255,255,${glow})`); g2.addColorStop(0.6, `rgba(120,230,255,${0.7 * glow})`); g2.addColorStop(1, 'rgba(60,140,200,0.4)'); ctx.fillStyle = g2; ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.fill();
+  }
+  function samPop(c, a, e, fire) {
+    const h = 22;
+    circ(3, 4, h, 'rgba(0,0,0,0.25)');
+    circ(0, 0, h, '#8f8f88');   // concrete collar, low and flat
+    for (let k = 0; k < 8; k++) { const q = k / 8 * Math.PI * 2 + Math.PI / 8; ctx.fillStyle = k % 2 ? '#f2c94c' : '#2a2a2a'; ctx.beginPath(); ctx.arc(0, 0, h - 1, q, q + Math.PI / 8); ctx.arc(0, 0, h - 4, q + Math.PI / 8, q, true); ctx.fill(); }
+    circ(0, 0, h - 5, '#1b1c19');   // the shaft
+    // two hatch doors sliding apart
+    const open = Math.min(1, e * 1.6), r = h - 5;
+    ctx.save(); ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.clip();
+    for (const sd of [-1, 1]) { ctx.fillStyle = '#6f706a'; ctx.fillRect(sd < 0 ? -r - open * r : open * r, -r, r, r * 2); ctx.fillStyle = '#5c5d57'; ctx.fillRect(sd < 0 ? -2 - open * r : open * r, -r, 2, r * 2);
+      ctx.fillStyle = c.color; ctx.fillRect(sd < 0 ? -r * 0.55 - open * r : r * 0.35 + open * r, -3, r * 0.2, 6); }
+    ctx.restore();
+    if (e > 0.35) {   // launcher rises out of the shaft (drawn bigger as it comes up)
+      const up = (e - 0.35) / 0.65, k = 0.6 + 0.4 * up;
+      ctx.save(); ctx.rotate(a); ctx.scale(k, k);
+      circ(3 * up, 4 * up, 12, `rgba(0,0,0,${0.3 * up})`);
+      ctx.fillStyle = c.dark; ctx.fillRect(-8, -10, 14, 20); ctx.fillStyle = c.color; ctx.fillRect(-6, -8, 4, 16);
+      for (let m = 0; m < 4; m++) { const y = -7.5 + m * 5; if (fire && m === 0) continue;
+        ctx.fillStyle = '#ecebe4'; ctx.fillRect(-3, y - 1.6, 17, 3.2); poly([[14, y - 1.6], [18, y], [14, y + 1.6]], '#c62828'); }
+      ctx.restore();
+    }
+    circ(-h + 7, h - 7, 2.6, '#ddd');   // its radar keeps watch above ground
+    ctx.strokeStyle = '#7dff7d'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-h + 7, h - 7); ctx.lineTo(-h + 11, h - 9); ctx.stroke();
+    if (fire) { ctx.strokeStyle = 'rgba(220,220,220,0.85)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 16 + Math.sin(a) * 7.5, Math.sin(a) * 16 - Math.cos(a) * 7.5); ctx.lineTo(Math.cos(a) * 32 + Math.sin(a) * 7.5, Math.sin(a) * 32 - Math.cos(a) * 7.5); ctx.stroke(); }
+  }
+  return { mg: mgA, cannon: cnA, missile: tall2, laser: lzE2, sam: samPop };
+})();
+function drawDefence(e) {
+  if (!e.built) return drawConstruction(e);
+  const c = TEAMS[e.team], s = STATS[e.type], now = performance.now() / 1000;
   const a = e.aim !== undefined ? e.aim : (e.team === 0 ? -Math.PI / 2 : Math.PI / 2);
-  ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(a);
-  ctx.fillStyle = '#2a2a2a'; ctx.fillRect(2, -1.5, 15, 3);   // gun barrel
-  ctx.fillStyle = '#3a3a3a'; ctx.fillRect(-2, -3.5, 7, 7);   // gun body
-  if (e.cooldown > STATS.turret.cooldown - 0.06) { ctx.fillStyle = '#ffe9a0'; ctx.beginPath(); ctx.arc(18, 0, 3, 0, Math.PI * 2); ctx.fill(); }
-  if (e.crew) {   // the gunner, in his side's colours
-    ctx.fillStyle = c.dark; ctx.beginPath(); ctx.arc(-6, 0, 5.5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = c.color; ctx.beginPath(); ctx.arc(-6, 0, 4, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.arc(-6, 0, 2.2, 0, Math.PI * 2); ctx.fill();   // helmet
-  } else {   // empty: a little team flag stuck in the sandbags so you can tell whose it is
-    ctx.rotate(-a); ctx.strokeStyle = '#ddd'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(-9, 8); ctx.lineTo(-9, -6); ctx.stroke();
-    ctx.fillStyle = c.color; ctx.fillRect(-9, -6, 7, 5);
-  }
+  const justFired = e.fired !== undefined && game.time - e.fired < 0.3;
+  ctx.save(); ctx.translate(e.x, e.y);
+  if (e.type === 'mg') TURRET_ART.mg(c, a, e.cooldown > s.cooldown - 0.07);
+  else if (e.type === 'cannon') TURRET_ART.cannon(c, a, e.cooldown > s.cooldown - 0.1);
+  else if (e.type === 'missile') TURRET_ART.missile(c, a, justFired, now * 2.2 + e.id, ((now + e.id * 0.37) % 1.4) < 0.3);
+  else if (e.type === 'laser') TURRET_ART.laser(c, a, e.target ? Math.max(0, Math.min(1, 1 - e.cooldown / s.cooldown)) : 0, e.spin || 0, justFired ? 1 - (game.time - e.fired) / 0.3 : 0);
+  else if (e.type === 'sam') TURRET_ART.sam(c, a, e.up || 0, e.fired !== undefined && game.time - e.fired < 0.25);
   ctx.restore();
 }
 
@@ -5091,6 +5195,17 @@ function confirmWall() {
 function tryPlace() {
   const p = game.placing;
   if (p && p.type === 'wall') return confirmWall();
+  if (p && p.turret) {
+    if (!p.ghost) return;
+    const why = game.credits[0] < COST[p.type] ? `Not enough money for a ${NAMES[p.type]} ($${COST[p.type]})` : turretSiteProblem(0, p.type, p.ghost.x, p.ghost.y);
+    if (why) { flash = { text: why, t: performance.now() }; return; }
+    const en = selectedOfType('engineer').sort((a, b) => Math.hypot(a.x - p.ghost.x, a.y - p.ghost.y) - Math.hypot(b.x - p.ghost.x, b.y - p.ghost.y))[0];
+    if (!en) { game.placing = null; return; }
+    en.order = { type: 'buildTurret', kind: p.type, x: p.ghost.x, y: p.ghost.y };
+    game.effects.push({ kind: 'marker', x: p.ghost.x, y: p.ghost.y, t: 0, color: '#7dff7d' });
+    game.placing = null;
+    return;
+  }
   if (p && p.ghost && placeBuilding(0, p.type, p.ghost.x, p.ghost.y, p.ghost.vertical)) game.placing = null;
 }
 
@@ -5112,11 +5227,6 @@ function handleTap(x, y) {
   const myUnits = [...game.selected].map(byId).filter(e => e && e.team === 0 && isUnit(e));
 
   const engineers = myUnits.filter(e => e.type === 'engineer');
-  // infantry selected + an empty Turret (yours or anyone's) tapped = the nearest one climbs in to man it
-  if (hit && canMan({ type: 'soldier' }, hit)) {
-    const crew = myUnits.filter(isInfantry).sort((a, b) => Math.hypot(a.x - hit.x, a.y - hit.y) - Math.hypot(b.x - hit.x, b.y - hit.y))[0];
-    if (crew) { crew.order = { type: 'man', target: hit.id }; game.effects.push({ kind: 'marker', x: hit.x, y: hit.y, t: 0, color: '#7dff7d' }); return; }
-  }
   const helis = myUnits.filter(e => e.air);
   if (hit && hit.team === 0 && hit.type === 'helipad' && helis.length) {   // helicopters selected + your Helipad tapped = fly home to land
     for (const h of helis) { const own = byId(h.pad); if (!padOk(own, 0) && hit.built && !padHeli(hit)) h.pad = hit.id; h.order = { type: 'return' }; }
@@ -5217,12 +5327,16 @@ const selectedOfType = type => [...game.selected].map(byId).filter(e => e && e.t
 const $ = id => document.getElementById(id);
 const ui = {
   credits: $('credits'), clock: $('clock'), info: $('info'), powerChip: $('powerChip'), sell: $('btnSell'),
-  deploy: $('btnDeploy'), radar: $('btnRadar'), medbay: $('btnMedbay'), barracks: $('btnBarracks'), refinery: $('btnRefinery'), tower: $('btnTower'), power: $('btnPower'), factory: $('btnFactory'), tech: $('btnTech'), wall: $('btnWall'), gate: $('btnGate'), rotate: $('btnRotate'), 
-  harvest: $('btnHarvest'), turret: $('btnTurret'), helipad: $('btnHelipad'), sam: $('btnSam'), heliHome: $('btnReturn'), unload: $('btnUnload'), place: $('btnPlace'), cancel: $('btnCancel'), deselect: $('btnDeselect'),
+  deploy: $('btnDeploy'), radar: $('btnRadar'), medbay: $('btnMedbay'), barracks: $('btnBarracks'), refinery: $('btnRefinery'), power: $('btnPower'), factory: $('btnFactory'), tech: $('btnTech'), wall: $('btnWall'), gate: $('btnGate'), rotate: $('btnRotate'), 
+  harvest: $('btnHarvest'), mg: $('btnMg'), cannon: $('btnCannon'), missile: $('btnMissile'), laser: $('btnLaser'), helipad: $('btnHelipad'), sam: $('btnSam'), heliHome: $('btnReturn'), place: $('btnPlace'), cancel: $('btnCancel'), deselect: $('btnDeselect'),
   box: $('btnBox'), all: $('btnAll'), pause: $('btnPause'), map: $('btnMap'),
   overlay: $('overlay'), ovTitle: $('ovTitle'), ovText: $('ovText'), ovBtn: $('ovBtn'),
 };
 const show = (el, on) => { el.style.display = on ? '' : 'none'; };
+const TURRET_INFO = { mg: 'fast machine gun: strong against infantry, weak against vehicles, can\'t hit aircraft',
+  cannon: 'heavy cannon: strong against vehicles, weak against infantry, can\'t hit aircraft',
+  missile: 'long-range missile salvos: hits anything, aircraft hardest',
+  laser: 'one huge beam every few seconds: hits anything, but slow to charge' };
 let flash = null;   // temporary message in the info box
 
 function startPlacing(type) {
@@ -5238,16 +5352,12 @@ ui.deploy.addEventListener('click', () => {
 });
 ui.barracks.addEventListener('click', () => startPlacing('barracks'));
 ui.refinery.addEventListener('click', () => startPlacing('refinery'));
-ui.tower.addEventListener('click', () => startPlacing('tower'));
-ui.unload.addEventListener('click', () => {   // the gunners of the selected Turrets climb out
-  for (const t of [...game.selected].map(byId)) if (t && t.team === 0 && t.type === 'turret') { const u = unloadTurret(t); if (u) game.selected.add(u.id); }
-});
-ui.turret.addEventListener('click', () => {   // every selected Engineer builds a Turret where he stands
-  const engs = [...game.selected].map(byId).filter(e => e && e.team === 0 && e.type === 'engineer');
-  let made = 0, why = null;
-  for (const en of engs) { const r = digIn(en); if (typeof r === 'object') made++; else why = why || r; }
-  if (!made && why) flash = { t: performance.now(), text: why === 'money' ? 'Not enough money for a Turret ($' + COST.turret + ')' : 'Can\'t build a Turret here: move to open grass, away from buildings and ore' };
-});
+// Turrets (v5.64): pick one with an Engineer selected, then tap where it goes; the nearest selected Engineer walks there and builds it
+function startTurretPlacing(kind) {
+  if (!selectedOfType('engineer').length) return;
+  game.placing = { type: kind, turret: true, ghost: null, anchor: null, end: null };
+}
+for (const k of TURRET_TYPES) ui[k].addEventListener('click', () => startTurretPlacing(k));
 ui.power.addEventListener('click', () => startPlacing('power'));
 ui.radar.addEventListener('click', () => startPlacing('radar'));
 ui.medbay.addEventListener('click', () => startPlacing('medbay'));
@@ -5286,7 +5396,7 @@ ui.harvest.addEventListener('click', () => {
 });
 ui.deselect.addEventListener('click', () => { game.selected.clear(); game.placing = null; });
 // Selling: tap Sell, then tap again to confirm. You get half the building's price back (plus anything still queued in it).
-const sellable = b => b && b.team === 0 && isBuilding(b) && COST[b.type] > 0 && !b.ruin && b.type !== 'turret';   // captured ruins and Turrets (an Engineer is inside) can't be sold
+const sellable = b => b && b.team === 0 && isBuilding(b) && COST[b.type] > 0 && !b.ruin;   // captured ruins can't be sold (turrets can, since v5.64)
 const sellValue = b => Math.floor(COST[b.type] / 2) + (b.qTypes || []).reduce((s, t) => s + COST[t], 0);
 let sellArmed = null;
 // guard against selling by accident (clicking on after placing a building lands on Sell, which sits where the build buttons were):
@@ -5314,7 +5424,7 @@ ui.sell.addEventListener('click', () => {
 });
 // build buttons show the real price from COST, so labels can never drift from what you're charged
 for (const [btn, type, label] of [[ui.barracks, 'barracks', 'Barracks'], [ui.refinery, 'refinery', 'Refinery'], [ui.factory, 'factory', 'War Factory'],
-  [ui.power, 'power', 'Power Plant'], [ui.tower, 'tower', 'Tower'], [ui.wall, 'wall', 'Wall'], [ui.gate, 'gate', 'Gate']]) btn.textContent = `${label} $${COST[type]}`;
+  [ui.power, 'power', 'Power Plant'], [ui.mg, 'mg', 'Machine Gun'], [ui.cannon, 'cannon', 'Cannon'], [ui.missile, 'missile', 'Missile'], [ui.laser, 'laser', 'Laser'], [ui.wall, 'wall', 'Wall'], [ui.gate, 'gate', 'Gate']]) btn.textContent = `${label} $${COST[type]}`;
 ui.box.addEventListener('click', () => { input.boxMode = !input.boxMode; });
 // minimap: tap Map to hide it (so it doesn't cover the corner of the battlefield) and again to bring it back
 try { MM.hidden = localStorage.getItem('mini-rts-minimap') === 'hidden'; } catch (err) {}
@@ -5448,7 +5558,6 @@ function updateHUD() {
   show(ui.refinery, !!hq && !placing);
   show(ui.factory, !!hq && !placing && unlocked(0, 'factory'));   // hidden until you have what it needs (v5.53)
   show(ui.tech, !!hq && !placing && unlocked(0, 'tech'));   // hidden until you have what it needs (v5.53)
-  show(ui.tower, !!hq && !placing);
   show(ui.power, !!hq && !placing);
   show(ui.radar, !!hq && !placing && unlocked(0, 'radar'));   // hidden until you have what it needs (v5.53)
   show(ui.medbay, !!hq && !placing && unlocked(0, 'medbay'));   // hidden until you have what it needs (v5.53)
@@ -5459,8 +5568,8 @@ function updateHUD() {
   show(ui.gate, !!hq && !placing);
   syncProduceButtons(producer && !placing ? producer.type : null);
   show(ui.harvest, extractors.length > 0 && !placing);
-  show(ui.turret, sel.some(e => e.type === 'engineer' && e.team === 0) && !placing);
-  show(ui.unload, sel.some(e => e.type === 'turret' && e.team === 0 && e.crew) && !placing);
+  const engSel = sel.some(e => e.type === 'engineer' && e.team === 0);
+  for (const k of TURRET_TYPES) { show(ui[k], engSel && !placing && unlocked(0, k)); ui[k].disabled = game.credits[0] < COST[k]; }   // an Engineer's turret buttons, each hidden until you have what it needs
   show(ui.place, !!(placing && (placing.ghost || (placing.type === 'wall' && placing.anchor))));
   show(ui.cancel, !!placing);
   show(ui.rotate, !!(placing && placing.type === 'gate'));
@@ -5477,7 +5586,6 @@ function updateHUD() {
 
   ui.barracks.disabled = game.credits[0] < COST.barracks;
   ui.refinery.disabled = game.credits[0] < COST.refinery;
-  ui.tower.disabled = game.credits[0] < COST.tower;
   ui.power.disabled = game.credits[0] < COST.power;
   const boost = powerBoost(0);
   ui.powerChip.style.display = boost > 1 ? '' : 'none';
@@ -5492,8 +5600,9 @@ function updateHUD() {
   ui.gate.disabled = game.credits[0] < COST.gate;
   const wallMode = placing && placing.type === 'wall';
   ui.cancel.textContent = wallMode ? 'Done' : 'Cancel';
-  ui.place.textContent = wallMode ? 'Build wall' : 'Place here';
+  ui.place.textContent = wallMode ? 'Build wall' : placing && placing.turret ? 'Send Engineer' : 'Place here';
   if (placing && placing.ghost && placing.type === 'gate') ui.place.disabled = !canPlaceWallPiece(0, 'gate', placing.ghost.x, placing.ghost.y, placing.ghost.vertical) || game.credits[0] < COST.gate;
+  else if (placing && placing.ghost && placing.turret) ui.place.disabled = !turretSiteOk(0, placing.type, placing.ghost.x, placing.ghost.y) || game.credits[0] < COST[placing.type];
   else if (placing && placing.ghost) ui.place.disabled = !canPlace(0, placing.type, placing.ghost.x, placing.ghost.y) || game.credits[0] < COST[placing.type];
   else if (placing) ui.place.disabled = false;
   if (producer) {
@@ -5531,11 +5640,8 @@ function updateHUD() {
   else if (sel.length === 1 && sel[0].type === 'medbay') text = sel[0].built ? 'Medbay — heals up to 5 infantry or 1 vehicle standing on it' + (sel[0].healing ? ' (healing ' + sel[0].healing + ')' : '') + '. Select units, then tap it' : 'Medbay: building…';
   else if (sel.length === 1 && sel[0].type === 'radar') text = sel[0].built ? 'Radar — reveals everything within ' + STATS.radar.sight + ', over rocks and cliffs (not hidden infantry in forests)' : 'Radar: ' + Math.floor(sel[0].progress * 100) + '% built';
   else if (sel.length === 1 && sel[0].type === 'refinery') text = sel[0].built ? 'Refinery — buy Extractors at the War Factory' : `Refinery: ${Math.floor(sel[0].progress * 100)}% built`;
-  else if (sel.length === 1 && sel[0].type === 'tower') text = sel[0].built ? 'Guard Tower — fires at enemies in range' : `Guard Tower: ${Math.floor(sel[0].progress * 100)}% built`;
-  else if (sel.length === 1 && sel[0].type === 'turret') text = !sel[0].built ? `Turret: being built (${Math.floor(sel[0].progress * 100)}%)`
-    : sel[0].crew ? `Turret — manned by a ${NAMES[sel[0].crew.type]}: a machine gun, strong against infantry, half damage to tanks`
-    : 'Turret — empty. Select infantry and tap it to man the gun (anyone can man an empty Turret, the enemy too)';
-  else if (sel.length === 1 && sel[0].type === 'sam') text = sel[0].built ? 'SAM Site — shoots down enemy aircraft in range (nothing else)' : `SAM Site: ${Math.floor(sel[0].progress * 100)}% built`;
+  else if (sel.length === 1 && isTurretType(sel[0].type)) text = !sel[0].built ? `${NAMES[sel[0].type]}: ${Math.floor(sel[0].progress * 100)}% built` : NAMES[sel[0].type] + ' — ' + TURRET_INFO[sel[0].type];
+  else if (sel.length === 1 && sel[0].type === 'sam') text = sel[0].built ? 'SAM Site — waits underground and comes up to shoot down enemy aircraft in range (nothing else)' : `SAM Site: ${Math.floor(sel[0].progress * 100)}% built`;
   else if (sel.length === 1 && sel[0].type === 'helipad' && sel[0].built && padHeli(sel[0])) { const h = padHeli(sel[0]); text = `Helipad — its helicopter is ${h.landed ? 'docked here (' + h.ammo + '/' + STATS.heli.ammo + ' missiles)' : 'out flying'}`; }
   else if (sel.length === 1 && sel[0].air) {
     const h = sel[0], o = h.order;
@@ -5546,7 +5652,7 @@ function updateHUD() {
   else if (extractors.length === 1 && sel.length === 1) text = extractorStatus(extractors[0]);
   else if (sel.length === 1 && sel[0].type === 'engineer') {
     const o = sel[0].order;
-    text = o && o.type === 'repair' ? 'Engineer: repairing' : o && o.type === 'capture' ? 'Engineer: going in to capture' : 'Engineer — tap your damaged building to repair, an enemy building or Oil Derrick to capture, or Dig in to build a Turret here (it needs infantry to man it)';
+    text = o && o.type === 'repair' ? 'Engineer: repairing' : o && o.type === 'capture' ? 'Engineer: going in to capture' : o && o.type === 'buildTurret' ? `Engineer: on the way to build a ${NAMES[o.kind]}` : 'Engineer — tap your damaged building to repair, an enemy building or Oil Derrick to capture, or pick a turret below and tap where it goes';
   } else if (sel.length) {
     const counts = {};
     for (const e of sel) counts[e.type] = (counts[e.type] || 0) + 1;
@@ -5579,7 +5685,7 @@ function reportSnapshot() {   // where both sides stand right now
       buildings: mine.filter(e => isBuilding(e) && !isWallType(e.type)).length, walls: mine.filter(e => isWallType(e.type)).length,
       extractors: mine.filter(e => e.type === 'extractor').length, derricks: mine.filter(e => e.type === 'derrick').length,
       ruinsWorking: mine.filter(e => e.ruin && ruinWorks(e)).length, ruinsBroken: mine.filter(e => e.ruin && !ruinWorks(e)).length,
-      turrets: mine.filter(e => e.type === 'turret').length, turretsManned: mine.filter(e => e.type === 'turret' && e.crew).length };
+      turrets: mine.filter(e => isTurretType(e.type)).length };
   };
   return { t: Math.round(game.time), you: side(0), enemy: side(1), enemyWavesSent: game.ai.wavesSent || 0 };
 }

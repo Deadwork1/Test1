@@ -27,11 +27,21 @@ function put(type) {
   }
   return false;
 }
-function putAtEntrance(type) {   // guard towers go just behind each gap in turn (main one first), near its rocky ends
-  const ents = findEntrances(0); if (!ents.length) return put(type);
-  const n = game.ents.filter(e => e.team === 0 && e.type === 'tower').length, ch = ents[n % ents.length], spot = gapTowerSpots(ch)[Math.floor(n / ents.length) % 2];
-  for (let k = 0; k < 40; k++) { const x = spot.x + (Math.random() - 0.5) * k * 3, y = spot.y + (Math.random() - 0.5) * k * 3; if (clearOfWall(type, x, y) && placeBuilding(0, type, x, y)) return true; }
-  return put(type);
+// turrets (v5.64, in place of Guard Towers): an Engineer walks to a spot just behind each gap in turn (main one first), near its rocky ends,
+// and builds one there - a Machine Gun first, then a Cannon (once it has a War Factory), and so on alternately
+const myTurrets = () => game.ents.filter(e => e.team === 0 && (isTurretType(e.type) || (e.type === 'engineer' && e.order && e.order.type === 'buildTurret')));
+function putTurretAtEntrance() {
+  const n = myTurrets().length, kind = n % 2 && unlocked(0, 'cannon') ? 'cannon' : 'mg';
+  if (game.credits[0] < COST[kind] + 50) return false;
+  const en = game.ents.find(e => e.team === 0 && e.type === 'engineer' && !e.retake && (!e.order || e.order.type === 'move'));
+  if (!en) { const b = game.ents.find(b => b.team === 0 && b.type === 'barracks' && b.built && !b.qTypes.includes('engineer')); if (b && game.credits[0] >= COST.engineer + COST[kind]) window.produce(b, 'engineer'); return false; }
+  const ents = findEntrances(0), hq = hqOf(0);
+  const spots = ents.length ? [gapTowerSpots(ents[n % ents.length])[Math.floor(n / ents.length) % 2]] : [{ x: hq.x + (W / 2 - hq.x) * 0.15, y: hq.y - 150 }];
+  for (const spot of spots) for (let k = 0; k < 40; k++) {
+    const x = spot.x + (Math.random() - 0.5) * k * 3, y = spot.y + (Math.random() - 0.5) * k * 3;
+    if (clearOfWall(kind, x, y) && turretSiteOk(0, kind, x, y)) { en.order = { type: 'buildTurret', kind, x, y }; en.botTurret = true; return true; }
+  }
+  return false;
 }
 let wallPlan = [], gatesLeft = null, retryGates = [], lastGateRetry = 0;
 // like a careful player: seal every gap in the rocks with a wall from one end to the other, gate in the middle
@@ -79,12 +89,13 @@ window.runSim = function (strategy, maxMinutes) {
         else if (orderIdx < S.order.length && game.time - lastBuildTry > 3 && (S.order[orderIdx] === 'barracks' || mine.filter(isCombat).length >= 5 || game.credits[0] > 900)) {
           const want = S.order[orderIdx]; lastBuildTry = game.time;
           const type = want === 'refinery2' ? 'refinery' : want === 'wall' ? 'gate' : want;
-          const have = want === 'wall' ? (gatesLeft && !gatesLeft.length && !wallPlan.length) : want === 'refinery2' ? refs.length >= 2 : want === 'tower' || want === 'helipad' ? of(want).length >= S.order.slice(0, orderIdx + 1).filter(t => t === want).length : of(type).length > 0;
+          const have = want === 'wall' ? (gatesLeft && !gatesLeft.length && !wallPlan.length) : want === 'refinery2' ? refs.length >= 2 : want === 'tower' ? myTurrets().length >= S.order.slice(0, orderIdx + 1).filter(t => t === 'tower').length : want === 'helipad' ? of(want).length >= S.order.slice(0, orderIdx + 1).filter(t => t === want).length : of(type).length > 0;
           if (have) orderIdx++;
-          else if (unlocked(0, type) && game.credits[0] >= COST[type] + 50) { if (want === 'refinery2' ? putRefineryNearOre() : want === 'wall' ? wallOffEntrance() : type === 'tower' ? putAtEntrance('tower') : put(type)) orderIdx++; }
+          else if (want === 'tower') { if (putTurretAtEntrance()) orderIdx++; }
+          else if (unlocked(0, type) && game.credits[0] >= COST[type] + 50) { if (want === 'refinery2' ? putRefineryNearOre() : want === 'wall' ? wallOffEntrance() : put(type)) orderIdx++; }
           else if (!unlocked(0, type) && game.time > 600) orderIdx++;   // give up on it
         }
-        const xCap = of('tower').some(t => t.built) ? Math.min(6, refs.length * 3) : 3;
+        const xCap = game.ents.some(t => t.team === 0 && isTurretType(t.type) && t.built) ? Math.min(6, refs.length * 3) : 3;
         const xfs = of('factory').filter(f => f.built), xq = xfs.reduce((n, f) => n + f.qTypes.filter(q => q === 'extractor').length, 0);   // Extractors come from the War Factory since v5.55
         for (const f of xfs) if (xs.length + xq < xCap && !f.qTypes.includes('extractor')) { P0(f, 'extractor'); break; }
         // gates that didn't fit before (outside the build area, say): try again now and then
@@ -131,7 +142,7 @@ window.runSim = function (strategy, maxMinutes) {
         const retake = game.lost[0].map(byId).filter(b => b && b.team === 1 && canCapture(b));
         if (game.time > 120) for (const d of game.ents) if (d.type === 'derrick' && d.team !== 0 && !retake.includes(d)) retake.push(d);   // Oil Derricks too (a player knows where the villages are)
         if (retake.length) {
-          let en = of('engineer').find(e => e.retake) || of('engineer').find(e => !e.order || e.order.type !== 'capture');
+          let en = of('engineer').find(e => e.retake) || of('engineer').find(e => !e.order || (e.order.type !== 'capture' && e.order.type !== 'buildTurret'));
           if (!en) { const b = of('barracks').find(b => b.built && !b.qTypes.includes('engineer')); if (b && game.credits[0] >= COST.engineer) window.produce(b, 'engineer'); }
           else { const t = retake.sort((a, b) => Math.hypot(a.x - en.x, a.y - en.y) - Math.hypot(b.x - en.x, b.y - en.y))[0]; en.retake = true;
             en.order = { type: 'capture', target: t.id };
@@ -161,9 +172,9 @@ window.runSim = function (strategy, maxMinutes) {
     }
     // ---- record who fires at what (for kill credit) ----
     for (const e of game.ents) {
-      if (!(isCombat(e) || e.type === 'tower' || e.type === 'sam')) continue;
+      if (!(isCombat(e) || isDefenceType(e.type))) continue;
       const pc = prevCd.get(e.id); prevCd.set(e.id, e.cooldown);
-      if (pc !== undefined && e.cooldown > pc + 0.01) { const t = byId(e.type === 'tower' || e.type === 'sam' ? e.target : e.order && e.order.target); if (t) t.lastHit = e.type; }
+      if (pc !== undefined && e.cooldown > pc + 0.01) { const t = byId(isDefenceType(e.type) ? e.target : e.order && e.order.target); if (t) t.lastHit = e.type; }
     }
     const before = new Map(game.ents.map(e => [e.id, e]));
     const teamsBefore = new Map(game.ents.filter(isBuilding).map(e => [e.id, e.team]));
@@ -207,7 +218,7 @@ window.runSim = function (strategy, maxMinutes) {
   st.oreLeft = Math.round(game.ore.reduce((a, o) => a + Math.max(0, o.amount), 0)); st.oreStart = oreStart;
   st.finalExtractors = [0, 1].map(t => game.ents.filter(e => e.team === t && e.type === 'extractor').length);
   st.finalWalls = [0, 1].map(t => game.ents.filter(e => e.team === t && isWallType(e.type)).length);
-  st.finalTowers = [0, 1].map(t => game.ents.filter(e => e.team === t && e.type === 'tower').length);
+  st.finalTowers = [0, 1].map(t => game.ents.filter(e => e.team === t && isTurretType(e.type)).length);   // (turrets since v5.64)
   st.incomeLast5 = [0, 1].map(t => Math.round(incomeLog[t]));
   st.playerBuilt = buildLog;
   st.aiLeft = game.ents.filter(e => e.team === 1).map(e => e.type + (isBuilding(e) ? '' : '@' + Math.round(e.x) + ',' + Math.round(e.y) + ':' + (e.order ? e.order.type + '/' + (e.order.phase || '') : 'idle')));

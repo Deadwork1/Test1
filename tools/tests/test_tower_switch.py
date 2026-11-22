@@ -12,7 +12,7 @@ JS = r'''(()=>{ const U=update; window.update=()=>{}; window.draw=()=>{}; const 
  newGame(); game.paused=false; runAI=()=>{}; game.ents=game.ents.filter(e=>e.type!=='settler'); for (const t of [0,1]) { const h=spawn('hq',t,START[t].x,START[t].y); h.built=true; } fog[0].vis.fill(1); fog[1].vis.fill(1); fog[0].exp.fill(1); fog[1].exp.fill(1); window.updateFog=()=>{};
  const run=s=>{ for(let k=0;k<s*20;k++) U(0.05); };
  const der=game.ents.find(e=>e.type==='derrick'); der.team=1; der.hp=der.maxHp;
- const tur=spawn('turret',0,der.x+der.size/2+60,der.y); tur.built=true; tur.progress=1; tur.crew={type:'soldier',hp:60};
+ const tur=spawn('mg',0,der.x+der.size/2+60,der.y); tur.built=true; tur.progress=1; tur.hp=tur.maxHp;   // (a Machine Gun Turret since v5.64)
  const hp0=der.hp; run(3); out.turretFiresAtEnemyDerrick = der.hp<hp0;
  captureBuilding(der,0); der.hp=der.maxHp; run(3); out.derrickCapturedHpAfter3s = Math.round(der.hp); out.turretStopped = der.hp===der.maxHp && tur.target!==der.id;
  // your exact case: the enemy holds the Derrick, your Turret knocks it out (it falls back to neutral), then you take it back
@@ -22,7 +22,8 @@ JS = r'''(()=>{ const U=update; window.update=()=>{}; window.draw=()=>{}; const 
  captureBuilding(der,0); der.hp=der.maxHp; run(3); out.backToYoursHp = Math.round(der.hp); out.turretLeavesItAlone = der.hp===der.maxHp && tur.target!==der.id;
  // Guard Tower on an enemy Power Plant that then becomes yours
  const pp=spawn('power',1,der.x,der.y+260); pp.built=true; pp.progress=1; pp.hp=pp.maxHp;
- const tw=spawn('tower',0,pp.x+120,pp.y); tw.built=true; tw.progress=1; tw.hp=tw.maxHp;
+ const tw=spawn('cannon',0,pp.x+120,pp.y);   // (a Cannon Turret since v5.64)
+  tw.built=true; tw.progress=1; tw.hp=tw.maxHp;
  run(2); out.towerFiresAtEnemyPlant = pp.hp<pp.maxHp; pp.team=0; pp.hp=pp.maxHp; run(3); out.towerStopped = pp.hp===pp.maxHp;
  return out; })()'''
 with sync_playwright() as p:

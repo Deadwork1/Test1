@@ -2,6 +2,17 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.64', date: '22 Nov 2026', title: 'Turrets',
+    changes: [
+      'Guard Towers and the old dig-in Turret are gone. Instead, an Engineer can build four kinds of turret: select him and pick one, then tap where it goes (and again, or Send Engineer). He walks there and is used up building it; it goes up over a few seconds.',
+      'Machine Gun Turret ($300, needs a Barracks): fast fire, shreds infantry, weak against vehicles, can\'t hit aircraft. Cannon Turret ($500, needs a War Factory): heavy shells, strong against vehicles, weak against infantry, can\'t hit aircraft.',
+      'Missile Turret ($600, needs a Helipad): a tower with the longest range, firing salvos of two homing missiles at anything, aircraft hardest. Laser Turret ($1,000, needs a Tech Centre): one huge beam that hits anything, but it takes about 4.5 s to charge (watch its legs spin faster).',
+      'Turrets can go anywhere you can see, even far from your base, but never within 300 of an enemy building you know about (the red rings when you place one). They don\'t need anyone inside, can be sold, and can\'t be captured.',
+      'SAM Sites now wait underground and pop up when an enemy aircraft comes in range, then sink back when the sky is clear. Their range is 240 (was 220).',
+      'Snipers now need a Power Plant (they needed a Guard Tower). The computer builds turrets with its Engineers too: at its entrances first, then at the pinch by the river or its Oil Derricks, choosing the kind from what it has seen of your army.',
+    ],
+  },
+  {
     version: '5.63', date: '21 Nov 2026', title: 'Tanks are weaker against infantry',
     changes: [
       'Tank shells now do a quarter of their damage to infantry (was half), more like the classic games: a Heavy Tank needs 4 shots to kill a Soldier (was 2), a Light Tank 8 (was 4). Use Rocket Soldiers, Grenadiers, Buggies or your own infantry to clear infantry. Tanks still run over infantry they drive into.',
