@@ -1,5 +1,5 @@
 diff --git a/game.js b/game.js
-index 70f9fbc..0fa29b1 100644
+index 70f9fbc..f2d93f0 100644
 --- a/game.js
 +++ b/game.js
 @@ -253,7 +253,7 @@ const BUILD_RADIUS = 300;             // how far from your HQ you can place buil
@@ -28,7 +28,7 @@ index 70f9fbc..0fa29b1 100644
  const isCombat = e => e.type === 'civilian' || e.type === 'soldier' || e.type === 'buggy' || e.type === 'grenadier' || e.type === 'rocket' || e.type === 'sniper' || e.type === 'light' || e.type === 'heavy' || e.type === 'artillery' || e.type === 'heli';
  const isTank = e => e.type === 'light' || e.type === 'heavy';
  const isInfantry = e => e.type === 'civilian' || e.type === 'soldier' || e.type === 'grenadier' || e.type === 'engineer' || e.type === 'rocket' || e.type === 'sniper';
-@@ -323,10 +323,10 @@ const DIFFICULTY = {
+@@ -323,17 +323,20 @@ const DIFFICULTY = {
              derricks: true, derrickAfter: 480, ruinAfter: 540, turrets: 1, turretsTotal: 2, engineerCap: 2, escort: 2, garrison: 1, hill: 0, hillSize: 0, hillAfter: 0 },
    normal: { label: 'Normal', think: 1.5, slow: 1, income: 1, attackAt: 8, attackAfter: 240, barracks: 1, maxArmy: 36, towers: 2, buggies: true, plants: 1,
              guard: 3, maxWave: 16, extractors: 6, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 1, factory: true, tanks: 0.25, heavyTanks: false, artillery: 1, raidEvery: 600, hqGuard: 2, helis: 1, sams: 1, heliSpare: 300, factoryAt: 150, waveEvery: 180, minWave: 8, waveGrow: 3, waveWait: 60, focus: 'economy',
@@ -41,7 +41,19 @@ index 70f9fbc..0fa29b1 100644
  };
  let difficulty = 'normal';
  try { if (DIFFICULTY[localStorage.getItem('mini-rts-difficulty')]) difficulty = localStorage.getItem('mini-rts-difficulty'); } catch (err) {}
-@@ -3189,6 +3189,7 @@ function aiManOutposts(army, spare) {
+ const diff = () => DIFFICULTY[difficulty];
+ // Power Plants: each finished one makes building and training 25% faster, up to double speed
+-const POWER_BONUS = 0.25, POWER_MAX = 2;
+-const powerBoost = team => Math.min(POWER_MAX, 1 + POWER_BONUS * game.ents.filter(b => b.team === team && b.type === 'power' && b.built && ruinWorks(b)).length);
++// Extra Headquarters (from bought Settlers, v5.65): each one past the first adds another 25% on top, up to triple speed in all
++const POWER_BONUS = 0.25, POWER_MAX = 2, HQ_BONUS = 0.25, BOOST_MAX = 3;
++const plantBoost = team => Math.min(POWER_MAX, 1 + POWER_BONUS * game.ents.filter(b => b.team === team && b.type === 'power' && b.built && ruinWorks(b)).length);
++const extraHqs = team => Math.max(0, game.ents.filter(b => b.team === team && b.type === 'hq' && b.hp > 0).length - 1);
++const powerBoost = team => Math.min(BOOST_MAX, plantBoost(team) + HQ_BONUS * extraHqs(team));
+ // how many times longer than normal this side takes to build things (difficulty slow-down ÷ power boost)
+ const slowOf = e => (e.team === 1 ? diff().slow : 1) / powerBoost(e.team);
+ const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', rocket: 'Rocket Soldier', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', mg: 'Machine Gun Turret', cannon: 'Cannon Turret', missile: 'Missile Turret', laser: 'Laser Turret', power: 'Power Plant', radar: 'Radar', medbay: 'Medbay', wall: 'Wall', gate: 'Gate', derrick: 'Oil Derrick', house: 'House', civilian: 'Civilian', helipad: 'Helipad', heli: 'Attack Helicopter', sam: 'SAM Site' };
+@@ -3189,6 +3192,7 @@ function aiManOutposts(army, spare) {
  // cheap Power Plants as stepping stones to stretch its build area, then a refinery right by the ore.
  // Returns how much money it wants to keep for that (0 if it isn't expanding).
  function aiExpand(hq, refineries, sent) {
@@ -49,7 +61,7 @@ index 70f9fbc..0fa29b1 100644
    if (refineries.length >= 4 || (!sent && game.time < 200) || aiBlocked('expand')) return 0;
    const oreNear = (x, y, r) => game.ore.reduce((s, o) => s + (o.amount > 0 && Math.hypot(o.x - x, o.y - y) < r ? o.amount : 0), 0);
    if (refineries.some(r => !r.built || oreNear(r.x, r.y, 450) > (diff().expandAt || 600) * ORE_MULT)) return 0;   // still plenty to mine (Hard moves on sooner)
-@@ -3215,6 +3216,7 @@ function aiExpand(hq, refineries, sent) {
+@@ -3215,6 +3219,7 @@ function aiExpand(hq, refineries, sent) {
    }
    const giveUp = () => { game.ai.cantPlace = game.ai.cantPlace || {}; game.ai.cantPlace.expand = game.time; return 0; };
    if (!best) return giveUp();
@@ -57,7 +69,7 @@ index 70f9fbc..0fa29b1 100644
    if (bd < 280) {   // close enough: put the refinery down by the ore
      if (game.credits[1] >= COST.refinery) {
        const before = refineries.length;
-@@ -3227,6 +3229,52 @@ function aiExpand(hq, refineries, sent) {
+@@ -3227,6 +3232,52 @@ function aiExpand(hq, refineries, sent) {
    return COST.power;
  }
  
@@ -110,14 +122,31 @@ index 70f9fbc..0fa29b1 100644
  // a new refinery goes as close as it can get to ore it knows about that still has plenty left
  function aiPlaceRefinery(hq) {
    const ore = game.ore.filter(o => o.amount > 100 * ORE_MULT && (exploredAt(o.x, o.y, 1) || Math.hypot(o.x - hq.x, o.y - hq.y) < 600));
+@@ -5639,14 +5690,14 @@ function updateHUD() {
+   else if (placing && placing.type === 'wall') text = !placing.anchor ? 'Tap where the wall starts' : placing.end ? 'Tap the end again to build (or Build wall)' : 'Tap where the wall ends (or tap the start again for one piece)';
+   else if (placing) text = placing.ghost ? 'Tap the square again (or Place here) to build' : `Tap inside the green area to place your ${NAMES[placing.type].toLowerCase()}`;
+   else if (settler) text = 'Settler — move somewhere open, then Deploy';
+-  else if (hq) text = 'Headquarters';
++  else if (hq) text = extraHqs(0) ? `Headquarters — ${extraHqs(0) + 1} HQs: +${Math.round(HQ_BONUS * extraHqs(0) * 100)}% build speed` : 'Headquarters';
+   else if (ruinSel) text = ruinSel.team === NEUTRAL
+     ? `Ruined ${NAMES[ruinSel.type]} — neutral. Send an Engineer to capture it, then repair it to half to bring it back into use`
+     : ruinSel.team === 0 ? `Ruined ${NAMES[ruinSel.type]}: ${Math.floor(ruinSel.hp / ruinSel.maxHp * 100)}% — repair it to ${RUIN_WORKS * 100}% with Engineers to bring it back into use` : `Ruined ${NAMES[ruinSel.type]} (enemy)`;
+   else if (sel.length === 1 && sel[0].type === 'gate') text = 'Gate — opens for your units, enemies must destroy it';
+   else if (sel.length === 1 && sel[0].type === 'wall') text = 'Wall';
+   else if (sel.length === 1 && sel[0].type === 'power') text = sel[0].built
+-    ? `Power Plant — you build ${Math.round((powerBoost(0) - 1) * 100)}% faster${powerBoost(0) >= POWER_MAX ? ' (max)' : ''}`
++    ? `Power Plant — you build ${Math.round((powerBoost(0) - 1) * 100)}% faster${plantBoost(0) >= POWER_MAX ? ' (Power Plants maxed)' : ''}`
+     : `Power Plant: ${Math.floor(sel[0].progress * 100)}% built`;
+   else if (sel.length === 1 && sel[0].type === 'derrick') text = sel[0].team === 0
+     ? 'Oil Derrick — pays $' + STATS.derrick.pay + ' every ' + STATS.derrick.payEvery + 's (next in ' + Math.ceil(STATS.derrick.payEvery - (sel[0].payT || 0)) + 's)'
 diff --git a/tools/tests/test_settler.py b/tools/tests/test_settler.py
 new file mode 100644
-index 0000000..5a9f362
+index 0000000..0ae4330
 --- /dev/null
 +++ b/tools/tests/test_settler.py
-@@ -0,0 +1,69 @@
+@@ -0,0 +1,80 @@
 +# New Settlers (v5.65): bought at the War Factory ($2,000, 40 s, the dearest and slowest thing in the game), deployed anywhere as
-+# a second HQ with its own build area; you lose only when every HQ and Settler is gone; the computer buys one only to reach far ore.
++# a second HQ with its own build area, and every extra HQ makes building and training 25% faster (up to 3x with Power Plants); you lose only when every HQ and Settler is gone; the computer buys one only to reach far ore.
 +# Usage: python3 tests/test_settler.py <game folder> <port>
 +import sys, http.server, threading, functools, json
 +from playwright.sync_api import sync_playwright
@@ -158,6 +187,17 @@ index 0000000..5a9f362
 +    check(r['btn'] and r['okd'] and r['hqs'] == 2, 'a bought Settler deploys into a second HQ')
 +    check(not r['before'] and r['after'], 'the new HQ brings its own build area')
 +    check(r['stillHq'] == 1 and not r['over'], 'losing the first HQ does not lose the game while the second stands')
++    r = json.loads(pg.evaluate("""(()=>{ const one=()=>powerBoost(0); const h2=spawn('hq',0,hq.x-500,hq.y+1100); h2.built=true; const two=one(); const h3=spawn('hq',0,hq.x-60,hq.y+900); h3.built=true; const three=one();
++      const ps=[]; for(let i=0;i<4;i++){ const p=spawn('power',0,hq.x-400+i*70,hq.y+500); p.built=true; p.progress=1; ps.push(p); } const maxed=one();
++      const p5=spawn('power',0,hq.x-400,hq.y+600); p5.built=true; p5.progress=1; const still=one();
++      const h4=spawn('hq',0,hq.x+400,hq.y+900); h4.built=true; const h5=spawn('hq',0,hq.x+400,hq.y+1300); h5.built=true; const capped=one();
++      for(const e of [h3,h4,h5,...ps,p5]) e.hp=0; U(2); const back=one();
++      return JSON.stringify({two, three, maxed, still, capped, back}); })()"""))
++    print(r)
++    check(r['two'] == 1.25 and r['three'] == 1.5, 'each extra HQ makes building and training 25% faster (2 HQs +25%, 3 HQs +50%)')
++    check(r['maxed'] == 2.5 and r['still'] == 2.5, 'it stacks on Power Plants (which still stop at double on their own)')
++    check(r['capped'] == 3, 'all together it stops at triple speed')
++    check(r['back'] == 1.25, 'losing the extra HQs loses their speed-up')
 +    # the computer (Huge, Hard): its home ore spent, a rich field far off on its side
 +    r = json.loads(pg.evaluate("""(()=>{ const ai=game.ai; runAI=realAI; game.time=700; ai.wavesSent=3; game.credits[1]=6000;
 +      deploy(game.ents.find(e=>e.team===1&&e.type==='settler')); const h=hqOf(1);
