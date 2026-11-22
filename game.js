@@ -3316,8 +3316,8 @@ function aiPlaceSam(hq, refineries) {
   }
   return aiPlace(hq, 'sam');
 }
-// The computer's helicopters: each Helipad keeps one. Fully armed and patched up, it raids your Extractors or Artillery
-// that it can see, else a Refinery it knows of (or failing that another building), keeping clear of SAM Sites it has spotted; badly hurt, it flies home.
+// The computer's helicopters: each Helipad keeps one. Fully armed and patched up, it raids the closest of your buildings it knows of,
+// keeping clear of SAM Sites it has spotted; badly hurt, it flies home.
 function aiHelis(D) {
   if (!D.helis) return;
   for (const p of game.ents) if (p.team === 1 && p.type === 'helipad' && p.built && !padHeli(p) && !p.queue && game.credits[1] >= COST.heli + (D.heliSpare ?? AI_SPARE)) produce(p, 'heli');
@@ -3327,12 +3327,8 @@ function aiHelis(D) {
     if (h.team !== 1 || !h.air || h.hp <= 0) continue;
     if (!h.landed && h.hp < h.maxHp * 0.4 && padOf(h)) { if (!h.order || h.order.type !== 'return') h.order = { type: 'return' }; continue; }
     if (!h.landed || h.order || h.ammo < STATS.heli.ammo || h.hp < h.maxHp * 0.8) continue;
-    let best = null, bd = Infinity;
-    for (const e of game.ents) if (e.team === 0 && (e.type === 'extractor' || e.type === 'artillery') && visibleAt(e.x, e.y, 1) && safe(e.x, e.y)) { const d = Math.hypot(e.x - h.x, e.y - h.y); if (d < bd) { bd = d; best = e; } }
-    for (const pass of ['refinery', 'any']) {   // else a Refinery it knows of, and failing that any other building of yours (never the HQ or walls)
-      if (best) break;
-      for (const [id, k] of game.ai.known) if ((pass === 'refinery' ? k.type === 'refinery' : k.type !== 'hq' && !isWallType(k.type)) && safe(k.x, k.y)) { const b = byId(id); const d = Math.hypot(k.x - h.x, k.y - h.y); if (b && b.team === 0 && d < bd) { bd = d; best = b; } }
-    }
+    let best = null, bd = Infinity;   // the closest of your buildings it knows of (not walls or gates), away from SAM Sites (v5.65: it used to go for Extractors and Artillery first, then Refineries)
+    for (const [id, k] of game.ai.known) if (!isWallType(k.type) && safe(k.x, k.y)) { const b = byId(id); const d = Math.hypot(k.x - h.x, k.y - h.y); if (b && b.team === 0 && d < bd) { bd = d; best = b; } }
     if (best) h.order = { type: 'attack', target: best.id };
   }
 }

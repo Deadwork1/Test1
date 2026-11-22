@@ -1,5 +1,5 @@
 # The computer's helicopters (v5.49): on Normal and Hard it builds a Helipad (1 / 2) after its second wave once it has a War Factory,
-# a helicopter for each, raids your Extractors / Artillery it can see (else a Refinery it knows), flies home to reload,
+# a helicopter for each, raids the closest of your buildings it knows (v5.65; Extractors and Artillery first until then), flies home to reload,
 # and builds SAM Sites (1 / 2) once it has seen your aircraft. Your HQ is made unbreakable so the game lasts.
 # Usage: python3 test_ai_heli.py <game folder> <port> [difficulties, default normal,hard] [map, default large]
 import sys, http.server, threading, functools, json
@@ -11,7 +11,7 @@ threading.Thread(target=srv.serve_forever, daemon=True).start()
 JS = r'''(()=>{ const U=update; window.update=()=>{}; window.draw=()=>{}; const out={log:[]};
  deploy(game.ents.find(e=>e.team===0&&e.type==='settler')); const hq=hqOf(0); hq.maxHp=hq.hp=1e9; game.paused=false;
  const put=(t,x,y)=>{ const b=spawn(t,0,x,y); b.built=true; b.progress=1; b.hp=b.maxHp; return b; };
- const ref=put('refinery',hq.x+170,hq.y-60); releaseUnit(ref); const keep=[ref]; for (const [t,dx,dy] of [['power',-170,-60],['barracks',0,-200],['power',-150,170]]) keep.push(put(t,hq.x+dx,hq.y+dy));   // (patched up every step, so the raids always have something to go for)
+ const ref=put('refinery',hq.x+170,hq.y-60); spawn('extractor',0,ref.x,ref.y+90); const keep=[ref]; for (const [t,dx,dy] of [['power',-170,-60],['barracks',0,-200],['power',-150,170]]) keep.push(put(t,hq.x+dx,hq.y+dy));   // (patched up every step, so the raids always have something to go for)
  const step=(sec)=>{ for(let k=0;k<sec*20;k++){ U(0.05); for (const b of keep) if (b.hp>0 && b.team===0) b.hp=b.maxHp; for (const e of game.ents) if(e.team===0&&e.type==='extractor'&&!e.order) autoHarvest(e); if(game.over) break; } };
  let t0=0, raided=0, shown=false;
  for (let m=1;m<=24 && !game.over;m++){ step(60);
