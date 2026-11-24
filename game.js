@@ -5335,42 +5335,87 @@ function drawReactor(e) {
   flag(x0 + 6, y0 + 8, e.team);
 }
 
-// Satellite Radar (v5.67): a control block with a huge dish aimed at the sky on a lattice mast, a blinking beacon, and
-// now and then a faint pulse rising to the satellite it talks to.
+// Satellite Radar (v5.67): a raised octagonal platform ringed with antenna masts whose lights chase round it, a great
+// gold-rimmed dish on a turntable that slowly tracks the sky with a glowing core, energy rings pulsing up out of it, and a
+// small satellite with solar wings circling high above, linked to the dish by a flickering beam.
 function drawSatellite(e) {
   if (!e.built) return drawConstruction(e);
-  const c = TEAMS[e.team], h = e.size / 2, x0 = e.x - h, y0 = e.y - h, t = animT(e), S = e.size, x = e.x, y = e.y;
-  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(x0 + 2, y0 + 5, S + 4, S + 2);
-  ctx.fillStyle = '#918c80'; ctx.fillRect(x0 - 3, y0 - 3, S + 6, S + 6);
-  ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth = 1; ctx.strokeRect(x0 + 2, y0 + 2, S - 4, S - 4);
-  // control block across the bottom with screens glowing
-  block(x0 + 5, y0 + S - 24, S - 10, 20, '#77736a', '#4a4740', 8);
-  ctx.fillStyle = c.color; ctx.fillRect(x0 + 5, y0 + S - 24, S - 10, 3);
-  for (let k = 0; k < 4; k++) { ctx.fillStyle = `rgba(120,220,255,${0.6 + 0.4 * Math.sin(t * 4 + k)})`; ctx.fillRect(x0 + 11 + k * 14, y0 + S - 9, 7, 3); }
-  // the mast: a lattice tower holding the dish up
-  ctx.strokeStyle = '#5c5a55'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(x - 9, y + 8); ctx.lineTo(x, y - 6); ctx.lineTo(x + 9, y + 8); ctx.moveTo(x - 6, y + 3); ctx.lineTo(x + 6, y + 3); ctx.moveTo(x - 4, y - 1); ctx.lineTo(x + 4, y + 6); ctx.stroke();
-  // the dish: a big reflector tilted up at the sky, slowly tracking
-  const tilt = Math.sin(t * 0.25) * 0.35, D = S * 0.42;
-  ctx.save(); ctx.translate(x, y - 10); ctx.rotate(tilt);
-  ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.beginPath(); ctx.ellipse(6, 14, D, D * 0.5, 0, 0, Math.PI * 2); ctx.fill();
-  const g = ctx.createRadialGradient(-D * 0.3, -D * 0.25, 2, 0, 0, D); g.addColorStop(0, '#fbfcfc'); g.addColorStop(0.7, '#d4d9dc'); g.addColorStop(1, '#a5adb3');
-  ctx.fillStyle = g; ctx.strokeStyle = '#7b8389'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.ellipse(0, 0, D, D * 0.72, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  ctx.strokeStyle = 'rgba(110,120,128,0.5)'; ctx.lineWidth = 1;
-  for (const k of [0.35, 0.65]) { ctx.beginPath(); ctx.ellipse(0, 0, D * k, D * 0.72 * k, 0, 0, Math.PI * 2); ctx.stroke(); }
-  for (let k = 0; k < 12; k++) { const a = k * Math.PI / 6; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * D, Math.sin(a) * D * 0.72); ctx.stroke(); }
-  ctx.strokeStyle = c.color; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(0, 0, D - 2, D * 0.72 - 2, 0, 0, Math.PI * 2); ctx.stroke();
-  ctx.strokeStyle = '#6c7378'; ctx.lineWidth = 1.2;
-  for (const a of [0.6, 2.5, 4.4]) { ctx.beginPath(); ctx.moveTo(Math.cos(a) * D * 0.85, Math.sin(a) * D * 0.6); ctx.lineTo(0, -D * 0.35); ctx.stroke(); }
-  ctx.fillStyle = c.color; ctx.beginPath(); ctx.arc(0, -D * 0.35, 3.5, 0, Math.PI * 2); ctx.fill();
+  const c = TEAMS[e.team], h = e.size / 2, S = e.size, x = e.x, y = e.y, t = animT(e);
+  const oct = (r, dy = 0) => { ctx.beginPath(); for (let k = 0; k < 8; k++) { const a = Math.PI / 8 + k * Math.PI / 4; ctx.lineTo(x + Math.cos(a) * r, y + dy + Math.sin(a) * r); } ctx.closePath(); };
+  // shadow, then a two-step octagonal platform with a team-coloured trim
+  ctx.fillStyle = 'rgba(0,0,0,0.32)'; oct(h + 4, 6); ctx.fill();
+  ctx.fillStyle = '#6f6b63'; oct(h + 3, 3); ctx.fill();               // the platform's side
+  ctx.fillStyle = '#9a958a'; oct(h + 2); ctx.fill();                  // top
+  ctx.strokeStyle = c.color; ctx.lineWidth = 2.5; oct(h - 2); ctx.stroke();
+  ctx.fillStyle = '#7e796f'; oct(h - 8); ctx.fill();
+  // glowing floor lines spiralling into the middle
+  ctx.strokeStyle = `rgba(120,220,255,${0.25 + 0.15 * Math.sin(t * 2)})`; ctx.lineWidth = 1.2;
+  for (let k = 0; k < 8; k++) { const a = Math.PI / 8 + k * Math.PI / 4; ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * (h - 9), y + Math.sin(a) * (h - 9)); ctx.lineTo(x + Math.cos(a + 0.5) * 14, y + Math.sin(a + 0.5) * 14); ctx.stroke(); }
+  // eight antenna masts round the edge, their lights chasing round
+  for (let k = 0; k < 8; k++) {
+    const a = Math.PI / 8 + k * Math.PI / 4, mx = x + Math.cos(a) * (h - 3), my = y + Math.sin(a) * (h - 3);
+    ctx.strokeStyle = '#4e4c47'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx, my - 11); ctx.stroke();
+    ctx.strokeStyle = '#8a8f94'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(mx - 3, my - 8); ctx.lineTo(mx + 3, my - 8); ctx.stroke();
+    const on = Math.max(0, Math.cos(a - t * 3)) ** 6;   // a light that runs round the ring
+    ctx.fillStyle = `rgba(255,${120 + 100 * on},${80 + 60 * on},${0.35 + 0.65 * on})`; ctx.beginPath(); ctx.arc(mx, my - 12, 1.8 + 1.6 * on, 0, Math.PI * 2); ctx.fill();
+    if (on > 0.3) { ctx.fillStyle = `rgba(255,190,120,${0.25 * on})`; ctx.beginPath(); ctx.arc(mx, my - 12, 6 * on, 0, Math.PI * 2); ctx.fill(); }
+  }
+  // turntable and yoke
+  ctx.fillStyle = '#4b4945'; ctx.beginPath(); ctx.arc(x, y + 2, 15, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#c9a54a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y + 2, 15, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = '#5d5b56'; ctx.fillRect(x - 4, y - 14, 8, 16);
+  // the great dish: tilted to the sky, slowly tracking, gold rim, glowing core
+  const look = t * 0.35, tilt = Math.sin(t * 0.5) * 0.18, D = S * 0.43;
+  ctx.save(); ctx.translate(x, y - 14); ctx.rotate(Math.sin(look) * 0.6);
+  ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(7, 18, D, D * 0.45, 0, 0, Math.PI * 2); ctx.fill();   // its shadow on the platform
+  const sq = 0.62 + tilt;
+  const g = ctx.createRadialGradient(-D * 0.35, -D * 0.3 * sq, 2, 0, 0, D);
+  g.addColorStop(0, '#ffffff'); g.addColorStop(0.55, '#dfe5ea'); g.addColorStop(1, '#9ea8b0');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0, 0, D, D * sq, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(100,112,122,0.45)'; ctx.lineWidth = 1;
+  for (const k of [0.3, 0.55, 0.8]) { ctx.beginPath(); ctx.ellipse(0, 0, D * k, D * sq * k, 0, 0, Math.PI * 2); ctx.stroke(); }
+  for (let k = 0; k < 16; k++) { const a = k * Math.PI / 8; ctx.beginPath(); ctx.moveTo(Math.cos(a) * D * 0.18, Math.sin(a) * D * sq * 0.18); ctx.lineTo(Math.cos(a) * D, Math.sin(a) * D * sq); ctx.stroke(); }
+  // a glint sweeping across the dish
+  const gl = ((t * 0.4) % 1.6) - 0.3;
+  if (gl > -0.2 && gl < 1.2) { ctx.save(); ctx.beginPath(); ctx.ellipse(0, 0, D, D * sq, 0, 0, Math.PI * 2); ctx.clip();
+    const lg = ctx.createLinearGradient(-D + gl * 2 * D - 12, 0, -D + gl * 2 * D + 12, 0); lg.addColorStop(0, 'rgba(255,255,255,0)'); lg.addColorStop(0.5, 'rgba(255,255,255,0.7)'); lg.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = lg; ctx.fillRect(-D, -D, 2 * D, 2 * D); ctx.restore(); }
+  ctx.strokeStyle = '#d8b04a'; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.ellipse(0, 0, D, D * sq, 0, 0, Math.PI * 2); ctx.stroke();      // gold rim
+  ctx.strokeStyle = c.color; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(0, 0, D - 3.5, D * sq - 3.5, 0, 0, Math.PI * 2); ctx.stroke();
+  // feed arms up to a glowing emitter
+  const fx = 0, fy = -D * 0.42;
+  ctx.strokeStyle = '#6c7378'; ctx.lineWidth = 1.6;
+  for (const a of [0.5, 2.64, 4.71]) { ctx.beginPath(); ctx.moveTo(Math.cos(a) * D * 0.9, Math.sin(a) * D * sq * 0.9); ctx.lineTo(fx, fy); ctx.stroke(); }
+  const pulse = 0.6 + 0.4 * Math.sin(t * 5);
+  const eg = ctx.createRadialGradient(fx, fy, 0, fx, fy, 9 + 3 * pulse); eg.addColorStop(0, '#ffffff'); eg.addColorStop(0.35, `rgba(140,235,255,${0.9})`); eg.addColorStop(1, 'rgba(60,170,255,0)');
+  ctx.fillStyle = eg; ctx.beginPath(); ctx.arc(fx, fy, 9 + 3 * pulse, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = c.color; ctx.beginPath(); ctx.arc(fx, fy, 2.6, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
-  // the uplink: a ring rising from the feed every couple of seconds
-  const p = (t * 0.5) % 1;
-  ctx.strokeStyle = `rgba(140,230,255,${0.55 * (1 - p)})`; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.ellipse(x, y - 10 - D * 0.35 - p * 40, 4 + p * 16, 2 + p * 7, 0, 0, Math.PI * 2); ctx.stroke();
-  if (Math.floor(t * 1.5) % 2) { ctx.fillStyle = '#ff5a5a'; ctx.beginPath(); ctx.arc(x0 + S - 7, y0 + 7, 2.6, 0, Math.PI * 2); ctx.fill(); }
-  flag(x0 + 6, y0 + 10, e.team);
+  // energy rings rising from the emitter
+  const ex = x + Math.sin(Math.sin(look) * 0.6) * D * 0.42, ey = y - 14 - D * 0.42;
+  for (let k = 0; k < 3; k++) {
+    const p = (t * 0.6 + k / 3) % 1;
+    ctx.strokeStyle = `rgba(140,230,255,${0.6 * (1 - p)})`; ctx.lineWidth = 2 - p;
+    ctx.beginPath(); ctx.ellipse(ex, ey - p * 46, 5 + p * 18, 2 + p * 7, 0, 0, Math.PI * 2); ctx.stroke();
+  }
+  // the satellite: circling high above, solar wings catching the light, linked to the dish by a flickering beam
+  const oa = t * 0.45 + e.id, sx = x + Math.cos(oa) * 34, sy = y - 78 + Math.sin(oa) * 12;
+  ctx.strokeStyle = `rgba(140,230,255,${0.18 + 0.22 * Math.abs(Math.sin(t * 7))})`; ctx.lineWidth = 2; ctx.setLineDash([4, 5]); ctx.lineDashOffset = -t * 30;
+  ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(sx, sy); ctx.stroke(); ctx.setLineDash([]); ctx.lineDashOffset = 0;
+  ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.beginPath(); ctx.ellipse(sx + 30, sy + 92, 10, 4, 0, 0, Math.PI * 2); ctx.fill();   // its far-off shadow
+  ctx.save(); ctx.translate(sx, sy); ctx.rotate(Math.sin(t * 0.8) * 0.25);
+  for (const side of [-1, 1]) {   // solar wings
+    ctx.fillStyle = '#23407a'; ctx.fillRect(side > 0 ? 6 : -20, -4, 14, 8);
+    ctx.strokeStyle = '#7fa6e8'; ctx.lineWidth = 0.6; for (let k = 1; k < 4; k++) { ctx.beginPath(); ctx.moveTo((side > 0 ? 6 : -20) + k * 3.5, -4); ctx.lineTo((side > 0 ? 6 : -20) + k * 3.5, 4); ctx.stroke(); }
+    ctx.fillStyle = `rgba(255,255,255,${0.35 * Math.max(0, Math.sin(t * 2 + side))})`; ctx.fillRect(side > 0 ? 6 : -20, -4, 14, 3);
+  }
+  ctx.fillStyle = '#d6d0c2'; ctx.fillRect(-5, -5, 10, 10);
+  ctx.fillStyle = '#c9a54a'; ctx.fillRect(-5, -5, 10, 2.5);
+  ctx.fillStyle = c.color; ctx.fillRect(-2, -2, 4, 4);
+  ctx.strokeStyle = '#9aa0a6'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, 5); ctx.lineTo(0, 9); ctx.stroke();
+  if (Math.floor(t * 2) % 2) { ctx.fillStyle = '#ff6a5a'; ctx.beginPath(); ctx.arc(0, -7, 1.6, 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
+  flag(x + h - 12, y + h, e.team);
 }
 
 // Medbay: a round landing pad with a big cross. It glows green, on and off, while it is healing someone.
