@@ -2290,6 +2290,7 @@ function heliFire(e, t) {
   if (isCombat(t) && !t.order && !t.landed && canHit(t, e)) t.order = { type: 'attack', target: e.id };
 }
 const goHome = e => { e.order = padOf(e) ? { type: 'return' } : null; };
+const HELI_IDLE = 3;   // seconds a helicopter waits with nothing to shoot before it goes home (or, with no Helipad, lands where it is), v5.65
 function updateHeli(e, dt) {
   const s = STATS[e.type];
   e.cooldown -= dt;
@@ -2300,15 +2301,20 @@ function updateHeli(e, dt) {
   e.x = Math.min(W - 10, Math.max(10, e.x)); e.y = Math.min(H - 10, Math.max(10, e.y));
   if (!o) {
     if (e.landed) {
-      if (!pad || Math.hypot(e.x - pad.x, e.y - pad.y) > 3) { e.landed = false; return; }   // its pad is gone: back up into the air
+      if (pad && Math.hypot(e.x - pad.x, e.y - pad.y) > 3) { e.landed = false; return; }   // landed away from a pad and one is free: up and home
+      if (!pad) {   // landed out in the field with no Helipad to go to (v5.65): it sits there, and takes off only to fight
+        if (e.ammo > 0 && findEnemyNear(e, rangeOf(e))) e.landed = false;
+        return;
+      }
       if (e.ammo < s.ammo) { e.reloadT = (e.reloadT || 0) + dt; const per = s.reload / s.ammo; while (e.reloadT >= per && e.ammo < s.ammo) { e.reloadT -= per; e.ammo++; } }
       else e.reloadT = 0;
       e.hp = Math.min(e.maxHp, e.hp + s.repair * dt);
       return;
     }
     if (pad) { e.order = { type: 'return' }; return; }
-    const t = e.ammo > 0 && findEnemyNear(e, rangeOf(e));   // no pad to go home to: hover and fight with what's left
-    if (t) heliFire(e, t);
+    const t = e.ammo > 0 && findEnemyNear(e, rangeOf(e));   // no pad to go home to: fight with what's left, and with nothing to fight it lands where it is (v5.65: it used to hover)
+    if (t) { heliFire(e, t); e.idleT = 0; return; }
+    if ((e.idleT = (e.idleT || 0) + dt) > HELI_IDLE) { e.idleT = 0; e.landed = true; }
     return;
   }
   e.landed = false;
@@ -2317,11 +2323,12 @@ function updateHeli(e, dt) {
     if (flyToward(e, pad.x, pad.y, dt)) { e.order = null; e.landed = true; e.reloadT = 0; }
     return;
   }
-  if (o.type === 'move' || o.type === 'attackmove') {   // fly there and hover, shooting what comes in range, until out of ammo or sent home
+  if (o.type === 'move' || o.type === 'attackmove') {   // fly there, shooting what comes in range; once it's there with nothing to shoot for a few seconds it goes home and lands (v5.65: it used to hover until out of missiles)
     if (!o.arrived) { const r = flyToward(e, o.x, o.y, dt, false); if (r) { o.arrived = true; if (r === true && o.face !== undefined) e.facing = o.face; } }   // (a move stops at the edge of land it has seen)
-    if (e.ammo <= 0) { if (pad) goHome(e); return; }   // (out of missiles with no Helipad to go to: it still flies where it's sent, v5.65)
+    if (e.ammo <= 0) { if (pad) goHome(e); else if (o.arrived) e.order = null; return; }   // (out of missiles with no Helipad to go to: it still flies where it's sent, then lands there)
     const t = findEnemyNear(e, rangeOf(e));
-    if (t) heliFire(e, t);
+    if (t) { heliFire(e, t); e.idleT = 0; return; }
+    if (o.arrived && (e.idleT = (e.idleT || 0) + dt) > HELI_IDLE) { e.idleT = 0; if (pad) goHome(e); else { e.order = null; e.landed = true; } }
     return;
   }
   if (o.type === 'attack') {
@@ -3364,21 +3371,14 @@ function aiHelis(D) {
   const ready = h => h.landed && !h.order && h.ammo >= STATS.heli.ammo && h.hp >= h.maxHp * 0.8;
   for (const h of mine) if (!h.landed && h.hp < h.maxHp * 0.4 && padOf(h)) { if (!h.order || h.order.type !== 'return') h.order = { type: 'return' }; }
   const home = hqOf(1), mySide = home ? Math.sign(home.x - riverX(home.y)) : 0;
-  // a helicopter left hovering where its target slipped into the fog (it used to wait there until it ran out of missiles): after
-  // 3 s with nothing in range it heads home to rearm, and gets a new job from there (v5.65)
-  for (const h of mine) {
-    const idle = !h.landed && h.order && h.order.type === 'move' && h.order.arrived && !findEnemyNear(h, rangeOf(h));
-    if (!idle) { h.idleSince = 0; continue; }
-    h.idleSince = h.idleSince || game.time;
-    if (game.time - h.idleSince > 3) { h.idleSince = 0; goHome(h); }
-  }
+  // (a helicopter left hovering where its target slipped into the fog now goes home by itself: updateHeli, HELI_IDLE)
   // one whose Helipad is gone (and no other is free) used to hover where it was for good: now it spends its missiles on the
   // closest target, then waits by its HQ until a Helipad is free again (it rebuilds lost pads as usual)
   for (const h of mine) {
-    if (h.landed || h.order || padOf(h)) continue;
+    if (h.order || padOf(h) || (h.landed && !h.ammo)) continue;   // (landed out in the field with missiles left: it goes again)
     const t = h.ammo > 0 && (target(h) || null);
     if (t) h.order = { type: 'attack', target: t.id };
-    else if (home && Math.hypot(h.x - home.x, h.y - home.y) > 120) h.order = { type: 'move', x: home.x + 60, y: home.y - 80 };
+    else if (!h.landed && home && Math.hypot(h.x - home.x, h.y - home.y) > 120) h.order = { type: 'move', x: home.x + 60, y: home.y - 80 };   // (and lands there)
   }
   // defence first: your units it can see on its half of the map
   const intruders = mySide ? game.ents.filter(u => u.team === 0 && isUnit(u) && u.hp > 0 && !u.air && Math.sign(u.x - riverX(u.y)) === mySide && visibleAt(u.x, u.y, 1) && !hiddenFrom(u, 1) && safe(u.x, u.y)) : [];
@@ -5724,8 +5724,8 @@ function updateHUD() {
   else if (sel.length === 1 && sel[0].type === 'helipad' && sel[0].built && padHeli(sel[0])) { const h = padHeli(sel[0]); text = `Helipad — its helicopter is ${h.landed ? 'docked here (' + h.ammo + '/' + STATS.heli.ammo + ' missiles)' : 'out flying'}`; }
   else if (sel.length === 1 && sel[0].air) {
     const h = sel[0], o = h.order;
-    text = `Attack Helicopter: ${h.ammo}/${STATS.heli.ammo} missiles — ` + (h.landed ? (h.ammo < STATS.heli.ammo ? 'reloading on its pad' : 'docked. Tap an enemy to attack, or ground to hover there')
-      : o && o.type === 'return' ? 'flying home' : !padOf(h) ? 'no Helipad to land on: build one to reload' : o && o.type === 'attack' ? 'attacking' : 'hovering. Tap its Helipad (or Return) to send it home');
+    text = `Attack Helicopter: ${h.ammo}/${STATS.heli.ammo} missiles — ` + (h.landed && !padOf(h) ? 'landed: no Helipad to go home to, build one to reload' : h.landed ? (h.ammo < STATS.heli.ammo ? 'reloading on its pad' : 'docked. Tap an enemy to attack, or ground to fly there')
+      : o && o.type === 'return' ? 'flying home' : !padOf(h) ? 'no Helipad to land on: build one to reload' : o && o.type === 'attack' ? 'attacking' : o && o.arrived ? 'on watch: goes home if nothing turns up' : 'flying there');
   }
   else if (producer) text = producer.built ? `${NAMES[producer.type]}${producer.queue ? ' — making ×' + producer.queue : ''}` : `${NAMES[producer.type]}: ${Math.floor(producer.progress * 100)}% built`;
   else if (extractors.length === 1 && sel.length === 1) text = extractorStatus(extractors[0]);

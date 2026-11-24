@@ -1,6 +1,7 @@
 # v5.65 tweaks: the Laser Turret only charges (and spins) once it has spotted an enemy; the Missile Turret's lights turn red while
 # an enemy is in sight; Rocket Soldiers do normal damage to helicopters (8 hits, was 5); the computer's helicopters no longer
-# hover idle where a target slipped into the fog, or where their Helipad was destroyed.
+# hover idle where a target slipped into the fog, or where their Helipad was destroyed; no helicopter hovers with nothing to do:
+# it goes home and lands, or with no Helipad lands where it is (and takes off again only to fight).
 # Usage: python3 tests/test_heli_turret_tweaks.py <game folder> <port>
 import sys, http.server, threading, functools, json
 from playwright.sync_api import sync_playwright
@@ -53,11 +54,28 @@ with sync_playwright() as p:
       const sentHome=!!(H.order && H.order.type==='return'), secs=k/20;
       // its Helipad is destroyed (no other free): it attacks the closest target it knows of, or waits by its HQ
       U(20*30); pad.hp=0; U(5); H.order=null; H.landed=false; H.ammo=0; H.x=h1.x-700; H.y=h1.y+600; aiHelis(D); U(20*15); aiHelis(D); U(20*10);
-      const parked=Math.round(Math.hypot(H.x-h1.x,H.y-h1.y));
-      return JSON.stringify({sentHome, secs, parked}); })()"""))
+      const parked=Math.round(Math.hypot(H.x-h1.x,H.y-h1.y)), parkedLanded=!!H.landed;
+      return JSON.stringify({sentHome, secs, parked, parkedLanded}); })()"""))
     print(r)
     check(r['sentHome'] and r['secs'] <= 5, "the computer's helicopter hovering where its target vanished heads home within a few seconds")
-    check(r['parked'] < 200, "with no Helipad and no missiles it waits by its HQ instead of hovering out in the field")
+    check(r['parked'] < 200 and r['parkedLanded'], "with no Helipad and no missiles it flies to its HQ and lands there instead of hovering out in the field")
+    # --- helicopters never hover with nothing to do: they go home and land, or land where they are with no Helipad
+    r = json.loads(pg.evaluate("""(()=>{ fog[0].exp.fill(1); const pad=mk('helipad',0,hq.x-200,hq.y+120); const H=releaseUnit(pad,'heli'); U(5);
+      H.order={type:'move',x:hq.x+300,y:hq.y-500}; let k=0, arr=null, left=null; while(k<20*30 && !(H.landed&&!H.order)){ U(1); k++; if(arr===null&&H.order&&H.order.arrived) arr=k; if(left===null&&H.order&&H.order.type==='return') left=k; }
+      const home={landed:H.landed, onPad:Math.hypot(H.x-pad.x,H.y-pad.y)<4, waited:arr!==null&&left!==null?(left-arr)/20:null};
+      // its pad destroyed while it's out: it lands where it is once nothing's about
+      H.order={type:'move',x:hq.x+300,y:hq.y-500}; U(20*8); pad.hp=0; U(20*6);
+      const field={landed:H.landed, order:H.order, away:Math.round(Math.hypot(H.x-(hq.x+300),H.y-(hq.y-500)))};
+      // an enemy comes in range: it takes off and fights, then lands again
+      const f=spawn('light',1,H.x+100,H.y); f.passive=true; U(10); const tookOff=!H.landed; const hp0=f.hp; U(20*4); const hit=f.hp<hp0; f.hp=0; U(20*6); const relanded=H.landed;
+      // a new Helipad: it goes and lands on it
+      const p2=mk('helipad',0,hq.x-200,hq.y+260); let j=0; while(j<20*30 && !(H.landed && Math.hypot(H.x-p2.x,H.y-p2.y)<4)){ U(1); j++; }
+      return JSON.stringify({home, field, tookOff, hit, relanded, newPad:j<20*30}); })()"""))
+    print(r)
+    check(r['home']['landed'] and r['home']['onPad'] and r['home']['waited'] is not None and 2.5 <= r['home']['waited'] <= 3.5, 'sent somewhere quiet, a helicopter waits about 3 s, then flies home and lands on its pad')
+    check(r['field']['landed'] and r['field']['order'] is None and r['field']['away'] < 30, 'with its Helipad gone it lands where it is instead of hovering')
+    check(r['tookOff'] and r['hit'] and r['relanded'], 'an enemy in range: it takes off and fights, then lands again')
+    check(r['newPad'], 'a Helipad free again: it flies over and lands on it')
     check(not errs, 'no page errors' + (': ' + errs[0] if errs else ''))
     b.close()
 print('ALL OK' if ok else 'SOME FAILED')
