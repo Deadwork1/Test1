@@ -253,7 +253,7 @@ const BUILD_RADIUS = 300;             // how far from your HQ you can place buil
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
 
 // v5.52 prices (your picks, with the $500 loads): Sniper 250 (was 200), Buggy 400 (250), Light Tank 700 (400), Heavy Tank 1000 (700), Extractor 300 (150); v5.56: Artillery 500 (450)
-const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, mg: 300, cannon: 500, missile: 600, laser: 1000, wall: 20, gate: 150, soldier: 100, extractor: 300, buggy: 400, grenadier: 160, engineer: 150, rocket: 200, sniper: 250, light: 700, heavy: 1000, artillery: 500, tech: 600, radar: 300, medbay: 400, helipad: 500, heli: 800, sam: 600, settler: 2000 };   // (a new Settler is bought at the War Factory, v5.65: the dearest thing in the game)
+const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, mg: 300, cannon: 500, missile: 600, laser: 1000, wall: 20, gate: 150, soldier: 100, extractor: 300, buggy: 400, grenadier: 160, engineer: 150, rocket: 200, sniper: 250, light: 700, heavy: 1000, artillery: 500, tech: 600, radar: 300, medbay: 400, helipad: 500, heli: 800, sam: 600, settler: 2000, reactor: 1000, satellite: 1500 };   // (a new Settler is bought at the War Factory, v5.65: the dearest thing in the game)
 const WALL_REACH = 150;              // walls, gates and SAM Sites can go this much further out than other buildings
 // Turrets (v5.64): an Engineer builds them anywhere you can see, but never this close to an enemy building
 const TURRET_TYPES = ['mg', 'cannon', 'missile', 'laser'], TURRET_KEEP_OUT = 300;
@@ -290,6 +290,8 @@ const STATS = {
   missile:   { hp: 500, size: 44, sight: 230, buildTime: 10, range: 230, dmg: 35, cooldown: 3.5, salvo: 2, hitsAir: true, vsAir: 1.5, vsVehicle: 1, vsHeavy: 1, vsBuilding: 1, vsInfantry: 0.5 },
   laser:     { hp: 600, size: 44, sight: 220, buildTime: 14, range: 180, dmg: 150, cooldown: 4.5, hitsAir: true },
   radar:     { hp: 400, size: 64, sight: 750, buildTime: 14, radar: true },
+  reactor:   { hp: 900, size: 84, sight: 180, buildTime: 20 },    // Nuclear Reactor (v5.67): power worth 3 Power Plants; unlocks the Heavy Tank and Laser Turret
+  satellite: { hp: 600, size: 72, sight: 200, buildTime: 18 },    // Satellite Radar (v5.67): everything in your explored (grey) fog is in view; unlocks the Missile Turret and the Napalm Strike
   helipad:   { hp: 600, size: 70, sight: 180, buildTime: 12, trainTime: 15, maxQueue: 1 },   // home of one helicopter: it lands here to reload
   sam:       { hp: 500, size: 44, sight: 260, buildTime: 12, range: 240, dmg: 100, cooldown: 1.5, antiAir: true },   // SAM site: shoots only at aircraft
   medbay:    { hp: 500, size: 84, sight: 180, buildTime: 10, walkOn: true, heal: 8, healVehicle: 15, slots: 5 },   // round pad units stand on to heal: up to 5 infantry or 1 vehicle at a time   // sweeps a huge circle: sees over rocks and up onto plateaus (not into forests)
@@ -302,7 +304,7 @@ const STATS = {
 const PRODUCES = { barracks: ['soldier', 'grenadier', 'rocket', 'sniper', 'engineer'], factory: ['buggy', 'light', 'artillery', 'heavy', 'extractor', 'settler'], helipad: ['heli'] };   // (Extractors were bought at the Refinery until v5.55; each Refinery still comes with one free)
 const HAS_DOOR = t => !!PRODUCES[t] || t === 'refinery';   // buildings whose front door must stay clear (the Refinery for its unloading bay)
 // Tech tree: what else you need (finished, and still standing) before you can build or train something
-const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['power'], mg: ['barracks'], cannon: ['factory'], missile: ['helipad'], laser: ['tech'], heavy: ['tech'], artillery: ['power'], radar: ['power'], medbay: ['barracks'], helipad: ['factory'], sam: ['power'] };
+const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['power'], mg: ['barracks'], cannon: ['factory'], missile: ['satellite'], laser: ['reactor'], heavy: ['reactor'], reactor: ['tech'], satellite: ['reactor'], artillery: ['power'], radar: ['power'], medbay: ['barracks'], helipad: ['factory'], sam: ['power'] };
 const hasBuilt = (team, type) => game.ents.some(b => b.team === team && b.type === type && b.built && ruinWorks(b));   // (a captured ruin counts once it's repaired to half)
 const missingFor = (team, type) => (REQUIRES[type] || []).filter(t => !hasBuilt(team, t));
 const unlocked = (team, type) => missingFor(team, type).length === 0;
@@ -325,7 +327,7 @@ const DIFFICULTY = {
             guard: 3, maxWave: 16, extractors: 6, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 1, factory: true, tanks: 0.25, heavyTanks: false, artillery: 1, raidEvery: 600, hqGuard: 2, helis: 1, sams: 1, heliSpare: 300, factoryAt: 150, waveEvery: 180, minWave: 8, waveGrow: 3, waveWait: 60, focus: 'economy',
             derricks: true, derrickAfter: 360, ruinAfter: 420, settlers: true, behaviours: true, turrets: 1, turretsTotal: 2, engineerCap: 2, escort: 3, garrison: 2, hill: 1, hillSize: 3, hillAfter: 420 },
   hard:   { label: 'Hard',   think: 1,   slow: 0.9,  income: 1.0,     attackAt: 10, attackAfter: 180, barracks: 3, factories: 2, maxArmy: Infinity, towers: 3, buggies: true, plants: 2,
-            guard: 4, maxWave: 36, extractors: 7, refineries: 3, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true, artillery: 2, raidEvery: 480, hqGuard: 3, helis: 2, sams: 2, heliSpare: 0, heliSave: true, earlyRefinery: true, expandAt: 1500, antiArmor: 12, waveEvery: 120, minWave: 10, waveGrow: 2, waveWait: 60, focus: 'defences',
+            guard: 4, maxWave: 36, extractors: 7, refineries: 3, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true, artillery: 2, raidEvery: 480, hqGuard: 3, helis: 2, sams: 2, heliSpare: 0, heliSave: true, earlyRefinery: true, expandAt: 1500, antiArmor: 12, reactor: true, waveEvery: 120, minWave: 10, waveGrow: 2, waveWait: 60, focus: 'defences',
             derricks: true, derrickAfter: 300, ruinAfter: 360, settlers: true, behaviours: true, turrets: 1, turretsTotal: 2, engineerCap: 3, escort: 3, garrison: 3, hill: 2, hillSize: 3, hillAfter: 360 },
 };
 let difficulty = 'normal';
@@ -334,12 +336,13 @@ const diff = () => DIFFICULTY[difficulty];
 // Power Plants: each finished one makes building and training 25% faster, up to double speed
 // Extra Headquarters (from bought Settlers, v5.65): each one past the first adds another 25% on top, up to triple speed in all
 const POWER_BONUS = 0.25, POWER_MAX = 2, HQ_BONUS = 0.25, BOOST_MAX = 3;
-const plantBoost = team => Math.min(POWER_MAX, 1 + POWER_BONUS * game.ents.filter(b => b.team === team && b.type === 'power' && b.built && ruinWorks(b)).length);
+const REACTOR_PLANTS = 3;   // a Nuclear Reactor gives as much power as 3 Power Plants (v5.67)
+const plantBoost = team => Math.min(POWER_MAX, 1 + POWER_BONUS * game.ents.reduce((n, b) => n + (b.team === team && b.built && ruinWorks(b) ? (b.type === 'power' ? 1 : b.type === 'reactor' ? REACTOR_PLANTS : 0) : 0), 0));
 const extraHqs = team => Math.max(0, game.ents.filter(b => b.team === team && b.type === 'hq' && b.hp > 0).length - 1);
 const powerBoost = team => Math.min(BOOST_MAX, plantBoost(team) + HQ_BONUS * extraHqs(team));
 // how many times longer than normal this side takes to build things (difficulty slow-down ÷ power boost)
 const slowOf = e => (e.team === 1 ? diff().slow : 1) / powerBoost(e.team);
-const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', rocket: 'Rocket Soldier', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', mg: 'Machine Gun Turret', cannon: 'Cannon Turret', missile: 'Missile Turret', laser: 'Laser Turret', power: 'Power Plant', radar: 'Radar', medbay: 'Medbay', wall: 'Wall', gate: 'Gate', derrick: 'Oil Derrick', house: 'House', civilian: 'Civilian', helipad: 'Helipad', heli: 'Attack Helicopter', sam: 'SAM Site' };
+const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', rocket: 'Rocket Soldier', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', mg: 'Machine Gun Turret', cannon: 'Cannon Turret', missile: 'Missile Turret', laser: 'Laser Turret', power: 'Power Plant', radar: 'Radar', medbay: 'Medbay', wall: 'Wall', gate: 'Gate', derrick: 'Oil Derrick', house: 'House', civilian: 'Civilian', helipad: 'Helipad', heli: 'Attack Helicopter', sam: 'SAM Site', reactor: 'Nuclear Reactor', satellite: 'Satellite Radar' };
 
 const TEAMS = [
   { name: 'You',   color: '#3b82f6', dark: '#1d3f8f', light: '#93c5fd' },
@@ -1073,7 +1076,7 @@ let game;
 
 function newGame() {
   game = {
-    ents: [], ore: [], nextId: 1, time: 0, grenades: [], rockets: [],
+    ents: [], ore: [], nextId: 1, time: 0, grenades: [], rockets: [], strikes: [], napalmAt: [null, null],
     lost: [[], []],          // ids of each side's buildings that enemy engineers have taken (to win back)
     stats: [0, 1].map(() => ({ units: 0, buildings: 0, walls: 0, kills: 0, destroyed: 0, unitsLost: 0, buildingsLost: 0, earned: 0, spent: 0, captured: 0 })),
     credits: [START_CREDITS, START_CREDITS],
@@ -1162,7 +1165,7 @@ function spawn(type, team, x, y) {
   return e;
 }
 
-function isBuildingType(t) { return t === 'derrick' || t === 'house' || t === 'hq' || t === 'barracks' || t === 'refinery' || t === 'factory' || t === 'tech' || t === 'power' || isTurretType(t) || t === 'radar' || t === 'medbay' || t === 'wall' || t === 'gate' || t === 'helipad' || t === 'sam'; }
+function isBuildingType(t) { return t === 'derrick' || t === 'house' || t === 'hq' || t === 'barracks' || t === 'refinery' || t === 'factory' || t === 'tech' || t === 'power' || isTurretType(t) || t === 'radar' || t === 'medbay' || t === 'wall' || t === 'gate' || t === 'helipad' || t === 'sam' || t === 'reactor' || t === 'satellite'; }
 const isWallType = t => t === 'wall' || t === 'gate';
 const GATE_HALF = TC * 1.5;   // a gate is 3 tiles long
 const gateHalf = vertical => vertical ? { hx: TC / 2, hy: GATE_HALF } : { hx: GATE_HALF, hy: TC / 2 };
@@ -1363,6 +1366,8 @@ function updateFog() {
     const r = (STATS[e.type].radar ? RUIN_SIGHT : STATS[e.type].sight) * (isBuilding(e) && !e.built ? 0.6 : 1) * (!e.air && elevAt(e.x, e.y) ? HIGH_SIGHT : 1) * (isUnit(e) && !e.air && terrainAt(e.x, e.y) === T.FOREST ? FOREST_SIGHT : 1);
     for (const i of visibleCells(e.x, e.y, r)) { f.vis[i] = 1; f.exp[i] = 1; }
   }
+  // a Satellite Radar (v5.67): all the ground its side has explored is in view; black, unexplored ground stays unknown
+  for (const t of [0, 1]) if (game.ents.some(b => b.team === t && b.type === 'satellite' && b.built && b.hp > 0)) { const f = fog[t]; for (let i = 0; i < f.vis.length; i++) if (f.exp[i]) f.vis[i] = 1; }
   const d = fogImg.data;
   const mine = fog[0];
   for (let i = 0; i < mine.vis.length; i++) {
@@ -1787,6 +1792,7 @@ function update(dt) {
   }
 
   separate();
+  updateNapalm(dt);
 
   for (const e of game.ents) {
     if (e.team === NEUTRAL) { e.hp = e.maxHp * (e.ruin ? RUIN_HP : 1); continue; }   // neutral buildings can't be hurt (ruins stay as battered as they are)
@@ -2793,11 +2799,13 @@ function runAI(dt) {
   const firstFactory = !!D.factoryAt && wantFactory && !of('factory').length;
   // (and on every level, its first War Factory is still saved for when an attack is due and it's short of troops: without it, a computer stuck on one Extractor could never get out, v5.64)
   const wantTech = D.heavyTanks && sent >= 2 && of('factory').some(f => f.built) && !of('tech').length && unlocked(1, 'tech') && !aiBlocked('tech');
+  const wantReactor = D.reactor && sent >= 2 && !of('reactor').length && unlocked(1, 'reactor') && !aiBlocked('reactor');   // Hard (v5.67): its Heavy Tanks and Lasers need one
+  const wantSatellite = D.reactor && sent >= 3 && !of('satellite').length && unlocked(1, 'satellite') && !aiBlocked('satellite');   // Hard: for its Napalm Strike
   const wantRadar = D.walls && sent >= 1 && !of('radar').length && unlocked(1, 'radar') && !aiBlocked('radar');   // Normal and Hard
   const wantMedbay = D.walls && sent >= 1 && of('factory').some(f => f.built) && !of('medbay').length && unlocked(1, 'medbay') && !aiBlocked('medbay');   // Normal and Hard: somewhere to patch up the wounded (v5.61: only once its War Factory is up)
   const wantPad = D.helis && sent >= 2 && of('factory').some(f => f.built) && of('helipad').length < aiHeliPads(D) && (game.ai.heliMode === 'wave' || !of('helipad').some(p => !padHeli(p)))   /* no second pad while one stands empty (except while it builds up a bigger wave) */ && unlocked(1, 'helipad') && !aiBlocked('helipad');   // 1 on Normal, 2 on Hard
   const wantSam = D.sams && ai.seenAir && of('sam').length < D.sams && unlocked(1, 'sam') && !aiBlocked('sam');
-  const extrasDone = (refineries.length >= reqRefineries || aiBlocked('refinery')) && entranceDefs >= wantTowers && !wantFactory && !wantTech;
+  const extrasDone = (refineries.length >= reqRefineries || aiBlocked('refinery')) && entranceDefs >= wantTowers && !wantFactory && !wantTech && !wantReactor && !wantSatellite;
   const building = game.time < (ai.buildUntil || 0) && !extrasDone;
   if (refineries.length === 0) aiPlaceRefinery(hq);
   else if (barracks.length === 0) aiPlace(hq, 'barracks');
@@ -2807,6 +2815,8 @@ function runAI(dt) {
   else if (wantFactory && cash >= COST.factory) aiPlace(hq, 'factory');   // War Factory before any extra Barracks (v5.61: Hard used to build its 2nd and 3rd Barracks first)
   else if (barracks.length < D.barracks && cash >= 900) aiPlace(hq, 'barracks');
   else if (wantTech && cash >= COST.tech) aiPlace(hq, 'tech');
+  else if (wantReactor && cash >= COST.reactor) aiPlace(hq, 'reactor');
+  else if (wantSatellite && cash >= COST.satellite) aiPlace(hq, 'satellite');
   else if (wantMedbay && cash >= COST.medbay) aiPlace(hq, 'medbay');
   else if (wantRadar && !firstFactory && cash >= COST.radar + 150) aiPlace(hq, 'radar');
   else if (wantPad && cash >= COST.helipad + (D.heliSpare ?? AI_SPARE)) aiPlace(hq, 'helipad');   // helicopters are bought with spare money only (v5.49.2; Hard needs none to spare, v5.49.3)
@@ -2867,10 +2877,10 @@ function runAI(dt) {
   const vReserve = reserve - (padEmpty ? COST.heli : 0);   // vehicles don't wait for the Tech Centre savings, or for a helicopter
   // the War Factory (and later the Tech Centre) are worth saving for whenever home is safe
   const otherExtrasDone = (refineries.length >= reqRefineries || aiBlocked('refinery')) && entranceDefs >= wantTowers;
-  if (defended && (!building || otherExtrasDone || firstFactory)) reserve += wantFactory ? COST.factory : wantTech ? COST.tech : 0;
+  if (defended && (!building || otherExtrasDone || firstFactory)) reserve += wantFactory ? COST.factory : wantTech ? COST.tech : wantReactor ? COST.reactor : wantSatellite ? COST.satellite : 0;
   // an attack is due but there aren't enough troops yet: troops come first, savings wait (it never stops attacking)
   const waveDue = game.time >= D.attackAfter && game.time >= (ai.nextWave || 0);
-  if (waveDue && army.filter(u => !u.role).length < D.minWave + 4) reserve = Math.min(reserve, (xWanted ? COST.extractor : 0) + (wantSam && defended ? COST.sam : 0) + (padEmpty ? COST.heli : 0) + (wantFactory && !of('factory').length && defended ? COST.factory : 0) + (defended && (pendingTurrets || (turretNeed && entranceNext)) ? turretSaving : 0));   // (its turrets too, v5.64)   // (a SAM Site it needs, and on Hard a helicopter for an empty pad, still come first)
+  if (waveDue && army.filter(u => !u.role).length < D.minWave + 4) reserve = Math.min(reserve, (xWanted ? COST.extractor : 0) + (wantSam && defended ? COST.sam : 0) + (padEmpty ? COST.heli : 0) + (wantFactory && !of('factory').length && defended ? COST.factory : 0) + (defended && (pendingTurrets || (turretNeed && entranceNext)) ? turretSaving : 0) + (defended && building && (wantReactor || wantSatellite) ? (wantReactor ? COST.reactor : COST.satellite) : 0));   // (Hard's Reactor and Satellite Radar: saved for in the building spell after each wave, v5.67)   // (its turrets too, v5.64)   // (a SAM Site it needs, and on Hard a helicopter for an empty pad, still come first)
   const queued = barracks.reduce((n, b) => n + b.queue, 0) + of('factory').reduce((n, f) => n + f.queue, 0);
   const qBuggies = of('factory').reduce((n, b) => n + b.qTypes.filter(t => t === 'buggy').length, 0);
   const wantBuggy = D.buggies && unlocked(1, 'buggy') && (of('buggy').length + qBuggies < (of('soldier').length + 2) / ((game.ai.seen && game.ai.seen.snipers >= 3) ? 1.3 : 2) || (ai.patrolWant && !qBuggies));   // (or one for its scouting loop, v5.66)   // ~1 per 2 soldiers, more if you field snipers/grenadiers
@@ -3131,6 +3141,104 @@ function runAI(dt) {
     }
   }
   if (D.behaviours) aiBehaviours(D, army, hq, rally);
+  if (D.reactor) aiNapalm();
+}
+
+// ---------- Napalm Strike (v5.67) ----------
+// With a Satellite Radar you can call a Napalm Strike once every 5 minutes (the first as soon as the Radar is up): a plane
+// comes in from your side and lays a 300-long strip of fire on ground you can see, centred where you tapped. The fire burns
+// for 6 s: deadly to infantry (70 a second), it hurts vehicles a little (12) and buildings a bit (15). It never hurts your
+// own side, and aircraft fly over it. The computer (Hard) calls it on your bunched-up units.
+const NAPALM_EVERY = 300, NAPALM_LEN = 300, NAPALM_HALF = 26, NAPALM_DELAY = 1.6, NAPALM_BURN = 6, NAPALM_FLIGHT = 0.5;
+const NAPALM_DPS = { infantry: 70, vehicle: 12, building: 15 };
+const hasSatellite = team => game.ents.some(b => b.team === team && b.type === 'satellite' && b.built && b.hp > 0);
+const napalmReady = team => hasSatellite(team) && (game.napalmAt[team] === null || game.time >= game.napalmAt[team]);
+const napalmWait = team => game.napalmAt[team] === null ? 0 : Math.max(0, game.napalmAt[team] - game.time);
+function napalmLine(team, x, y) {   // the strip: along the plane's path, which comes from the caller's HQ toward the target
+  const from = hqOf(team) || { x: START[team].x, y: START[team].y };
+  let dx = x - from.x, dy = y - from.y; const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+  return { x1: x - dx * NAPALM_LEN / 2, y1: y - dy * NAPALM_LEN / 2, x2: x + dx * NAPALM_LEN / 2, y2: y + dy * NAPALM_LEN / 2, dx, dy };
+}
+function callNapalm(team, x, y) {
+  if (!napalmReady(team) || !visibleAt(x, y, team)) return false;
+  game.strikes.push({ team, ...napalmLine(team, x, y), t: 0 });
+  game.napalmAt[team] = game.time + NAPALM_EVERY;
+  if (team === 1 && visibleAt(x, y, 0)) game.effects.push({ kind: 'text', x, y: y - 30, text: 'Napalm incoming!', t: 0, color: '#ff8a50' });
+  return true;
+}
+const segDistTo = (px, py, s) => segDist(px, py, s.x1, s.y1, s.x2, s.y2);
+function updateNapalm(dt) {
+  for (const st of game.strikes) {
+    st.t += dt;
+    const burn = st.t - NAPALM_DELAY;
+    if (burn < 0 || burn > NAPALM_BURN) continue;
+    const lit = Math.min(1, burn / NAPALM_FLIGHT);   // the fire spreads along the strip as the plane passes
+    const ex = st.x1 + (st.x2 - st.x1) * lit, ey = st.y1 + (st.y2 - st.y1) * lit, seg = { x1: st.x1, y1: st.y1, x2: ex, y2: ey };
+    for (const e of game.ents) {
+      if (e.team === st.team || e.team === NEUTRAL || e.hp <= 0 || e.air || e.boarded) continue;
+      if (isWallType(e.type)) continue;
+      const reach = isBuilding(e) ? NAPALM_HALF + Math.max(halfX(e), halfY(e)) * 0.7 : NAPALM_HALF + e.r * 0.5;
+      if (segDistTo(e.x, e.y, seg) > reach) continue;
+      const dps = isBuilding(e) ? NAPALM_DPS.building : isInfantry(e) ? NAPALM_DPS.infantry : NAPALM_DPS.vehicle;
+      hurt(e, dps * dt, 'napalm', st.team);
+      if (e.hp <= 0 && isInfantry(e) && Math.random() < 0.5) game.effects.push({ kind: 'text', x: e.x, y: e.y - 10, text: 'Burned!', t: 0, color: '#ffb070' });
+    }
+  }
+  game.strikes = game.strikes.filter(st => st.t < NAPALM_DELAY + NAPALM_BURN + 6);   // (the scorch mark fades for 6 s after)
+}
+function drawNapalm() {
+  const now = performance.now() / 1000;
+  for (const st of game.strikes) {
+    const burn = st.t - NAPALM_DELAY, len = NAPALM_LEN;
+    // scorched ground: dark, fading out after the fire
+    if (burn > 0) {
+      const lit = Math.min(1, burn / NAPALM_FLIGHT), fade = burn > NAPALM_BURN ? Math.max(0, 1 - (burn - NAPALM_BURN) / 6) : 1;
+      const ex = st.x1 + (st.x2 - st.x1) * lit, ey = st.y1 + (st.y2 - st.y1) * lit;
+      if (visibleAt((st.x1 + ex) / 2, (st.y1 + ey) / 2) || visibleAt(st.x1, st.y1) || visibleAt(ex, ey)) {
+        ctx.strokeStyle = `rgba(30,22,16,${0.45 * fade})`; ctx.lineCap = 'round'; ctx.lineWidth = NAPALM_HALF * 2;
+        ctx.beginPath(); ctx.moveTo(st.x1, st.y1); ctx.lineTo(ex, ey); ctx.stroke(); ctx.lineCap = 'butt';
+      }
+      if (burn < NAPALM_BURN) {   // the flames: flickering tongues all along the strip, dying down at the end
+        const die = burn > NAPALM_BURN - 1.5 ? (NAPALM_BURN - burn) / 1.5 : 1;
+        for (let k = 0; k <= lit * len; k += 11) {
+          const px = st.x1 + st.dx * k, py = st.y1 + st.dy * k;
+          if (!visibleAt(px, py)) continue;
+          const j = Math.sin(k * 1.7 + now * 11) * 0.5 + 0.5, side = Math.sin(k * 0.9 + now * 3) * NAPALM_HALF * 0.55;
+          const qx = px - st.dy * side, qy = py + st.dx * side, r = (10 + 8 * j) * die;
+          const g = ctx.createRadialGradient(qx, qy - r * 0.3, 1, qx, qy, r * 1.6);
+          g.addColorStop(0, `rgba(255,240,170,${0.9 * die})`); g.addColorStop(0.4, `rgba(255,140,40,${0.75 * die})`); g.addColorStop(1, 'rgba(200,40,10,0)');
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(qx, qy, r * 1.6, 0, Math.PI * 2); ctx.fill();
+          if ((k / 11 | 0) % 3 === 0) { ctx.fillStyle = `rgba(60,55,50,${0.25 * die})`; ctx.beginPath(); ctx.arc(qx + 4, qy - 14 - j * 10, 7 + j * 5, 0, Math.PI * 2); ctx.fill(); }   // smoke
+        }
+      }
+    }
+    // the plane: a dark jet with a shadow, flying in along the strip and away
+    const along = (st.t - NAPALM_DELAY) / NAPALM_FLIGHT * len;   // distance past the strip's start
+    if (along > -2200 && along < len + 1600) {
+      const px = st.x1 + st.dx * along, py = st.y1 + st.dy * along, a = Math.atan2(st.dy, st.dx);
+      ctx.save(); ctx.translate(px + 26, py + 34); ctx.rotate(a); ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.beginPath(); ctx.moveTo(22, 0); ctx.lineTo(-14, -18); ctx.lineTo(-8, 0); ctx.lineTo(-14, 18); ctx.closePath(); ctx.fill(); ctx.restore();   // shadow on the ground
+      ctx.save(); ctx.translate(px, py - 10); ctx.rotate(a);
+      ctx.fillStyle = '#4a4f55'; ctx.beginPath(); ctx.moveTo(24, 0); ctx.lineTo(-14, -19); ctx.lineTo(-7, 0); ctx.lineTo(-14, 19); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = TEAMS[st.team].color; ctx.fillRect(-10, -3, 26, 6);
+      ctx.fillStyle = '#9fd8ff'; ctx.fillRect(12, -1.5, 6, 3);
+      ctx.fillStyle = 'rgba(255,170,80,0.8)'; ctx.beginPath(); ctx.arc(-12, 0, 3 + Math.random() * 2, 0, Math.PI * 2); ctx.fill();   // afterburner
+      ctx.restore();
+    }
+  }
+}
+// The computer (Hard) calls its Napalm Strike on a bunch of your units: the spot where the most of them (infantry count
+// full, vehicles a third) stand within reach of one strip, if that's at least 5.
+function aiNapalm() {
+  if (!napalmReady(1)) return;
+  const yours = game.ents.filter(u => u.team === 0 && isUnit(u) && !u.air && u.hp > 0 && visibleAt(u.x, u.y, 1) && !hiddenFrom(u, 1));
+  let best = null, bs = 0;
+  for (const c of yours) {
+    const line = napalmLine(1, c.x, c.y);
+    let sc = 0; for (const u of yours) if (segDist(u.x, u.y, line.x1, line.y1, line.x2, line.y2) < NAPALM_HALF + 10) sc += isInfantry(u) ? 1 : 0.33;
+    if (sc > bs) { bs = sc; best = c; }
+  }
+  if (best && bs >= 5) callNapalm(1, best.x, best.y);
 }
 
 // ---------- Computer behaviours (v5.66, Normal and Hard) ----------
@@ -3672,6 +3780,8 @@ function draw() {
     else if (isDefenceType(e.type)) drawDefence(e);
     else if (e.type === 'power') drawPower(e);
     else if (e.type === 'radar') drawRadar(e);
+    else if (e.type === 'reactor') drawReactor(e);
+    else if (e.type === 'satellite') drawSatellite(e);
     else if (e.type === 'medbay') drawMedbay(e);
     else if (e.type === 'wall') drawWall(e);
     else if (e.type === 'gate') drawGate(e);
@@ -3740,6 +3850,7 @@ function draw() {
     }
   }
 
+  drawNapalm();
   // grenades in flight: a little ball on an arc
   for (const g of game.grenades) {
     const arc = g.shell ? 90 : 28, k = g.t / g.dur, gx = g.x0 + (g.x - g.x0) * k, gy = g.y0 + (g.y - g.y0) * k, x = gx, y = gy - Math.sin(k * Math.PI) * arc;
@@ -3775,6 +3886,17 @@ function draw() {
 }
 
 function drawPlacement() {
+  if (game.placing.strike) {   // the Napalm Strike: where the strip of fire will go
+    const g = game.placing.ghost; if (!g) return;
+    const l = napalmLine(0, g.x, g.y), ok = visibleAt(g.x, g.y, 0);
+    ctx.strokeStyle = ok ? 'rgba(255,140,60,0.35)' : 'rgba(255,60,60,0.3)'; ctx.lineWidth = NAPALM_HALF * 2; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(l.x1, l.y1); ctx.lineTo(l.x2, l.y2); ctx.stroke(); ctx.lineCap = 'butt';
+    ctx.strokeStyle = ok ? '#ffb070' : '#ff6b6b'; ctx.lineWidth = 2; ctx.setLineDash([8, 6]);
+    ctx.beginPath(); ctx.moveTo(l.x1, l.y1); ctx.lineTo(l.x2, l.y2); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText(ok ? 'Tap again to call the Napalm Strike' : "You can't see there", g.x, g.y - NAPALM_HALF - 12);
+    return;
+  }
   const type = game.placing.type, size = STATS[type].size;
   const extra = isWallType(type) || type === 'sam' ? WALL_REACH : 0;
   const areas = game.placing.turret ? [] : buildAreaSources(0);
@@ -5164,6 +5286,93 @@ function drawRadar(e) {
   flag(x - R * 0.72, y - R * 0.62, e.team);
 }
 
+// Nuclear Reactor (v5.67): a big round containment dome beside a tall cooling tower letting off steam, on a fenced pad;
+// the core glows through a window in the dome, pulsing, with warning stripes and the team colour round the dome.
+function drawReactor(e) {
+  if (!e.built) return drawConstruction(e);
+  const c = TEAMS[e.team], h = e.size / 2, x0 = e.x - h, y0 = e.y - h, t = animT(e), S = e.size;
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(x0 + 2, y0 + 5, S + 4, S + 2);
+  ctx.fillStyle = '#8d887c'; ctx.fillRect(x0 - 3, y0 - 3, S + 6, S + 6);   // pad
+  ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth = 1;
+  for (let k = 14; k < S; k += 14) { ctx.beginPath(); ctx.moveTo(x0 - 3 + k, y0 - 3); ctx.lineTo(x0 - 3 + k, y0 + S + 3); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x0 - 3, y0 - 3 + k); ctx.lineTo(x0 + S + 3, y0 - 3 + k); ctx.stroke(); }
+  // hazard stripes along the front edge
+  for (let k = 0; k < S + 6; k += 10) { ctx.fillStyle = (k / 10) % 2 ? '#2a2a2a' : '#f2c94c'; ctx.fillRect(x0 - 3 + k, y0 + S - 2, 10, 5); }
+  // turbine hall along the bottom, with lit windows
+  block(x0 + 4, y0 + S - 26, S - 8, 22, '#7b766a', '#4c4840', 8);
+  ctx.fillStyle = c.color; ctx.fillRect(x0 + 4, y0 + S - 26, S - 8, 3);
+  ctx.fillStyle = `rgba(255,214,110,${0.75 + 0.25 * Math.sin(t * 3)})`; for (let k = 0; k < 5; k++) ctx.fillRect(x0 + 10 + k * 14, y0 + S - 9, 6, 3);
+  // cooling tower (right): a tall waisted tower seen from above, steam pouring out
+  const tx = x0 + S - 22, ty = y0 + 22;
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.arc(tx + 5, ty + 6, 19, 0, Math.PI * 2); ctx.fill();
+  let g = ctx.createRadialGradient(tx - 6, ty - 6, 3, tx, ty, 19); g.addColorStop(0, '#ece8de'); g.addColorStop(1, '#a29d91');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(tx, ty, 18, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = c.color; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(tx, ty, 15.5, 0, Math.PI * 2); ctx.stroke();
+  g = ctx.createRadialGradient(tx, ty, 1, tx, ty, 12); g.addColorStop(0, '#26241f'); g.addColorStop(1, '#5d594f');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(tx, ty, 12, 0, Math.PI * 2); ctx.fill();
+  for (let k = 0; k < 4; k++) {   // steam
+    const p = (t * 0.4 + k / 4 + e.id * 0.17) % 1;
+    ctx.fillStyle = `rgba(245,245,245,${0.6 * (1 - p)})`;
+    ctx.beginPath(); ctx.arc(tx + Math.sin(p * 3 + k) * 4 + p * 8, ty - 4 - p * 34, 6 + p * 12, 0, Math.PI * 2); ctx.fill();
+  }
+  // containment dome (left): a big shaded dome with a ring of team colour and a glowing window onto the core
+  const dx = x0 + 28, dy = y0 + 30, R = 23;
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.arc(dx + 5, dy + 6, R + 1, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#5d5a52'; ctx.beginPath(); ctx.arc(dx, dy, R + 2, 0, Math.PI * 2); ctx.fill();
+  g = ctx.createRadialGradient(dx - 8, dy - 9, 3, dx, dy, R); g.addColorStop(0, '#f1efe8'); g.addColorStop(0.6, '#c9c5ba'); g.addColorStop(1, '#8f8a7e');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(dx, dy, R, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = c.color; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(dx, dy, R - 3, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(dx, dy, R * 0.55, 0, Math.PI * 2); ctx.stroke();
+  const pulse = 0.55 + 0.45 * Math.sin(t * 2.6);
+  g = ctx.createRadialGradient(dx + 6, dy + 8, 0, dx + 6, dy + 8, 11); g.addColorStop(0, `rgba(190,255,230,${0.95})`); g.addColorStop(0.5, `rgba(80,240,190,${0.6 + 0.3 * pulse})`); g.addColorStop(1, 'rgba(40,200,160,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(dx + 6, dy + 8, 11, 0, Math.PI * 2); ctx.fill();
+  // the radiation trefoil on the dome
+  emblemPlate(dx - 6, dy - 6, 8, e.team);
+  ctx.fillStyle = '#f2c94c';
+  for (let k = 0; k < 3; k++) { const a = -Math.PI / 2 + k * Math.PI * 2 / 3; ctx.beginPath(); ctx.moveTo(dx - 6, dy - 6); ctx.arc(dx - 6, dy - 6, 6, a - 0.5, a + 0.5); ctx.closePath(); ctx.fill(); }
+  ctx.fillStyle = TEAMS[e.team].dark; ctx.beginPath(); ctx.arc(dx - 6, dy - 6, 1.8, 0, Math.PI * 2); ctx.fill();
+  // pipe from the dome to the tower
+  ctx.strokeStyle = '#6a665d'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(dx + R - 2, dy - 4); ctx.lineTo(tx - 17, ty + 2); ctx.stroke();
+  flag(x0 + 6, y0 + 8, e.team);
+}
+
+// Satellite Radar (v5.67): a control block with a huge dish aimed at the sky on a lattice mast, a blinking beacon, and
+// now and then a faint pulse rising to the satellite it talks to.
+function drawSatellite(e) {
+  if (!e.built) return drawConstruction(e);
+  const c = TEAMS[e.team], h = e.size / 2, x0 = e.x - h, y0 = e.y - h, t = animT(e), S = e.size, x = e.x, y = e.y;
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(x0 + 2, y0 + 5, S + 4, S + 2);
+  ctx.fillStyle = '#918c80'; ctx.fillRect(x0 - 3, y0 - 3, S + 6, S + 6);
+  ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth = 1; ctx.strokeRect(x0 + 2, y0 + 2, S - 4, S - 4);
+  // control block across the bottom with screens glowing
+  block(x0 + 5, y0 + S - 24, S - 10, 20, '#77736a', '#4a4740', 8);
+  ctx.fillStyle = c.color; ctx.fillRect(x0 + 5, y0 + S - 24, S - 10, 3);
+  for (let k = 0; k < 4; k++) { ctx.fillStyle = `rgba(120,220,255,${0.6 + 0.4 * Math.sin(t * 4 + k)})`; ctx.fillRect(x0 + 11 + k * 14, y0 + S - 9, 7, 3); }
+  // the mast: a lattice tower holding the dish up
+  ctx.strokeStyle = '#5c5a55'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x - 9, y + 8); ctx.lineTo(x, y - 6); ctx.lineTo(x + 9, y + 8); ctx.moveTo(x - 6, y + 3); ctx.lineTo(x + 6, y + 3); ctx.moveTo(x - 4, y - 1); ctx.lineTo(x + 4, y + 6); ctx.stroke();
+  // the dish: a big reflector tilted up at the sky, slowly tracking
+  const tilt = Math.sin(t * 0.25) * 0.35, D = S * 0.42;
+  ctx.save(); ctx.translate(x, y - 10); ctx.rotate(tilt);
+  ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.beginPath(); ctx.ellipse(6, 14, D, D * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+  const g = ctx.createRadialGradient(-D * 0.3, -D * 0.25, 2, 0, 0, D); g.addColorStop(0, '#fbfcfc'); g.addColorStop(0.7, '#d4d9dc'); g.addColorStop(1, '#a5adb3');
+  ctx.fillStyle = g; ctx.strokeStyle = '#7b8389'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.ellipse(0, 0, D, D * 0.72, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = 'rgba(110,120,128,0.5)'; ctx.lineWidth = 1;
+  for (const k of [0.35, 0.65]) { ctx.beginPath(); ctx.ellipse(0, 0, D * k, D * 0.72 * k, 0, 0, Math.PI * 2); ctx.stroke(); }
+  for (let k = 0; k < 12; k++) { const a = k * Math.PI / 6; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * D, Math.sin(a) * D * 0.72); ctx.stroke(); }
+  ctx.strokeStyle = c.color; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(0, 0, D - 2, D * 0.72 - 2, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = '#6c7378'; ctx.lineWidth = 1.2;
+  for (const a of [0.6, 2.5, 4.4]) { ctx.beginPath(); ctx.moveTo(Math.cos(a) * D * 0.85, Math.sin(a) * D * 0.6); ctx.lineTo(0, -D * 0.35); ctx.stroke(); }
+  ctx.fillStyle = c.color; ctx.beginPath(); ctx.arc(0, -D * 0.35, 3.5, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  // the uplink: a ring rising from the feed every couple of seconds
+  const p = (t * 0.5) % 1;
+  ctx.strokeStyle = `rgba(140,230,255,${0.55 * (1 - p)})`; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(x, y - 10 - D * 0.35 - p * 40, 4 + p * 16, 2 + p * 7, 0, 0, Math.PI * 2); ctx.stroke();
+  if (Math.floor(t * 1.5) % 2) { ctx.fillStyle = '#ff5a5a'; ctx.beginPath(); ctx.arc(x0 + S - 7, y0 + 7, 2.6, 0, Math.PI * 2); ctx.fill(); }
+  flag(x0 + 6, y0 + 10, e.team);
+}
+
 // Medbay: a round landing pad with a big cross. It glows green, on and off, while it is healing someone.
 function drawMedbay(e) {
   if (!e.built) return drawConstruction(e);
@@ -5486,6 +5695,12 @@ function confirmWall() {
 function tryPlace() {
   const p = game.placing;
   if (p && p.type === 'wall') return confirmWall();
+  if (p && p.strike) {   // the Napalm Strike: called on the marked spot
+    if (!p.ghost) return;
+    if (callNapalm(0, p.ghost.x, p.ghost.y)) { game.placing = null; game.effects.push({ kind: 'marker', x: p.ghost.x, y: p.ghost.y, t: 0, color: '#ff8a50' }); }
+    else flash = { text: napalmReady(0) ? "You can't see there" : 'Napalm Strike not ready', t: performance.now() };
+    return;
+  }
   if (p && p.turret) {
     if (!p.ghost) return;
     const why = game.credits[0] < COST[p.type] ? `Not enough money for a ${NAMES[p.type]} ($${COST[p.type]})` : turretSiteProblem(0, p.type, p.ghost.x, p.ghost.y);
@@ -5504,6 +5719,11 @@ function handleTap(x, y) {
   if (game.paused) return;
 
   if (game.placing && game.placing.type === 'wall') { wallTap(x, y); return; }
+  if (game.placing && game.placing.strike) {   // aiming the Napalm Strike: the first tap marks the spot, a tap on the mark calls it
+    const g = game.placing.ghost;
+    if (g && Math.hypot(x - g.x, y - g.y) < 40) tryPlace(); else game.placing.ghost = { x, y };
+    return;
+  }
   if (game.placing) {
     const pt = game.placing.type === 'gate' ? fitGate(x, y, 0, game.placing.manual ? !!game.placing.vertical : undefined) : { x, y };
     const g = game.placing.ghost;
@@ -5619,7 +5839,7 @@ const $ = id => document.getElementById(id);
 const ui = {
   credits: $('credits'), clock: $('clock'), info: $('info'), powerChip: $('powerChip'), sell: $('btnSell'),
   deploy: $('btnDeploy'), radar: $('btnRadar'), medbay: $('btnMedbay'), barracks: $('btnBarracks'), refinery: $('btnRefinery'), power: $('btnPower'), factory: $('btnFactory'), tech: $('btnTech'), wall: $('btnWall'), gate: $('btnGate'), rotate: $('btnRotate'), 
-  harvest: $('btnHarvest'), mg: $('btnMg'), cannon: $('btnCannon'), missile: $('btnMissile'), laser: $('btnLaser'), helipad: $('btnHelipad'), sam: $('btnSam'), heliHome: $('btnReturn'), place: $('btnPlace'), cancel: $('btnCancel'), deselect: $('btnDeselect'),
+  harvest: $('btnHarvest'), mg: $('btnMg'), cannon: $('btnCannon'), missile: $('btnMissile'), laser: $('btnLaser'), helipad: $('btnHelipad'), sam: $('btnSam'), reactor: $('btnReactor'), satellite: $('btnSatellite'), napalm: $('btnNapalm'), heliHome: $('btnReturn'), place: $('btnPlace'), cancel: $('btnCancel'), deselect: $('btnDeselect'),
   box: $('btnBox'), all: $('btnAll'), pause: $('btnPause'), map: $('btnMap'),
   overlay: $('overlay'), ovTitle: $('ovTitle'), ovText: $('ovText'), ovBtn: $('ovBtn'),
 };
@@ -5654,6 +5874,9 @@ ui.radar.addEventListener('click', () => startPlacing('radar'));
 ui.medbay.addEventListener('click', () => startPlacing('medbay'));
 ui.helipad.addEventListener('click', () => startPlacing('helipad'));
 ui.sam.addEventListener('click', () => startPlacing('sam'));
+ui.reactor.addEventListener('click', () => startPlacing('reactor'));
+ui.satellite.addEventListener('click', () => startPlacing('satellite'));
+ui.napalm.addEventListener('click', () => { if (napalmReady(0)) { game.placing = { type: 'napalm', strike: true, ghost: null }; flash = { text: 'Napalm Strike: tap ground you can see, then tap again to call it in', t: performance.now() }; } });
 ui.heliHome.addEventListener('click', () => { for (const h of selectedOfType('heli')) h.order = padOf(h) ? { type: 'return' } : h.order; });
 ui.factory.addEventListener('click', () => startPlacing('factory'));
 ui.tech.addEventListener('click', () => startPlacing('tech'));
@@ -5854,6 +6077,10 @@ function updateHUD() {
   show(ui.medbay, !!hq && !placing && unlocked(0, 'medbay'));   // hidden until you have what it needs (v5.53)
   show(ui.helipad, !!hq && !placing && unlocked(0, 'helipad'));   // hidden until you have what it needs (v5.53)
   show(ui.sam, !!hq && !placing && unlocked(0, 'sam'));   // hidden until you have what it needs (v5.53)
+  show(ui.reactor, !!hq && !placing && unlocked(0, 'reactor'));   // (v5.67, needs a Tech Centre)
+  show(ui.satellite, !!hq && !placing && unlocked(0, 'satellite'));   // (v5.67, needs a Nuclear Reactor)
+  show(ui.napalm, hasSatellite(0) && !placing);
+  if (hasSatellite(0)) { const w = Math.ceil(napalmWait(0)), lbl = w > 0 ? `Napalm ${Math.floor(w / 60)}:${String(w % 60).padStart(2, '0')}` : 'Napalm Strike'; if (ui.napalm.textContent !== lbl) ui.napalm.textContent = lbl; ui.napalm.disabled = w > 0; }
   show(ui.heliHome, sel.some(e => e.air && e.team === 0 && !e.landed) && !placing);
   show(ui.wall, !!hq && !placing);
   show(ui.gate, !!hq && !placing);
@@ -5882,7 +6109,7 @@ function updateHUD() {
   ui.powerChip.style.display = boost > 1 ? '' : 'none';
   ui.powerChip.textContent = `⚡ +${Math.round((boost - 1) * 100)}%`;
   // locked buildings are hidden above until you have what they need (v5.53: finding them is part of the fun; they used to say what they needed)
-  for (const [btn, type] of [[ui.factory, 'factory'], [ui.tech, 'tech'], [ui.radar, 'radar'], [ui.medbay, 'medbay'], [ui.helipad, 'helipad'], [ui.sam, 'sam']]) {
+  for (const [btn, type] of [[ui.factory, 'factory'], [ui.tech, 'tech'], [ui.radar, 'radar'], [ui.medbay, 'medbay'], [ui.helipad, 'helipad'], [ui.sam, 'sam'], [ui.reactor, 'reactor'], [ui.satellite, 'satellite']]) {
     const miss = missingFor(0, type);
     btn.textContent = `${NAMES[type]} $${COST[type]}`;
     btn.disabled = miss.length > 0 || game.credits[0] < COST[type];
@@ -5891,8 +6118,9 @@ function updateHUD() {
   ui.gate.disabled = game.credits[0] < COST.gate;
   const wallMode = placing && placing.type === 'wall';
   ui.cancel.textContent = wallMode ? 'Done' : 'Cancel';
-  ui.place.textContent = wallMode ? 'Build wall' : placing && placing.turret ? 'Send Engineer' : 'Place here';
+  ui.place.textContent = wallMode ? 'Build wall' : placing && placing.turret ? 'Send Engineer' : placing && placing.strike ? 'Call strike' : 'Place here';
   if (placing && placing.ghost && placing.type === 'gate') ui.place.disabled = !canPlaceWallPiece(0, 'gate', placing.ghost.x, placing.ghost.y, placing.ghost.vertical) || game.credits[0] < COST.gate;
+  else if (placing && placing.strike) ui.place.disabled = !placing.ghost || !visibleAt(placing.ghost.x, placing.ghost.y, 0);
   else if (placing && placing.ghost && placing.turret) ui.place.disabled = !turretSiteOk(0, placing.type, placing.ghost.x, placing.ghost.y) || game.credits[0] < COST[placing.type];
   else if (placing && placing.ghost) ui.place.disabled = !canPlace(0, placing.type, placing.ghost.x, placing.ghost.y) || game.credits[0] < COST[placing.type];
   else if (placing) ui.place.disabled = false;
@@ -5913,6 +6141,7 @@ function updateHUD() {
   if (flash && performance.now() - flash.t < 2500) text = flash.text;
   else if (game.paused) text = 'Paused';
   else if (placing && placing.type === 'wall') text = !placing.anchor ? 'Tap where the wall starts' : placing.end ? 'Tap the end again to build (or Build wall)' : 'Tap where the wall ends (or tap the start again for one piece)';
+  else if (placing && placing.strike) text = placing.ghost ? 'Tap the strip again (or Call strike) to send the plane' : 'Napalm Strike: tap ground you can see';
   else if (placing) text = placing.ghost ? 'Tap the square again (or Place here) to build' : `Tap inside the green area to place your ${NAMES[placing.type].toLowerCase()}`;
   else if (settler) text = 'Settler — move somewhere open, then Deploy';
   else if (hq) text = extraHqs(0) ? `Headquarters — ${extraHqs(0) + 1} HQs: +${Math.round(HQ_BONUS * extraHqs(0) * 100)}% build speed` : 'Headquarters';
@@ -5929,6 +6158,8 @@ function updateHUD() {
     : 'Oil Derrick — neutral. Send an Engineer to capture it: $' + STATS.derrick.pay + ' every ' + STATS.derrick.payEvery + 's';
   else if (sel.length === 1 && sel[0].type === 'house') text = 'Village house';
   else if (sel.length === 1 && sel[0].type === 'medbay') text = sel[0].built ? 'Medbay — heals up to 5 infantry or 1 vehicle standing on it' + (sel[0].healing ? ' (healing ' + sel[0].healing + ')' : '') + '. Select units, then tap it' : 'Medbay: building…';
+  else if (sel.length === 1 && sel[0].type === 'reactor') text = sel[0].built ? `Nuclear Reactor — power worth ${REACTOR_PLANTS} Power Plants (you build ${Math.round((powerBoost(0) - 1) * 100)}% faster). Unlocks the Heavy Tank, the Laser Turret and the Satellite Radar` : `Nuclear Reactor: ${Math.floor(sel[0].progress * 100)}% built`;
+  else if (sel.length === 1 && sel[0].type === 'satellite') text = sel[0].built ? 'Satellite Radar — you see everything on ground you have explored (not hidden infantry in forests). Unlocks the Missile Turret and the Napalm Strike' + (sel[0].team === 0 ? (napalmWait(0) > 0 ? ` (next strike in ${Math.ceil(napalmWait(0))} s)` : ' (Napalm Strike ready)') : '') : `Satellite Radar: ${Math.floor(sel[0].progress * 100)}% built`;
   else if (sel.length === 1 && sel[0].type === 'radar') text = sel[0].built ? 'Radar — reveals everything within ' + STATS.radar.sight + ', over rocks and cliffs (not hidden infantry in forests)' : 'Radar: ' + Math.floor(sel[0].progress * 100) + '% built';
   else if (sel.length === 1 && sel[0].type === 'refinery') text = sel[0].built ? 'Refinery — buy Extractors at the War Factory' : `Refinery: ${Math.floor(sel[0].progress * 100)}% built`;
   else if (sel.length === 1 && isTurretType(sel[0].type)) text = !sel[0].built ? `${NAMES[sel[0].type]}: ${Math.floor(sel[0].progress * 100)}% built` : NAMES[sel[0].type] + ' — ' + TURRET_INFO[sel[0].type];

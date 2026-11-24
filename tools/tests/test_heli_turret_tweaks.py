@@ -20,7 +20,7 @@ with sync_playwright() as p:
     pg.goto(f'http://127.0.0.1:{sys.argv[2]}/index.html'); pg.wait_for_timeout(1500); pg.click('#ovBtn')
     pg.evaluate("""(()=>{ runAI=()=>{}; for(const t of [0,1]) deploy(game.ents.find(e=>e.team===t&&e.type==='settler')); window.U=n=>{for(let i=0;i<n;i++) update(0.05)}; U(5);
       window.hq=hqOf(0); window.mk=(t,team,x,y)=>{const e=spawn(t,team,x,y); e.built=true; e.progress=1; e.hp=e.maxHp; return e;};
-      window.spot=(r)=>{ for(let k=0;k<600;k++){ const x=hq.x+(Math.random()-0.5)*900, y=hq.y-200-Math.random()*600; if(siteIsFree(x,y,60)&&siteIsFree(x+r,y,30)&&!elevAt(x,y)&&!elevAt(x+r,y)) return {x,y}; } };
+      window.spot=(r)=>{ for(let k=0;k<600;k++){ const x=hq.x+(Math.random()-0.5)*900, y=hq.y-200-Math.random()*600; let clear=true; for(let d=0;d<=r+20;d+=10) if(terrainAt(x+d,y)!==T.GRASS||elevAt(x+d,y)) clear=false; if(clear&&siteIsFree(x,y,60)&&siteIsFree(x+r,y,30)) return {x,y};   /* (open grass all the way: nothing blocks the shot) */ } };
     })()""")
     # --- Laser: idle = no charge, no spin; spotted = charges; first shot about one charge after it sees the enemy
     r = json.loads(pg.evaluate("""(()=>{ const s=spot(210); window.L=mk('laser',0,s.x,s.y); L.cooldown=0; L.hp=L.maxHp=1e9; U(20*8);

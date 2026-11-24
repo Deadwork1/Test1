@@ -24,13 +24,13 @@ with sync_playwright() as p:
     r = json.loads(pg.evaluate("""(()=>{ const en=spawn('engineer',0,hq.x,hq.y+120); game.selected=new Set([en.id]); window.en=en;
       const vis=()=>({mg:ui.mg.style.display!=='none', cannon:ui.cannon.style.display!=='none', missile:ui.missile.style.display!=='none', laser:ui.laser.style.display!=='none'});
       updateHUD(); const a=vis(); put('barracks',-200,40); updateHUD(); const b2=vis();
-      put('refinery',200,-150); put('factory',200,60); put('power',-200,-150); put('helipad',-60,-220); put('tech',60,220); updateHUD(); const c=vis();
+      put('refinery',200,-150); put('factory',200,60); put('power',-200,-150); put('helipad',-60,-220); put('tech',60,220); const rx=put('reactor',-330,60), sx=put('satellite',330,-40); updateHUD(); const c=vis(); rx.hp=0; sx.hp=0; U(2);   /* (gone again: the Reactor's power would speed up the build-time check) */
       game.selected=new Set(); updateHUD(); const d=vis();
       return JSON.stringify({none:a, barracks:b2, all:c, noEngineer:d}); })()""".replace('updateHUD()', "updateHUD()")))
     print(r)
     check(not any(r['none'].values()), 'no turret buttons before anything is unlocked')
     check(r['barracks']['mg'] and not r['barracks']['cannon'], 'the Barracks unlocks the Machine Gun only')
-    check(all(r['all'].values()), 'War Factory, Helipad and Tech Centre unlock the Cannon, Missile and Laser')
+    check(all(r['all'].values()), 'War Factory, Satellite Radar and Nuclear Reactor unlock the Cannon, Missile and Laser (v5.67)')
     check(not any(r['noEngineer'].values()), 'buttons only show with an Engineer selected')
     # --- building one: the Engineer walks there, pays, is used up; the turret goes up over its build time
     r = json.loads(pg.evaluate("""(()=>{ const x=hq.x+260, y=hq.y+260; for (const v of game.ents) if (v.team===0) {} ;
