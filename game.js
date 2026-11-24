@@ -272,7 +272,7 @@ const STATS = {
   // shells take a while to land, so moving units can dodge them.
   artillery: { hp: 120, speed: 40, r: 13, sight: 150, range: 250, minRange: 80, dmg: 45, cooldown: 4, siege: true, splash: 40, flight: 1.3, spread: 14, vsBuilding: 3, vsVehicle: 0.6 },   // (speed 32 until v5.62, +25%) // (speed 28 until v5.56)
   sniper:    { hp: 45,  speed: 56, r: 9,  sight: 220, range: 160, dmg: 75, cooldown: 2.7, vsVehicle: 0.15, vsBuilding: 0.1, reveal: 0.5 },   // (speed 46 until v5.62; 56 since, swapped with the Rocket Soldier) // one-shots infantry from far away; useless vs vehicles
-  rocket:    { hp: 55,  speed: 58, r: 9,  sight: 170, range: 130, dmg: 40, cooldown: 2.5, rocket: true, vsVehicle: 2, vsHeavy: 2, vsBuilding: 2, vsInfantry: 0.4, vsAir: 1.5 },   // (speed 45 until v5.62; 58 since, swapped with the Sniper) // (vsHeavy 1.5 until v5.50: Heavy Tanks were too hard to stop)   // (and the only soldier that can hit aircraft)
+  rocket:    { hp: 55,  speed: 58, r: 9,  sight: 170, range: 130, dmg: 40, cooldown: 2.5, rocket: true, vsVehicle: 2, vsHeavy: 2, vsBuilding: 2, vsInfantry: 0.4, vsAir: 1 },   // (vsAir 1.5 until v5.65: 8 rockets bring down a helicopter, was 5)   // (speed 45 until v5.62; 58 since, swapped with the Sniper) // (vsHeavy 1.5 until v5.50: Heavy Tanks were too hard to stop)   // (and the only soldier that can hit aircraft)
   // attack helicopter: flies over everything, fires 8 missiles (6 of 35 until v5.49.2), then goes home to its Helipad to reload (about 10 s) and patch up
   heli:      { hp: 300, speed: 112, r: 14, sight: 220, range: 140, dmg: 45, cooldown: 1.0, air: true, ammo: 8, reload: 10, repair: 3, vsVehicle: 1.5, vsBuilding: 1, vsInfantry: 0.5 },   // (speed 90 until v5.62, +25%) // anti-vehicle: double vs vehicles & buildings, weak vs infantry
   grenadier: { hp: 55,  speed: 60, r: 9,  sight: 170, range: 95,  dmg: 16, cooldown: 2.0, splash: 38, flight: 0.55, vsVehicle: 0.5 },   // (speed 48 until v5.62, +25%) // lobbed grenades: area damage, half vs vehicles
@@ -2210,12 +2210,18 @@ function updateTower(e, dt) {
   if (!e.built) return updateBuilding(e, dt);
   const s = STATS[e.type];
   e.cooldown -= dt;
-  if (e.type === 'laser') {   // its three legs turn round the core, faster and faster as it charges
-    const charge = Math.max(0, Math.min(1, 1 - e.cooldown / s.cooldown));
-    e.spin = (e.spin || 0) + (0.4 + 13.6 * charge * charge) * dt;
-  }
   let t = e.target && byId(e.target);
   if (!t || t.hp <= 0 || t.team === e.team || t.team === NEUTRAL || !canHit(e, t) || hiddenFrom(t, e.team) || !visibleAt(t.x, t.y, e.team) || edgeDist(e.x, e.y, t) > rangeOf(e) || !canShoot(e, t)) { t = findEnemyNear(e, rangeOf(e)); e.target = t ? t.id : null; }
+  // the Laser and Missile Turrets react to an enemy they can see within their sight (a little beyond their range), v5.65:
+  // the Missile Turret's lights turn red, and the Laser only starts charging (and its legs spinning) once it has spotted one
+  if (e.type === 'laser' || e.type === 'missile') e.spotted = !!(t || findEnemyNear(e, s.sight));
+  if (e.type === 'laser') {   // its three legs turn round the core, faster and faster as it charges; with nothing in sight the charge drains away and they slow to a stop
+    if (!e.spotted) e.cooldown = Math.min(s.cooldown, e.cooldown + 2 * dt);
+    const charge = Math.max(0, Math.min(1, 1 - e.cooldown / s.cooldown)), want = e.spotted ? 0.4 + 13.6 * charge * charge : 0;
+    e.spinV = (e.spinV || 0) + (want - (e.spinV || 0)) * Math.min(1, dt * 3);
+    e.spin = (e.spin || 0) + e.spinV * dt;
+    if (!e.spotted) return;
+  }
   if (e.type === 'sam') {   // the SAM Site waits underground and comes up only while an aircraft is in range
     e.up = Math.max(0, Math.min(1, (e.up || 0) + (t ? dt : -dt) / SAM_RISE));
     if (e.up < 1) { if (e.cooldown < 0.3) e.cooldown = 0.3; return; }
@@ -2313,7 +2319,7 @@ function updateHeli(e, dt) {
   }
   if (o.type === 'move' || o.type === 'attackmove') {   // fly there and hover, shooting what comes in range, until out of ammo or sent home
     if (!o.arrived) { const r = flyToward(e, o.x, o.y, dt, false); if (r) { o.arrived = true; if (r === true && o.face !== undefined) e.facing = o.face; } }   // (a move stops at the edge of land it has seen)
-    if (e.ammo <= 0) { goHome(e); return; }
+    if (e.ammo <= 0) { if (pad) goHome(e); return; }   // (out of missiles with no Helipad to go to: it still flies where it's sent, v5.65)
     const t = findEnemyNear(e, rangeOf(e));
     if (t) heliFire(e, t);
     return;
@@ -3357,8 +3363,24 @@ function aiHelis(D) {
     return best; };
   const ready = h => h.landed && !h.order && h.ammo >= STATS.heli.ammo && h.hp >= h.maxHp * 0.8;
   for (const h of mine) if (!h.landed && h.hp < h.maxHp * 0.4 && padOf(h)) { if (!h.order || h.order.type !== 'return') h.order = { type: 'return' }; }
-  // defence first: your units it can see on its half of the map
   const home = hqOf(1), mySide = home ? Math.sign(home.x - riverX(home.y)) : 0;
+  // a helicopter left hovering where its target slipped into the fog (it used to wait there until it ran out of missiles): after
+  // 3 s with nothing in range it heads home to rearm, and gets a new job from there (v5.65)
+  for (const h of mine) {
+    const idle = !h.landed && h.order && h.order.type === 'move' && h.order.arrived && !findEnemyNear(h, rangeOf(h));
+    if (!idle) { h.idleSince = 0; continue; }
+    h.idleSince = h.idleSince || game.time;
+    if (game.time - h.idleSince > 3) { h.idleSince = 0; goHome(h); }
+  }
+  // one whose Helipad is gone (and no other is free) used to hover where it was for good: now it spends its missiles on the
+  // closest target, then waits by its HQ until a Helipad is free again (it rebuilds lost pads as usual)
+  for (const h of mine) {
+    if (h.landed || h.order || padOf(h)) continue;
+    const t = h.ammo > 0 && (target(h) || null);
+    if (t) h.order = { type: 'attack', target: t.id };
+    else if (home && Math.hypot(h.x - home.x, h.y - home.y) > 120) h.order = { type: 'move', x: home.x + 60, y: home.y - 80 };
+  }
+  // defence first: your units it can see on its half of the map
   const intruders = mySide ? game.ents.filter(u => u.team === 0 && isUnit(u) && u.hp > 0 && !u.air && Math.sign(u.x - riverX(u.y)) === mySide && visibleAt(u.x, u.y, 1) && !hiddenFrom(u, 1) && safe(u.x, u.y)) : [];
   if (intruders.length) for (const h of mine) {
     if (!h.landed || h.order || h.ammo < STATS.heli.ammo / 2 || h.hp < h.maxHp * 0.5) continue;
@@ -4749,17 +4771,17 @@ const TURRET_ART = (() => {
     ctx.strokeStyle = '#d9d9d2'; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(tx - Math.cos(sweep) * 8, ty - Math.sin(sweep) * 8 * 0.6); ctx.lineTo(tx + Math.cos(sweep) * 8, ty + Math.sin(sweep) * 8 * 0.6); ctx.stroke();
     circ(tx, ty, 2, c.color); if (blink) { circ(tx, ty, 5, 'rgba(255,80,60,0.35)'); circ(tx, ty, 2, '#ff5040'); }
   }
-  function tall2(c, a, fire, sweep, blink) {
+  function tall2(c, a, fire, sweep, alert) {   // (alert 0..1: an enemy in sight - its lights glow red)
     ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(11, 10, 23, 18, 0.6, 0, Math.PI * 2); ctx.fill();
     const tiers = [[0, 22, '#77756d', '#8f8d84'], [-5, 16, '#6e6c65', '#86847b'], [-10, 11, '#66645d', '#7c7a72']];
     tiers.forEach(([dy, r, edge, top], i) => {
       ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.arc(1.5, dy + 2.5, r, 0, Math.PI * 2); ctx.fill();   // each tier casts onto the one below
       circ(0, dy, r, edge); circ(0, dy - 1.2, r - 2.2, top);
-      if (i === 0) for (let k = 0; k < 12; k++) { const q = k / 12 * Math.PI * 2; circ(Math.cos(q) * 20, Math.sin(q) * 20, 1.1, '#5f5d56'); }
+      if (i === 0) for (let k = 0; k < 12; k++) { const q = k / 12 * Math.PI * 2; if (alert) { circ(Math.cos(q) * 20, Math.sin(q) * 20, 3.2, `rgba(255,60,40,${0.3 * alert})`); circ(Math.cos(q) * 20, Math.sin(q) * 20, 1.5, '#ff4030'); } else circ(Math.cos(q) * 20, Math.sin(q) * 20, 1.1, '#5f5d56'); }
       if (i === 1) for (let k = 0; k < 8; k++) { const q = k / 8 * Math.PI * 2; ctx.fillStyle = k % 2 ? '#f2c94c' : '#2a2a2a'; ctx.beginPath(); ctx.arc(0, dy - 1.2, r - 2.2, q, q + Math.PI / 8); ctx.arc(0, dy - 1.2, r - 4.2, q + Math.PI / 8, q, true); ctx.fill(); }
     });
     ctx.save(); ctx.translate(0, -12); ctx.scale(1.1, 1.1); msHead(c, a, fire); ctx.restore();
-    antenna(c, -13, 13, sweep, blink, 18);
+    antenna(c, -13, 13, alert ? sweep * 2.5 : sweep, !!alert, 18);
   }
   function lzE2(c, a, charge, spin, beam) {
     const glow = 0.25 + 0.75 * charge;
@@ -4816,8 +4838,8 @@ function drawDefence(e) {
   ctx.save(); ctx.translate(e.x, e.y);
   if (e.type === 'mg') TURRET_ART.mg(c, a, e.cooldown > s.cooldown - 0.07);
   else if (e.type === 'cannon') TURRET_ART.cannon(c, a, e.cooldown > s.cooldown - 0.1);
-  else if (e.type === 'missile') TURRET_ART.missile(c, a, justFired, now * 2.2 + e.id, ((now + e.id * 0.37) % 1.4) < 0.3);
-  else if (e.type === 'laser') TURRET_ART.laser(c, a, e.target ? Math.max(0, Math.min(1, 1 - e.cooldown / s.cooldown)) : 0, e.spin || 0, justFired ? 1 - (game.time - e.fired) / 0.3 : 0);
+  else if (e.type === 'missile') TURRET_ART.missile(c, a, justFired, now * 2.2 + e.id, e.spotted ? 0.65 + 0.35 * Math.sin(now * 9) : 0);   // (red lights only while it has an enemy in sight, v5.65)
+  else if (e.type === 'laser') TURRET_ART.laser(c, a, e.spotted ? Math.max(0, Math.min(1, 1 - e.cooldown / s.cooldown)) : 0, e.spin || 0, justFired ? 1 - (game.time - e.fired) / 0.3 : 0);
   else if (e.type === 'sam') TURRET_ART.sam(c, a, e.up || 0, e.fired !== undefined && game.time - e.fired < 0.25);
   ctx.restore();
 }
