@@ -2,6 +2,15 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.66', date: '24 Nov 2026', title: 'The computer plays smarter',
+    changes: [
+      'On Normal and Hard the computer has new tricks. Its tanks go out of their way to run over your infantry when they come close, and its infantry jump out of the way of your tanks and Extractors.',
+      'Its attack waves know when they\'re beaten: a wave that set off with 7 or more and is down to its last couple of infantry runs home instead of fighting to the end. A tank runs when it\'s the last one left of a big group.',
+      'Every 3 minutes a Buggy drives a scouting loop round the map. Every 7 minutes a Sniper sneaks up to the edge of your base to pick off your units, running off when you go after it and coming back when you leave. Every 4 minutes two infantry go hunting for one of your Extractors.',
+      'Easy plays as before.',
+    ],
+  },
+  {
     version: '5.65', date: '24 Nov 2026', title: 'New Settlers, smarter helicopters',
     changes: [
       'New Settlers: the War Factory can build a Settler ($2,000, 40 s), the most expensive thing in the game. Drive it anywhere there\'s room and Deploy it into a second Headquarters with its own build area, for a forward base by far-off ore. Every extra Headquarters makes building and training 25% faster, on top of Power Plants (up to triple speed). You only lose once every Headquarters and Settler is gone. Late in a game the computer may buy one to reach fresh ore.',

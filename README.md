@@ -11,6 +11,7 @@ A small real-time strategy game inspired by classic 90s RTS games, built step by
 - The big ore field in the middle is the prize. Destroy or capture (with an Engineer) every enemy Headquarters (and Settler) to win; lose all of yours and you lose.
 - **New Settlers** ($2,000, 40 s at the War Factory, the dearest thing in the game) drive anywhere there's room and Deploy into another Headquarters with its own build area, for a forward base. Each extra HQ makes building and training 25% faster. The computer (Normal and Hard) buys one late in a game to reach far-off ore.
 - The computer plays under the same fog of war: it has to scout to find ore and your base.
+- On Normal and Hard the computer has a few tricks: its tanks run over infantry that come close and its infantry dodge your tanks; a beaten wave runs home; every 3 minutes a Buggy scouts a loop round the map, every 7 minutes a Sniper harasses the edge of your base (running off when approached), and every 4 minutes two infantry go after one of your Extractors.
 - The first time a village's Derrick is captured, two **Civilians** (handguns, weaker than Soldiers, can't be trained) come out of each house and join that side.
 - **Sell** any of your buildings (except the HQ) for half its price: select it, tap Sell, tap again to confirm.
 - A **game clock** at the top shows how long the game has run.
