@@ -2,6 +2,17 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.65', date: '24 Nov 2026', title: 'New Settlers, smarter helicopters',
+    changes: [
+      'New Settlers: the War Factory can build a Settler ($2,000, 40 s), the most expensive thing in the game. Drive it anywhere there\'s room and Deploy it into a second Headquarters with its own build area, for a forward base by far-off ore. Every extra Headquarters makes building and training 25% faster, on top of Power Plants (up to triple speed). You only lose once every Headquarters and Settler is gone. Late in a game the computer may buy one to reach fresh ore.',
+      'Helicopters never hover with nothing to do: sent somewhere quiet, one waits 3 seconds, then flies home and lands. With no Helipad to go to it lands where it is, takes off again only to fight, and flies to a Helipad once one is free.',
+      'The computer\'s helicopters go for the closest of your buildings they know about (they used to hunt your Extractors and Artillery first), and defend: when your units are on its half of the map, its helicopters go after them first.',
+      'The computer gives up on helicopters that aren\'t working: after 3 are shot down having done less damage than they cost, it tries one bigger wave, sent together. If that fails too, it stops raiding and keeps just a helicopter or two for defence.',
+      'The Laser Turret only starts charging (and its legs spinning) once it spots an enemy, a little before one comes into range, so its first shot comes about 4.5 s after it sees one. The Missile Turret\'s lights turn red while an enemy is in sight.',
+      'Rocket Soldiers do normal damage to helicopters (it was 1.5x): 8 hits bring one down (was 5).',
+    ],
+  },
+  {
     version: '5.64', date: '22 Nov 2026', title: 'Turrets',
     changes: [
       'Guard Towers and the old dig-in Turret are gone. Instead, an Engineer can build four kinds of turret: select him and pick one, then tap where it goes (and again, or Send Engineer). He walks there and is used up building it; it goes up over a few seconds.',
