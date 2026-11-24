@@ -304,7 +304,7 @@ const STATS = {
 const PRODUCES = { barracks: ['soldier', 'grenadier', 'rocket', 'sniper', 'engineer'], factory: ['buggy', 'light', 'artillery', 'heavy', 'extractor'], helipad: ['heli'], hq: ['settler'] };   // (the Settler moved from the War Factory to the HQ in v5.67)   // (Extractors were bought at the Refinery until v5.55; each Refinery still comes with one free)
 const HAS_DOOR = t => (!!PRODUCES[t] && t !== 'hq') || t === 'refinery';   // (the HQ's Settler just drives out: nothing has to keep clear of it)   // buildings whose front door must stay clear (the Refinery for its unloading bay)
 // Tech tree: what else you need (finished, and still standing) before you can build or train something
-const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['power'], mg: ['barracks'], cannon: ['factory'], missile: ['satellite'], laser: ['reactor'], heavy: ['reactor'], reactor: ['tech'], satellite: ['reactor'], artillery: ['power'], radar: ['power'], medbay: ['barracks'], helipad: ['factory'], sam: ['power'] };
+const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['power'], mg: ['barracks'], cannon: ['factory'], missile: ['satellite'], laser: ['reactor'], heavy: ['reactor'], reactor: ['tech'], satellite: ['reactor'], settler: ['reactor', 'satellite'],   /* (Settlers need both since v5.67) */ artillery: ['power'], radar: ['power'], medbay: ['barracks'], helipad: ['factory'], sam: ['power'] };
 const hasBuilt = (team, type) => game.ents.some(b => b.team === team && b.type === type && b.built && ruinWorks(b));   // (a captured ruin counts once it's repaired to half)
 const missingFor = (team, type) => (REQUIRES[type] || []).filter(t => !hasBuilt(team, t));
 const unlocked = (team, type) => missingFor(team, type).length === 0;
@@ -3554,6 +3554,20 @@ function aiRunSettler() {
     game.ents.filter(u => u.team === 1 && isCombat(u) && !u.air && !u.role).slice(0, 3).forEach(u => { u.order = { type: 'attackmove', x: ai.settlerSpot.x, y: ai.settlerSpot.y }; u.passive = false; });
   }
   const sp = ai.settlerSpot;
+  // stuck (hasn't got 30 further in 15 s): try another spot, and after a few goes settle for wherever it can deploy
+  if (!s.stuckAt || Math.hypot(s.x - s.stuckAt.x, s.y - s.stuckAt.y) > 30) s.stuckAt = { x: s.x, y: s.y, t: game.time };
+  else if (game.time - s.stuckAt.t > 15) {
+    s.stuckAt = null; s.order = null; ai.settlerTries++;
+    if (ai.settlerTries > 4 && deploy(s)) { ai.settlerGoal = ai.settlerSpot = null; return false; }
+    ai.settlerSpot = null;
+    if (ai.settlerTries > 6) {   // still trapped: the nearest open ground it can see, in widening rings
+      for (let r = 120; r <= 600 && !ai.settlerSpot; r += 80) for (let k = 0; k < 16 && !ai.settlerSpot; k++) {
+        const a = k * Math.PI / 8, x = s.x + Math.cos(a) * r, y = s.y + Math.sin(a) * r;
+        if (x > 60 && y > 60 && x < W - 60 && y < H - 60 && siteIsFree(x, y, STATS.hq.size) && walkable(terrainAt(x, y), true)) ai.settlerSpot = { x, y };
+      }
+    }
+    return true;
+  }
   if (Math.hypot(s.x - sp.x, s.y - sp.y) > 40) { if (!s.order) { if (++ai.settlerTries > 8) { if (deploy(s)) ai.settlerGoal = ai.settlerSpot = null; } else s.order = { type: 'move', x: sp.x, y: sp.y }; } return true; }
   if (deploy(s)) { ai.settlerGoal = ai.settlerSpot = null; return false; }
   ai.settlerSpot = null; ai.settlerTries++;   // no room right there: look for another spot

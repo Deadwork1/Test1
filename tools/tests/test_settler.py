@@ -1,4 +1,4 @@
-# New Settlers (v5.65): bought at the HQ (the War Factory until v5.67) ($2,000, 40 s, the dearest and slowest thing in the game), deployed anywhere as
+# New Settlers (v5.65): bought at the HQ (the War Factory until v5.67) once you have a Nuclear Reactor and a Satellite Radar ($2,000, 40 s, the dearest and slowest thing in the game), deployed anywhere as
 # a second HQ with its own build area, and every extra HQ makes building and training 25% faster (up to 3x with Power Plants); you lose only when every HQ and Settler is gone; the computer buys one only to reach far ore.
 # Usage: python3 tests/test_settler.py <game folder> <port>
 import sys, http.server, threading, functools, json
@@ -23,17 +23,21 @@ with sync_playwright() as p:
       const fac=put('factory',220,60); game.selected=new Set([fac.id]); updateHUD();
       const atFactory=[...document.querySelectorAll('#produceBtns button')].some(b=>/Settler/.test(b.textContent));
       const f=hq; game.selected=new Set([hq.id]); updateHUD();
-      const vis=[...document.querySelectorAll('#panel button')].filter(b=>b.style.display!=='none'&&b.offsetParent).map(b=>b.textContent);
+      const visNow=()=>[...document.querySelectorAll('#panel button')].filter(b=>b.style.display!=='none'&&b.offsetParent).map(b=>b.textContent);
+      const lockedBefore=!unlocked(0,'settler') && !visNow().some(t=>/Settler/.test(t));
+      const rx=put('reactor',-330,60); const lockedReactorOnly=!unlocked(0,'settler'); const sx=put('satellite',330,-40); updateHUD();   // (Settlers need a Nuclear Reactor and a Satellite Radar, v5.67)
+      const vis=visNow(), boost=powerBoost(0);
       const btn=vis.find(t=>/Settler/.test(t)) || null, afterSam=vis.indexOf(btn) > vis.findIndex(t=>/Gate/.test(t));
       const c0=game.credits[0], made=produce(f,'settler'), paid=c0-game.credits[0]; let k=0;
       while(k<20*60 && !game.ents.some(e=>e.team===0&&e.type==='settler')){ U(1); k++; }
-      const s=game.ents.find(e=>e.team===0&&e.type==='settler'&&e.hp>0); window.s=s;
-      return JSON.stringify({dearest, slowest, btn, atFactory, afterSam, vis, made, paid, secs:+(k/20).toFixed(1), out:!!s}); })()"""))
+      const s=game.ents.find(e=>e.team===0&&e.type==='settler'&&e.hp>0); window.s=s; rx.hp=0; sx.hp=0; U(2);   // (gone again, so the speed checks below start from 1x)
+      return JSON.stringify({dearest, slowest, btn, atFactory, afterSam, vis, lockedBefore, lockedReactorOnly, expect:+(40/boost).toFixed(1), made, paid, secs:+(k/20).toFixed(1), out:!!s}); })()"""))
     print(r)
     check(r['dearest'][0] == ['settler', 2000] and r['dearest'][1][1] < 2000, 'the Settler is the most expensive thing ($2,000)')
     check(r['slowest'] == ['settler', 40], 'and the slowest to make (40 s)')
+    check(r['lockedBefore'] and r['lockedReactorOnly'], 'no Settler until you have both a Nuclear Reactor and a Satellite Radar')
     check(bool(r['btn']) and r['afterSam'] and not r['atFactory'], 'the HQ shows a Settler button, last of its buttons (v5.67; the War Factory no longer has one): ' + str(r['btn']))
-    check(r['made'] and r['paid'] == 2000 and r['out'] and 38 <= r['secs'] <= 42, 'it costs $2,000 and rolls out of the HQ after about 40 s (no Power Plant)')
+    check(r['made'] and r['paid'] == 2000 and r['out'] and abs(r['secs'] - r['expect']) <= 1.5, 'it costs $2,000 and rolls out of the HQ after 40 s, sped up by the Reactor\'s power (%s s)' % r['secs'])
     r = json.loads(pg.evaluate("""(()=>{ let spot=null; for(let k=0;k<400&&!spot;k++){ const x=hq.x+900+Math.random()*400, y=hq.y-500-Math.random()*400; if(siteIsFree(x,y,STATS.hq.size)) spot={x,y}; }
       s.x=spot.x; s.y=spot.y; s.order=null; const before=inBuildArea(0,spot.x+150,spot.y); game.selected=new Set([s.id]); updateHUD(); const btn=ui.deploy.style.display!=='none';
       const okd=deploy(s); U(60); const hqs=game.ents.filter(e=>e.team===0&&e.type==='hq').length, after=inBuildArea(0,spot.x+150,spot.y);
@@ -61,10 +65,10 @@ with sync_playwright() as p:
     print(r)
     check(abs(r['withOne'] / r['withTwo'] - 1.25) < 0.05, 'buildings go up 25%% faster with a second HQ too (Barracks %.1f s vs %.1f s)' % (r['withTwo'], r['withOne']))
     # the computer (Huge, Hard): its home ore spent, a rich field far off on its side
-    r = json.loads(pg.evaluate("""(()=>{ const ai=game.ai; runAI=realAI; game.time=700; ai.wavesSent=3; game.credits[1]=6000;
+    r = json.loads(pg.evaluate("""(()=>{ const ai=game.ai; runAI=realAI; for(const h of game.ents.filter(e=>e.team===0&&e.type==='hq')) h.hp=h.maxHp=1e9;   /* (your base can't fall: the game must not end mid-check) */ game.time=700; ai.wavesSent=3; game.credits[1]=6000;
       deploy(game.ents.find(e=>e.team===1&&e.type==='settler')); const h=hqOf(1);
-      put('refinery',-200,120,1); put('barracks',-200,-60,1); put('factory',150,150,1); put('power',0,-180,1); put('power',120,-160,1);
-      for(let i=0;i<16;i++) spawn('soldier',1,h.x-80+i*8,h.y+140);
+      put('refinery',-200,120,1); put('barracks',-200,-60,1); put('factory',270,130,1); put('power',0,-180,1); put('power',120,-160,1); put('tech',160,-40,1); put('reactor',20,-230,1); put('satellite',250,-160,1);   /* (it needs both for Settlers) */
+      for(let i=0;i<16;i++) spawn('soldier',1,h.x-260+i*8,h.y+220);
       for(const o of game.ore) if(Math.hypot(o.x-h.x,o.y-h.y)<1600) o.amount=0   /* its home ore is spent; fresh ore only far off */;
       fog[1].exp.fill(1);
       let bought=null, deployed=null, k=0;
@@ -72,7 +76,7 @@ with sync_playwright() as p:
       const hqs=game.ents.filter(e=>e.team===1&&e.type==='hq'), far=hqs.length>1?Math.round(Math.hypot(hqs[1].x-h.x,hqs[1].y-h.y)):null;
       const k2=k; while(k<k2+20*150){ if(game.credits[1]<500) game.credits[1]=500; U(1); k++; }   /* (its home ore is gone in this test: a little money so the Refinery doesn't wait on luck) */
       const ref2=hqs[1]?game.ents.filter(e=>e.team===1&&e.type==='refinery'&&Math.hypot(e.x-hqs[1].x,e.y-hqs[1].y)<450).length:0;
-      return JSON.stringify({bought, deployed, far, ref2, settlerAt:ai.settlerAt, hqq:game.ents.filter(e=>e.team===1&&e.type==='hq').map(e=>[e.queue,e.qTypes.join(','),Math.round(e.trainT)]), goal:ai.settlerGoal, cash:Math.round(game.credits[1])}); })()"""))
+      return JSON.stringify({bought, deployed, far, ref2, settlerAt:ai.settlerAt}); })()"""))
     print(r)
     check(r['bought'] is not None and r['deployed'] is not None, 'the computer buys a Settler for far ore and deploys it')
     check((r['far'] or 0) > 700, 'its new HQ goes up well away from home')
