@@ -323,10 +323,10 @@ const DIFFICULTY = {
             derricks: true, derrickAfter: 480, ruinAfter: 540, turrets: 1, turretsTotal: 2, engineerCap: 2, escort: 2, garrison: 1, hill: 0, hillSize: 0, hillAfter: 0 },
   normal: { label: 'Normal', think: 1.5, slow: 1, income: 1, attackAt: 8, attackAfter: 240, barracks: 1, maxArmy: 36, towers: 2, buggies: true, plants: 1,
             guard: 3, maxWave: 16, extractors: 6, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 1, factory: true, tanks: 0.25, heavyTanks: false, artillery: 1, raidEvery: 600, hqGuard: 2, helis: 1, sams: 1, heliSpare: 300, factoryAt: 150, waveEvery: 180, minWave: 8, waveGrow: 3, waveWait: 60, focus: 'economy',
-            derricks: true, derrickAfter: 360, ruinAfter: 420, settlers: true, turrets: 1, turretsTotal: 2, engineerCap: 2, escort: 3, garrison: 2, hill: 1, hillSize: 3, hillAfter: 420 },
+            derricks: true, derrickAfter: 360, ruinAfter: 420, settlers: true, behaviours: true, turrets: 1, turretsTotal: 2, engineerCap: 2, escort: 3, garrison: 2, hill: 1, hillSize: 3, hillAfter: 420 },
   hard:   { label: 'Hard',   think: 1,   slow: 0.9,  income: 1.0,     attackAt: 10, attackAfter: 180, barracks: 3, factories: 2, maxArmy: Infinity, towers: 3, buggies: true, plants: 2,
             guard: 4, maxWave: 36, extractors: 7, refineries: 3, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true, artillery: 2, raidEvery: 480, hqGuard: 3, helis: 2, sams: 2, heliSpare: 0, heliSave: true, earlyRefinery: true, expandAt: 1500, antiArmor: 12, waveEvery: 120, minWave: 10, waveGrow: 2, waveWait: 60, focus: 'defences',
-            derricks: true, derrickAfter: 300, ruinAfter: 360, settlers: true, turrets: 1, turretsTotal: 2, engineerCap: 3, escort: 3, garrison: 3, hill: 2, hillSize: 3, hillAfter: 360 },
+            derricks: true, derrickAfter: 300, ruinAfter: 360, settlers: true, behaviours: true, turrets: 1, turretsTotal: 2, engineerCap: 3, escort: 3, garrison: 3, hill: 2, hillSize: 3, hillAfter: 360 },
 };
 let difficulty = 'normal';
 try { if (DIFFICULTY[localStorage.getItem('mini-rts-difficulty')]) difficulty = localStorage.getItem('mini-rts-difficulty'); } catch (err) {}
@@ -1920,6 +1920,47 @@ function crush(e) {
   e.cx = e.x; e.cy = e.y;
 }
 
+// The computer's tanks (Normal and Hard, v5.66): enemy infantry that come too close (within 60 of its hull) get run over:
+// it drives straight at them for up to 3 s, then goes back to what it was doing, and waits 2 s before trying again.
+const RUNOVER_RANGE = 60;
+function aiRunOver(e, dt) {
+  const o = e.order;
+  const end = () => { e.order = o.resume || null; e.nav = null; e.crushCd = game.time + 2; };
+  if (o && o.type === 'crush') {
+    const t = byId(o.target);
+    if (!t || t.hp <= 0 || game.time > o.until || Math.hypot(t.x - e.x, t.y - e.y) > 160 || !visibleAt(t.x, t.y, e.team) || !walkable(terrainAt(t.x, t.y), true)) { end(); return false; }
+    if (navigate(e, t.x, t.y, dt) === 'fail') end();
+    return true;
+  }
+  if (e.passive || game.time < (e.crushCd || 0)) return false;
+  let t = null, td = RUNOVER_RANGE;
+  for (const v of game.ents) {
+    if (v.team === e.team || v.team === NEUTRAL || !isInfantry(v) || v.hp <= 0 || hiddenFrom(v, e.team)) continue;
+    const d = Math.hypot(v.x - e.x, v.y - e.y) - e.r - v.r;
+    if (d < td && walkable(terrainAt(v.x, v.y), true) && visibleAt(v.x, v.y, e.team)) { td = d; t = v; }
+  }
+  if (!t) return false;
+  e.order = { type: 'crush', target: t.id, resume: o || null, until: game.time + 3 }; e.nav = null;
+  return true;
+}
+// The computer's infantry (Normal and Hard, v5.66) step out of the way of an enemy tank or Extractor that is driving at them
+// (close in front of it and moving): a quick sidestep to whichever side they're already on.
+function aiDodge(e, dt) {
+  for (const v of game.ents) {
+    if (v.team === e.team || v.team === NEUTRAL || !(isTank(v) || v.type === 'extractor') || !v.rolling || v.hp <= 0) continue;
+    const dx = e.x - v.x, dy = e.y - v.y, d = Math.hypot(dx, dy);
+    if (d > v.r + e.r + 45 || d < 0.01) continue;
+    const fx = Math.cos(v.facing || 0), fy = Math.sin(v.facing || 0);
+    if ((dx * fx + dy * fy) / d < 0.55) continue;   // not in front of it
+    let side = dx * -fy + dy * fx >= 0 ? 1 : -1;
+    for (let k = 0; k < 2; k++, side = -side) {
+      const tx = e.x - fy * side * 30, ty = e.y + fx * side * 30;
+      if (walkable(terrainAt(tx, ty), false) && !game.ents.some(b => isSolid(b) && Math.abs(b.x - tx) < halfX(b) + e.r && Math.abs(b.y - ty) < halfY(b) + e.r)) { moveToward(e, tx, ty, dt); e.dodgedAt = game.time; return true; }
+    }
+  }
+  return false;
+}
+
 // artillery picks its own targets by what it's for: turrets and SAM Sites first, then other buildings, then units
 // a spot within this unit's range of a building that it can actually get to (nearest first), for when the building itself is boxed in
 function approachSpot(e, b) {
@@ -1969,6 +2010,10 @@ function updateSoldier(e, dt) {   // soldiers and buggies
   if (s.tank) crush(e);
   e.cooldown -= dt;
   e.revealT = (e.revealT || 0) - dt;
+  if (e.team === 1 && diff().behaviours) {   // the computer's tanks go out of their way to run over infantry; its infantry jump out of the way of tanks (v5.66)
+    if (s.tank && aiRunOver(e, dt)) return;
+    if (isInfantry(e) && aiDodge(e, dt)) return;
+  }
   let o = e.order;
 
   // snipers would rather shoot infantry: swap to some in range if they're plinking at a vehicle or building
@@ -2713,7 +2758,7 @@ function runAI(dt) {
   // its Rocket Soldiers gang up on your Heavy Tanks: each one within 350 of a Heavy Tank it can see goes for the nearest (v5.50)
   const yourHeavies = game.ents.filter(v => v.team === 0 && v.type === 'heavy' && v.hp > 0 && visibleAt(v.x, v.y, 1));
   if (yourHeavies.length) for (const r of army) {
-    if (r.type !== 'rocket' || r.role === 'heal' || (r.order && r.order.type === 'man')) continue;
+    if (r.type !== 'rocket' || r.role === 'heal' || AI_ERRANDS.includes(r.role) || (r.order && r.order.type === 'man')) continue;
     const cur = r.order && r.order.type === 'attack' ? byId(r.order.target) : null;
     if (cur && cur.type === 'heavy' && cur.hp > 0) continue;
     const h = yourHeavies.reduce((b, v) => Math.hypot(v.x - r.x, v.y - r.y) < Math.hypot(b.x - r.x, b.y - r.y) ? v : b);
@@ -2828,7 +2873,7 @@ function runAI(dt) {
   if (waveDue && army.filter(u => !u.role).length < D.minWave + 4) reserve = Math.min(reserve, (xWanted ? COST.extractor : 0) + (wantSam && defended ? COST.sam : 0) + (padEmpty ? COST.heli : 0) + (wantFactory && !of('factory').length && defended ? COST.factory : 0) + (defended && (pendingTurrets || (turretNeed && entranceNext)) ? turretSaving : 0));   // (its turrets too, v5.64)   // (a SAM Site it needs, and on Hard a helicopter for an empty pad, still come first)
   const queued = barracks.reduce((n, b) => n + b.queue, 0) + of('factory').reduce((n, f) => n + f.queue, 0);
   const qBuggies = of('factory').reduce((n, b) => n + b.qTypes.filter(t => t === 'buggy').length, 0);
-  const wantBuggy = D.buggies && unlocked(1, 'buggy') && of('buggy').length + qBuggies < (of('soldier').length + 2) / ((game.ai.seen && game.ai.seen.snipers >= 3) ? 1.3 : 2);   // ~1 per 2 soldiers, more if you field snipers/grenadiers
+  const wantBuggy = D.buggies && unlocked(1, 'buggy') && (of('buggy').length + qBuggies < (of('soldier').length + 2) / ((game.ai.seen && game.ai.seen.snipers >= 3) ? 1.3 : 2) || (ai.patrolWant && !qBuggies));   // (or one for its scouting loop, v5.66)   // ~1 per 2 soldiers, more if you field snipers/grenadiers
   const qOf = t => barracks.reduce((n, b) => n + b.qTypes.filter(q => q === t).length, 0);
   const wantGren = D.grenadiers && unlocked(1, 'grenadier') && of('grenadier').length + qOf('grenadier') < (of('soldier').length + 1) / ((ai.seen && ai.seen.infantry >= 8) ? 2 : 3);   // ~1 per 3 soldiers, 1 per 2 against big infantry armies
   // rocket soldiers once it has seen your vehicles: about one for each buggy it has spotted
@@ -2854,7 +2899,7 @@ function runAI(dt) {
   const wantRocket = D.rockets && unlocked(1, 'rocket') && (D.antiArmor
     ? armour > 0 && of('rocket').length + qOf('rocket') < Math.min(D.antiArmor, Math.ceil(armour))
     : (ai.seenBuggies || 0) > 0 && of('rocket').length + qOf('rocket') < Math.min(6, ai.seenBuggies));
-  const wantSniper = unlocked(1, 'sniper') && of('sniper').length + qOf('sniper') < D.snipers && game.time > 240;   // (the ones it has go up the plateaus first)
+  const wantSniper = unlocked(1, 'sniper') && game.time > 240 && (of('sniper').length + qOf('sniper') < D.snipers || (ai.harassWant && !qOf('sniper')));   // (or one to harass your base, v5.66)   // (the ones it has go up the plateaus first)
   // engineers: a repairer only when something is badly damaged, and now and then a raider sent the long way round to steal a building
   const repairers = of('engineer').filter(en => !en.raid).length + qOf('engineer') - (ai.raidPending ? 1 : 0);
   const needsFix = mine.some(b => isBuilding(b) && !isWallType(b.type) && b.built && b.hp < b.maxHp * 0.6);
@@ -2891,6 +2936,7 @@ function runAI(dt) {
   const guns = of('artillery').length + qF('artillery');
   const wantArty = D.artillery > 0 && sent >= 2 && unlocked(1, 'artillery') && guns < D.artillery;
   const vehicle = !of('factory').some(f => f.built) ? null
+    : ai.patrolWant && !qBuggies && unlocked(1, 'buggy') ? 'buggy'   // a Buggy for its scouting loop comes first (v5.66)
     : wantArty && (!wantTank || lights + heavies >= 1) ? 'artillery'
     : wantTank ? (unlocked(1, 'heavy') && D.heavyTanks && heavies <= lights ? 'heavy' : 'light')
     : wantBuggy ? 'buggy' : null;
@@ -3006,7 +3052,7 @@ function runAI(dt) {
   const hqThreat = (hq.hitAt && game.time - hq.hitAt < 4) || intruders.some(e => Math.hypot(e.x - hq.x, e.y - hq.y) < 450);
   if (intruders.length) {
     for (const u of army) {
-      if (u.role === 'scout') continue;
+      if (u.role === 'scout' || AI_ERRANDS.includes(u.role)) continue;   // (scouts and units on an errand, v5.66, carry on)
       // posted units and waves out in the field stay put, unless the HQ itself is under threat: then waves within reach come home
       const far = Math.hypot(u.x - hq.x, u.y - hq.y);
       if ((u.role === 'hill' || u.role === 'garrison' || u.role === 'outpost') && far > 700) continue;
@@ -3030,7 +3076,7 @@ function runAI(dt) {
       if (Math.hypot(u.x - x, u.y - y) > 60) u.order = { type: 'move', x, y };
     });
     for (const u of army) {
-      if (u.role === 'wave' || u.role === 'scout' || u.role === 'hill' || u.role === 'garrison' || u.role === 'outpost' || u.role === 'heal' || u.role === 'hqguard' || u.role === 'guard' && ents.length || u.order) continue;
+      if (u.role === 'wave' || u.role === 'scout' || AI_ERRANDS.includes(u.role) || u.role === 'hill' || u.role === 'garrison' || u.role === 'outpost' || u.role === 'heal' || u.role === 'hqguard' || u.role === 'guard' && ents.length || u.order) continue;
       if (Math.hypot(u.x - rally.x, u.y - rally.y) > 90) u.order = { type: 'move', x: rally.x + (Math.random() - .5) * 60, y: rally.y + (Math.random() - .5) * 60 };
     }
   }
@@ -3042,7 +3088,7 @@ function runAI(dt) {
   const yourArmy = game.ents.filter(e => e.team === 0 && isCombat(e) && visibleAt(e.x, e.y, 1)).length;
   const allIn = ai.known.size > 0 && ai.known.size <= 3 && army.length >= Math.max(6, yourArmy * 2);
   const keepSnipers = D.hill > 0 && game.time > D.hillAfter && (game.ai.hills || []).length;   // Snipers wait for a place on the high ground instead of joining waves
-  const gathered = army.filter(u => !(keepSnipers && u.type === 'sniper' && !allIn) && (allIn ? u.role !== 'scout' && u.role !== 'wave' && u.role !== 'hill' && u.role !== 'garrison' && u.role !== 'outpost' : !u.role) && (allIn || Math.hypot(u.x - rally.x, u.y - rally.y) < 160));
+  const gathered = army.filter(u => !(keepSnipers && u.type === 'sniper' && !allIn) && !(!allIn && ((ai.harassWant && u.type === 'sniper') || (ai.patrolWant && u.type === 'buggy'))) &&   /* (one held back for an errand, v5.66) */ (allIn ? u.role !== 'scout' && u.role !== 'wave' && u.role !== 'hill' && u.role !== 'garrison' && u.role !== 'outpost' : !u.role) && (allIn || Math.hypot(u.x - rally.x, u.y - rally.y) < 160));
   const lost = !ai.known.size && game.time > D.attackAfter + 90;   // still hasn't found you: go looking in force
   const due = game.time >= D.attackAfter && game.time >= (ai.nextWave || 0);
   // when it's due it waits for a full wave (its target size), but not for ever: after waveWait more seconds it goes with what it has, as long as there's a minimum
@@ -3051,6 +3097,7 @@ function runAI(dt) {
   if (!intruders.length && due && enough && (ai.known.size || lost)) {
     const target = aiWaveTarget(rally, targets, D.focus) || aiExploreSpot(hq.x, hq.y, true);
     if (target) {
+      ai.waveInfo = { size: gathered.length, vehicles: gathered.filter(u => !isInfantry(u)).length, fled: false };   // (for the retreat, v5.66)
       gathered.forEach((u, k) => { const a = k * 2.4, rr = 14 * Math.sqrt(k); u.role = 'wave'; u.passive = false; u.order = { type: 'attackmove', x: target.x + Math.cos(a) * rr, y: target.y + Math.sin(a) * rr }; });   // spread out so they don't queue nose to tail
       ai.waveSize = Math.min(D.maxWave, (D.maxArmy === Infinity ? 99 : D.maxArmy - D.guard), ai.waveSize + (D.waveGrow || 2));   // each wave a little bigger
       ai.wavesSent = (ai.wavesSent || 0) + 1;
@@ -3082,6 +3129,120 @@ function runAI(dt) {
       const t = aiWaveTarget(u, targets, D.focus) || ai.exploreTarget;
       if (t) { u.order = { type: 'attackmove', x: t.x, y: t.y, bld: !!t.type }; ai.waveTarget = t; }
     }
+  }
+  if (D.behaviours) aiBehaviours(D, army, hq, rally);
+}
+
+// ---------- Computer behaviours (v5.66, Normal and Hard) ----------
+// Errands that take a unit or two away from the usual jobs for a while: a Buggy's scouting loop round the map (every 3 minutes),
+// a Sniper harassing the edge of your base (every 7 minutes), and a pair of infantry going after an Extractor (every 4 minutes).
+// Plus the retreat: a wave of 7+ that's losing and down to its last 2 runs home (infantry; a vehicle runs when it's the last of 4+).
+// (Tanks running over infantry and infantry dodging tanks happen unit by unit: updateSoldier.)
+const AI_ERRANDS = ['patrol', 'harass', 'xraid', 'retreat'];
+const PATROL_EVERY = 180, HARASS_EVERY = 420, XRAID_EVERY = 240, HARASS_TIME = 150, XRAID_TIME = 90;
+// a spot near (x, y) that a unit can stand on (nudged toward the middle of the map if it's water or rock)
+function landNear(x, y, vehicle) {
+  for (let k = 0; k <= 12; k++) {
+    const px = x + (W / 2 - x) * k / 14, py = y + (H / 2 - y) * k / 14;
+    if (walkable(terrainAt(px, py), vehicle) && !elevAt(px, py)) return { x: px, y: py };
+  }
+  return null;
+}
+function aiBehaviours(D, army, hq, rally) {
+  const ai = game.ai, now = game.time;
+  const free = army.filter(u => !u.role && !(u.order && u.order.type === 'attack'));
+  const yoursNear = (u, r) => game.ents.filter(o => o.team === 0 && isCombat(o) && !o.air && o.hp > 0 && visibleAt(o.x, o.y, 1) && !hiddenFrom(o, 1) && Math.hypot(o.x - u.x, o.y - u.y) < r);
+  const sendHome = u => { u.role = null; u.passive = false; u.order = { type: 'move', x: rally.x + (Math.random() - .5) * 60, y: rally.y + (Math.random() - .5) * 60 }; u.errand = null; };
+
+  // ---- retreat: a wave of 7+ that is losing and down to fewer than 3 runs home (infantry only); a vehicle runs when it's the
+  // last one left of a group of 4+ vehicles. "Losing": more of your fighters near them than they have left.
+  const wave = army.filter(u => u.role === 'wave'), wi = ai.waveInfo;
+  if (wi && wave.length) {
+    const near = new Set(); for (const u of wave) for (const o of yoursNear(u, 350)) near.add(o);
+    const losing = near.size > wave.length;
+    const inf = wave.filter(isInfantry), veh = wave.filter(u => !isInfantry(u));
+    const run = [];
+    if (losing && wi.size >= 7 && wave.length < 3) run.push(...inf);
+    if (losing && wi.vehicles >= 4 && veh.length === 1) run.push(veh[0]);
+    for (const u of run) { u.role = 'retreat'; u.passive = true; u.order = { type: 'move', x: rally.x, y: rally.y }; u.holdUntil = 0; }
+    if (run.length) wi.fled = true;
+  }
+  for (const u of army.filter(u => u.role === 'retreat')) if (!u.order || Math.hypot(u.x - rally.x, u.y - rally.y) < 120) { u.role = null; u.passive = false; }
+
+  // ---- scout patrol: a Buggy drives a loop round the map every 3 minutes, without stopping to fight
+  const pat = army.find(u => u.role === 'patrol');
+  const patrolDue = !pat && now - (ai.patrolAt ?? -999) > PATROL_EVERY && now > 180;
+  const buggyFor = u => u.type === 'buggy' && (!u.role || u.role === 'guard' || u.role === 'hqguard') && !(u.order && u.order.type === 'attack');   // (a guard can go: one takes its place)
+  ai.patrolWant = patrolDue && !army.some(buggyFor);   // none spare: its War Factory makes one for the job
+  if (patrolDue) {
+    const b = army.find(buggyFor);
+    if (b) {
+      const m = 260, pts = [[m, m], [W / 2, m], [W - m, m], [W - m, H / 2], [W - m, H - m - 180], [W / 2, H - m - 180], [m, H - m - 180], [m, H / 2]].map(([x, y]) => landNear(x, y, false)).filter(Boolean);
+      let first = 0, bd = Infinity; pts.forEach((p, i) => { const d = Math.hypot(p.x - b.x, p.y - b.y); if (d < bd) { bd = d; first = i; } });
+      b.role = 'patrol'; b.passive = true; b.errand = { pts: pts.slice(first).concat(pts.slice(0, first)), i: 0 }; b.order = null;
+      ai.patrolAt = now;
+    }
+  }
+  if (pat) {
+    const er = pat.errand;
+    if (!er || er.i >= er.pts.length) sendHome(pat);
+    else if (!pat.order) { const p = er.pts[er.i]; if (Math.hypot(pat.x - p.x, pat.y - p.y) < 90) er.i++; else if (er.last === er.i) er.i++; else { er.last = er.i; pat.order = { type: 'move', x: p.x, y: p.y }; } }   // (a point it couldn't reach: on to the next)
+  }
+
+  // ---- harassing Sniper: every 7 minutes one goes to the edge of your base, picks off what comes in range, and runs off
+  // when your units come close, then comes back; after 2.5 minutes it goes home
+  const har = army.find(u => u.role === 'harass');
+  const yourBuildings = [...ai.known.values()].filter(k => k.type !== 'wall' && k.type !== 'gate');
+  const harassDue = !har && now - (ai.harassAt ?? -999) > HARASS_EVERY && now > 300 && yourBuildings.length;
+  const sniperFor = u => u.type === 'sniper' && (!u.role || u.role === 'hill') && !(u.order && u.order.type === 'attack');
+  ai.harassWant = harassDue && !army.some(sniperFor);   // none spare (they've all gone off with waves): its Barracks trains one for the job
+  if (harassDue) {
+    const sn = army.find(sniperFor);
+    if (sn) {
+      const b = yourBuildings.reduce((a, k) => Math.hypot(k.x - hq.x, k.y - hq.y) < Math.hypot(a.x - hq.x, a.y - hq.y) ? k : a);   // your building nearest its side
+      const ang = Math.atan2(hq.y - b.y, hq.x - b.x), spot = landNear(b.x + Math.cos(ang) * 260, b.y + Math.sin(ang) * 260, false);
+      if (spot) {
+        const back = landNear(spot.x + Math.cos(ang) * 260, spot.y + Math.sin(ang) * 260, false) || spot;
+        sn.role = 'harass'; sn.passive = true; sn.errand = { spot, back, phase: 'go', until: now + HARASS_TIME }; sn.order = { type: 'move', x: spot.x, y: spot.y };
+        ai.harassAt = now;
+      }
+    }
+  }
+  if (har) {
+    const er = har.errand;
+    if (!er || now > er.until) sendHome(har);
+    else {
+      const close = yoursNear(har, 130).length > 0;
+      if (close && er.phase !== 'flee') { er.phase = 'flee'; har.passive = true; har.order = { type: 'move', x: er.back.x, y: er.back.y }; }   // too close: run
+      else if (er.phase === 'flee' && !har.order && !yoursNear(har, 200).length) { er.phase = 'go'; har.order = { type: 'move', x: er.spot.x, y: er.spot.y }; }   // shaken off: back to the edge
+      else if (er.phase === 'go' && !har.order) { er.phase = 'snipe'; har.passive = false; }   // in place: snipe (it holds its ground and shoots what's in range)
+    }
+  }
+
+  // ---- Extractor raid: every 4 minutes two infantry (Rocket Soldiers if it has them) go after one of your Extractors:
+  // the last one it saw, or else the ore by one of your Refineries; they don't stop to fight on the way
+  ai.seenX = ai.seenX || {};
+  for (const x of game.ents) if (x.team === 0 && x.type === 'extractor' && visibleAt(x.x, x.y, 1)) ai.seenX[x.id] = { x: x.x, y: x.y, t: now };
+  for (const id in ai.seenX) { const x = byId(+id); if (!x || x.hp <= 0 || x.team !== 0) delete ai.seenX[id]; }
+  const raiders = army.filter(u => u.role === 'xraid');
+  if (!raiders.length && now - (ai.xraidAt ?? -999) > XRAID_EVERY && now > 300) {
+    const seen = Object.values(ai.seenX).sort((a, b) => b.t - a.t)[0];
+    const ref = yourBuildings.find(k => k.type === 'refinery');
+    const ore = !seen && ref ? findOre(ref.x, ref.y, 500, 0, false) : null;
+    const goal = seen ? { x: seen.x, y: seen.y } : ore ? { x: ore.x, y: ore.y } : null;
+    const pick = free.filter(u => isInfantry(u) && u.type !== 'sniper' && u.type !== 'engineer' && u.type !== 'civilian').sort((a, b) => (b.type === 'rocket') - (a.type === 'rocket')).slice(0, 2);
+    if (goal && pick.length === 2) {
+      for (const u of pick) { u.role = 'xraid'; u.passive = true; u.errand = { goal, until: now + XRAID_TIME + Math.hypot(goal.x - u.x, goal.y - u.y) / STATS[u.type].speed, look: 0 }; u.order = { type: 'move', x: goal.x, y: goal.y }; }
+      ai.xraidAt = now;
+    }
+  }
+  for (const u of raiders) {
+    const er = u.errand;
+    if (!er || now > er.until) { sendHome(u); continue; }
+    if (u.order && u.order.type === 'attack' && byId(u.order.target) && byId(u.order.target).hp > 0) continue;
+    const x = game.ents.filter(v => v.team === 0 && v.type === 'extractor' && v.hp > 0 && visibleAt(v.x, v.y, 1) && Math.hypot(v.x - u.x, v.y - u.y) < 400).sort((a, b) => Math.hypot(a.x - u.x, a.y - u.y) - Math.hypot(b.x - u.x, b.y - u.y))[0];
+    if (x) { u.passive = false; u.order = { type: 'attack', target: x.id }; continue; }
+    if (!u.order) { if (++er.look > 20 / D.think) sendHome(u); else { const s2 = Object.values(ai.seenX).sort((a, b) => b.t - a.t)[0]; if (s2 && Math.hypot(s2.x - u.x, s2.y - u.y) > 60) u.order = { type: 'move', x: s2.x, y: s2.y }; } }   // nothing here: try where one was last seen, else give up
   }
 }
 
