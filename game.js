@@ -253,7 +253,7 @@ const BUILD_RADIUS = 300;             // how far from your HQ you can place buil
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
 
 // v5.52 prices (your picks, with the $500 loads): Sniper 250 (was 200), Buggy 400 (250), Light Tank 700 (400), Heavy Tank 1000 (700), Extractor 300 (150); v5.56: Artillery 500 (450)
-const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, mg: 300, cannon: 500, missile: 600, laser: 1000, wall: 20, gate: 150, soldier: 100, extractor: 300, buggy: 400, grenadier: 160, engineer: 150, rocket: 200, sniper: 250, light: 700, heavy: 1000, artillery: 500, tech: 600, radar: 300, medbay: 400, helipad: 500, heli: 800, sam: 600, settler: 2000, reactor: 1000, satellite: 1500 };   // (a new Settler is bought at the War Factory, v5.65: the dearest thing in the game)
+const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, mg: 300, cannon: 500, missile: 600, laser: 1000, wall: 20, gate: 150, soldier: 100, extractor: 300, buggy: 400, grenadier: 160, engineer: 150, rocket: 200, sniper: 250, light: 700, heavy: 1000, artillery: 500, tech: 600, radar: 300, medbay: 400, helipad: 500, heli: 800, sam: 600, settler: 2000, reactor: 1000, satellite: 1500 };   // (a new Settler is bought at the HQ since v5.67, at the War Factory in v5.65-5.66: the dearest thing in the game)
 const WALL_REACH = 150;              // walls, gates and SAM Sites can go this much further out than other buildings
 // Turrets (v5.64): an Engineer builds them anywhere you can see, but never this close to an enemy building
 const TURRET_TYPES = ['mg', 'cannon', 'missile', 'laser'], TURRET_KEEP_OUT = 300;
@@ -278,7 +278,7 @@ const STATS = {
   grenadier: { hp: 55,  speed: 60, r: 9,  sight: 170, range: 95,  dmg: 16, cooldown: 2.0, splash: 38, flight: 0.55, vsVehicle: 0.5 },   // (speed 48 until v5.62, +25%) // lobbed grenades: area damage, half vs vehicles
   engineer:  { hp: 20,  speed: 60, r: 9,  sight: 150, repair: 30 },   // (speed 48 until v5.62: every unit +25%)
   civilian:  { hp: 40,  speed: 62, r: 8,  sight: 150, range: 75, dmg: 4, cooldown: 0.9 },   // (speed 50 until v5.62, +25%) // villagers with handguns: weaker than a soldier, can't be bought   // no weapon, very fragile: repairs (hp per second) and captures
-  hq:        { hp: 900, size: 140, sight: 280 },   // the biggest building in the game
+  hq:        { hp: 900, size: 140, sight: 280, maxQueue: 1 },   // (builds one Settler at a time, v5.67)   // the biggest building in the game
   barracks:  { hp: 500, size: 74, sight: 200, buildTime: 10, trainTime: 4, maxQueue: 5 },
   refinery:  { hp: 600, size: 84, sight: 200, buildTime: 12, trainTime: 6, maxQueue: 3 },
   factory:   { hp: 800, size: 90, sight: 200, buildTime: 14, trainTime: 7, maxQueue: 3 },
@@ -301,8 +301,8 @@ const STATS = {
   derrick:   { hp: 600, size: 64, sight: 160, pay: 100, payEvery: 15 },   // an Engineer captures it; then it pays its owner every 15s
   house:     { hp: 400, size: 42, sight: 0 },                             // village houses: scenery for now
 };
-const PRODUCES = { barracks: ['soldier', 'grenadier', 'rocket', 'sniper', 'engineer'], factory: ['buggy', 'light', 'artillery', 'heavy', 'extractor', 'settler'], helipad: ['heli'] };   // (Extractors were bought at the Refinery until v5.55; each Refinery still comes with one free)
-const HAS_DOOR = t => !!PRODUCES[t] || t === 'refinery';   // buildings whose front door must stay clear (the Refinery for its unloading bay)
+const PRODUCES = { barracks: ['soldier', 'grenadier', 'rocket', 'sniper', 'engineer'], factory: ['buggy', 'light', 'artillery', 'heavy', 'extractor'], helipad: ['heli'], hq: ['settler'] };   // (the Settler moved from the War Factory to the HQ in v5.67)   // (Extractors were bought at the Refinery until v5.55; each Refinery still comes with one free)
+const HAS_DOOR = t => (!!PRODUCES[t] && t !== 'hq') || t === 'refinery';   // (the HQ's Settler just drives out: nothing has to keep clear of it)   // buildings whose front door must stay clear (the Refinery for its unloading bay)
 // Tech tree: what else you need (finished, and still standing) before you can build or train something
 const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['power'], mg: ['barracks'], cannon: ['factory'], missile: ['satellite'], laser: ['reactor'], heavy: ['reactor'], reactor: ['tech'], satellite: ['reactor'], artillery: ['power'], radar: ['power'], medbay: ['barracks'], helipad: ['factory'], sam: ['power'] };
 const hasBuilt = (team, type) => game.ents.some(b => b.team === team && b.type === type && b.built && ruinWorks(b));   // (a captured ruin counts once it's repaired to half)
@@ -3514,7 +3514,7 @@ function aiExpand(hq, refineries, sent) {
   return COST.power;
 }
 
-// A new Settler (v5.65): bought at the War Factory ($2,000, 40 s) and driven to fresh ore too far away to reach with
+// A new Settler (v5.65): bought at its HQ ($2,000, 40 s; at the War Factory until v5.67) and driven to fresh ore too far away to reach with
 // stepping stones, where it deploys as a second HQ. The computer is careful with them: Normal and Hard only, never in its
 // first 8 minutes or before two waves, only with a rich field to go for, its home well guarded and $2,000 to spare beyond
 // what it is saving for, one at a time, and at least 5 minutes after the last one (bought or lost).
@@ -3527,7 +3527,7 @@ function aiBuySettler(hq, target, sent) {
   if ([...ai.known.values()].some(k => Math.hypot(k.x - target.x, k.y - target.y) < 700)) return 0;   // not on your doorstep
   const army = game.ents.filter(e => e.team === 1 && isCombat(e) && !e.air).length;
   if (army < D.guard + D.minWave) return 0;   // home stays guarded
-  const f = game.ents.find(e => e.team === 1 && e.type === 'factory' && e.built && !e.queue);
+  const f = game.ents.find(e => e.team === 1 && e.type === 'hq' && e.built && !e.queue);   // (at its HQ since v5.67)
   if (!f) return 0;
   if (game.credits[1] < COST.settler + 500) return COST.settler + 500;   // save up for it (with a cushion)
   if (!produce(f, 'settler')) return 0;
@@ -3538,7 +3538,7 @@ function aiBuySettler(hq, target, sent) {
 function aiRunSettler() {
   const ai = game.ai;
   if (!ai.settlerGoal) return false;
-  const queued = game.ents.some(e => e.team === 1 && e.type === 'factory' && e.qTypes.includes('settler'));
+  const queued = game.ents.some(e => e.team === 1 && e.type === 'hq' && e.qTypes.includes('settler'));
   const s = game.ents.find(e => e.team === 1 && e.type === 'settler' && e.hp > 0);
   if (!s) { if (!queued) { ai.settlerGoal = null; ai.settlerAt = game.time; } return queued; }   // lost on the way (or deployed): the 5-minute wait starts again
   const g = ai.settlerGoal;
@@ -6189,6 +6189,7 @@ function updateHUD() {
   else if (placing && placing.strike) text = placing.ghost ? 'Tap the strip again (or Call strike) to send the plane' : 'Napalm Strike: tap ground you can see';
   else if (placing) text = placing.ghost ? 'Tap the square again (or Place here) to build' : `Tap inside the green area to place your ${NAMES[placing.type].toLowerCase()}`;
   else if (settler) text = 'Settler — move somewhere open, then Deploy';
+  else if (hq && hq.queue) text = `Headquarters — making a Settler (${Math.ceil(TRAIN_TIME.settler * slowOf(hq) - hq.trainT)} s)`;
   else if (hq) text = extraHqs(0) ? `Headquarters — ${extraHqs(0) + 1} HQs: +${Math.round(HQ_BONUS * extraHqs(0) * 100)}% build speed` : 'Headquarters';
   else if (ruinSel) text = ruinSel.team === NEUTRAL
     ? `Ruined ${NAMES[ruinSel.type]} — neutral. Send an Engineer to capture it, then repair it to half to bring it back into use`
