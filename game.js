@@ -253,7 +253,7 @@ const BUILD_RADIUS = 300;             // how far from your HQ you can place buil
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
 
 // v5.52 prices (your picks, with the $500 loads): Sniper 250 (was 200), Buggy 400 (250), Light Tank 700 (400), Heavy Tank 1000 (700), Extractor 300 (150); v5.56: Artillery 500 (450)
-const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, mg: 300, cannon: 500, missile: 600, laser: 1000, wall: 20, gate: 150, soldier: 100, extractor: 300, buggy: 400, grenadier: 160, engineer: 150, rocket: 200, sniper: 250, light: 700, heavy: 1000, artillery: 500, tech: 600, radar: 300, medbay: 400, helipad: 500, heli: 800, sam: 600 };
+const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, mg: 300, cannon: 500, missile: 600, laser: 1000, wall: 20, gate: 150, soldier: 100, extractor: 300, buggy: 400, grenadier: 160, engineer: 150, rocket: 200, sniper: 250, light: 700, heavy: 1000, artillery: 500, tech: 600, radar: 300, medbay: 400, helipad: 500, heli: 800, sam: 600, settler: 2000 };   // (a new Settler is bought at the War Factory, v5.65: the dearest thing in the game)
 const WALL_REACH = 150;              // walls, gates and SAM Sites can go this much further out than other buildings
 // Turrets (v5.64): an Engineer builds them anywhere you can see, but never this close to an enemy building
 const TURRET_TYPES = ['mg', 'cannon', 'missile', 'laser'], TURRET_KEEP_OUT = 300;
@@ -299,14 +299,14 @@ const STATS = {
   derrick:   { hp: 600, size: 64, sight: 160, pay: 100, payEvery: 15 },   // an Engineer captures it; then it pays its owner every 15s
   house:     { hp: 400, size: 42, sight: 0 },                             // village houses: scenery for now
 };
-const PRODUCES = { barracks: ['soldier', 'grenadier', 'rocket', 'sniper', 'engineer'], factory: ['buggy', 'light', 'artillery', 'heavy', 'extractor'], helipad: ['heli'] };   // (Extractors were bought at the Refinery until v5.55; each Refinery still comes with one free)
+const PRODUCES = { barracks: ['soldier', 'grenadier', 'rocket', 'sniper', 'engineer'], factory: ['buggy', 'light', 'artillery', 'heavy', 'extractor', 'settler'], helipad: ['heli'] };   // (Extractors were bought at the Refinery until v5.55; each Refinery still comes with one free)
 const HAS_DOOR = t => !!PRODUCES[t] || t === 'refinery';   // buildings whose front door must stay clear (the Refinery for its unloading bay)
 // Tech tree: what else you need (finished, and still standing) before you can build or train something
 const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['power'], mg: ['barracks'], cannon: ['factory'], missile: ['helipad'], laser: ['tech'], heavy: ['tech'], artillery: ['power'], radar: ['power'], medbay: ['barracks'], helipad: ['factory'], sam: ['power'] };
 const hasBuilt = (team, type) => game.ents.some(b => b.team === team && b.type === type && b.built && ruinWorks(b));   // (a captured ruin counts once it's repaired to half)
 const missingFor = (team, type) => (REQUIRES[type] || []).filter(t => !hasBuilt(team, t));
 const unlocked = (team, type) => missingFor(team, type).length === 0;
-const TRAIN_TIME = { soldier: 4, buggy: 6, extractor: 6, grenadier: 4.5, engineer: 5, rocket: 5, sniper: 6, light: 10, heavy: 16, artillery: 12, heli: 15 };   // seconds to make each unit
+const TRAIN_TIME = { soldier: 4, buggy: 6, extractor: 6, grenadier: 4.5, engineer: 5, rocket: 5, sniper: 6, light: 10, heavy: 16, artillery: 12, heli: 15, settler: 40 };   // seconds to make each unit
 const isCombat = e => e.type === 'civilian' || e.type === 'soldier' || e.type === 'buggy' || e.type === 'grenadier' || e.type === 'rocket' || e.type === 'sniper' || e.type === 'light' || e.type === 'heavy' || e.type === 'artillery' || e.type === 'heli';
 const isTank = e => e.type === 'light' || e.type === 'heavy';
 const isInfantry = e => e.type === 'civilian' || e.type === 'soldier' || e.type === 'grenadier' || e.type === 'engineer' || e.type === 'rocket' || e.type === 'sniper';
@@ -323,17 +323,20 @@ const DIFFICULTY = {
             derricks: true, derrickAfter: 480, ruinAfter: 540, turrets: 1, turretsTotal: 2, engineerCap: 2, escort: 2, garrison: 1, hill: 0, hillSize: 0, hillAfter: 0 },
   normal: { label: 'Normal', think: 1.5, slow: 1, income: 1, attackAt: 8, attackAfter: 240, barracks: 1, maxArmy: 36, towers: 2, buggies: true, plants: 1,
             guard: 3, maxWave: 16, extractors: 6, refineries: 2, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 1, factory: true, tanks: 0.25, heavyTanks: false, artillery: 1, raidEvery: 600, hqGuard: 2, helis: 1, sams: 1, heliSpare: 300, factoryAt: 150, waveEvery: 180, minWave: 8, waveGrow: 3, waveWait: 60, focus: 'economy',
-            derricks: true, derrickAfter: 360, ruinAfter: 420, turrets: 1, turretsTotal: 2, engineerCap: 2, escort: 3, garrison: 2, hill: 1, hillSize: 3, hillAfter: 420 },
+            derricks: true, derrickAfter: 360, ruinAfter: 420, settlers: true, turrets: 1, turretsTotal: 2, engineerCap: 2, escort: 3, garrison: 2, hill: 1, hillSize: 3, hillAfter: 420 },
   hard:   { label: 'Hard',   think: 1,   slow: 0.9,  income: 1.0,     attackAt: 10, attackAfter: 180, barracks: 3, factories: 2, maxArmy: Infinity, towers: 3, buggies: true, plants: 2,
             guard: 4, maxWave: 36, extractors: 7, refineries: 3, walls: true, grenadiers: true, engineers: 1, rockets: true, snipers: 2, factory: true, tanks: 0.35, heavyTanks: true, artillery: 2, raidEvery: 480, hqGuard: 3, helis: 2, sams: 2, heliSpare: 0, heliSave: true, earlyRefinery: true, expandAt: 1500, antiArmor: 12, waveEvery: 120, minWave: 10, waveGrow: 2, waveWait: 60, focus: 'defences',
-            derricks: true, derrickAfter: 300, ruinAfter: 360, turrets: 1, turretsTotal: 2, engineerCap: 3, escort: 3, garrison: 3, hill: 2, hillSize: 3, hillAfter: 360 },
+            derricks: true, derrickAfter: 300, ruinAfter: 360, settlers: true, turrets: 1, turretsTotal: 2, engineerCap: 3, escort: 3, garrison: 3, hill: 2, hillSize: 3, hillAfter: 360 },
 };
 let difficulty = 'normal';
 try { if (DIFFICULTY[localStorage.getItem('mini-rts-difficulty')]) difficulty = localStorage.getItem('mini-rts-difficulty'); } catch (err) {}
 const diff = () => DIFFICULTY[difficulty];
 // Power Plants: each finished one makes building and training 25% faster, up to double speed
-const POWER_BONUS = 0.25, POWER_MAX = 2;
-const powerBoost = team => Math.min(POWER_MAX, 1 + POWER_BONUS * game.ents.filter(b => b.team === team && b.type === 'power' && b.built && ruinWorks(b)).length);
+// Extra Headquarters (from bought Settlers, v5.65): each one past the first adds another 25% on top, up to triple speed in all
+const POWER_BONUS = 0.25, POWER_MAX = 2, HQ_BONUS = 0.25, BOOST_MAX = 3;
+const plantBoost = team => Math.min(POWER_MAX, 1 + POWER_BONUS * game.ents.filter(b => b.team === team && b.type === 'power' && b.built && ruinWorks(b)).length);
+const extraHqs = team => Math.max(0, game.ents.filter(b => b.team === team && b.type === 'hq' && b.hp > 0).length - 1);
+const powerBoost = team => Math.min(BOOST_MAX, plantBoost(team) + HQ_BONUS * extraHqs(team));
 // how many times longer than normal this side takes to build things (difficulty slow-down ÷ power boost)
 const slowOf = e => (e.team === 1 ? diff().slow : 1) / powerBoost(e.team);
 const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', rocket: 'Rocket Soldier', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', mg: 'Machine Gun Turret', cannon: 'Cannon Turret', missile: 'Missile Turret', laser: 'Laser Turret', power: 'Power Plant', radar: 'Radar', medbay: 'Medbay', wall: 'Wall', gate: 'Gate', derrick: 'Oil Derrick', house: 'House', civilian: 'Civilian', helipad: 'Helipad', heli: 'Attack Helicopter', sam: 'SAM Site' };
@@ -3202,6 +3205,7 @@ function aiManOutposts(army, spare) {
 // cheap Power Plants as stepping stones to stretch its build area, then a refinery right by the ore.
 // Returns how much money it wants to keep for that (0 if it isn't expanding).
 function aiExpand(hq, refineries, sent) {
+  if (aiRunSettler()) return 0;   // a Settler it bought is on its way to a new base: nothing else until it has deployed
   if (refineries.length >= 4 || (!sent && game.time < 200) || aiBlocked('expand')) return 0;
   const oreNear = (x, y, r) => game.ore.reduce((s, o) => s + (o.amount > 0 && Math.hypot(o.x - x, o.y - y) < r ? o.amount : 0), 0);
   if (refineries.some(r => !r.built || oreNear(r.x, r.y, 450) > (diff().expandAt || 600) * ORE_MULT)) return 0;   // still plenty to mine (Hard moves on sooner)
@@ -3228,6 +3232,7 @@ function aiExpand(hq, refineries, sent) {
   }
   const giveUp = () => { game.ai.cantPlace = game.ai.cantPlace || {}; game.ai.cantPlace.expand = game.time; return 0; };
   if (!best) return giveUp();
+  if (bd >= 600) { const s = aiBuySettler(hq, target, sent); if (s) return s; }   // too far for a stepping stone or two: a new Settler, if it can spare one (v5.65)
   if (bd < 280) {   // close enough: put the refinery down by the ore
     if (game.credits[1] >= COST.refinery) {
       const before = refineries.length;
@@ -3238,6 +3243,52 @@ function aiExpand(hq, refineries, sent) {
   }
   if (game.credits[1] >= COST.power && !placeBuilding(1, 'power', best.x, best.y)) return giveUp();   // stepping stone
   return COST.power;
+}
+
+// A new Settler (v5.65): bought at the War Factory ($2,000, 40 s) and driven to fresh ore too far away to reach with
+// stepping stones, where it deploys as a second HQ. The computer is careful with them: Normal and Hard only, never in its
+// first 8 minutes or before two waves, only with a rich field to go for, its home well guarded and $2,000 to spare beyond
+// what it is saving for, one at a time, and at least 5 minutes after the last one (bought or lost).
+const SETTLER_GAP = 300;
+function aiBuySettler(hq, target, sent) {
+  const D = diff(), ai = game.ai;
+  if (!D.settlers || sent < 2 || game.time < 480 || game.time - (ai.settlerAt ?? -999) < SETTLER_GAP) return 0;
+  const field = game.ore.reduce((s, o) => s + (o.amount > 0 && Math.hypot(o.x - target.x, o.y - target.y) < 300 ? o.amount : 0), 0);
+  if (field < 2500 * ORE_MULT) return 0;   // not worth a whole new base
+  if ([...ai.known.values()].some(k => Math.hypot(k.x - target.x, k.y - target.y) < 700)) return 0;   // not on your doorstep
+  const army = game.ents.filter(e => e.team === 1 && isCombat(e) && !e.air).length;
+  if (army < D.guard + D.minWave) return 0;   // home stays guarded
+  const f = game.ents.find(e => e.team === 1 && e.type === 'factory' && e.built && !e.queue);
+  if (!f) return 0;
+  if (game.credits[1] < COST.settler + 500) return COST.settler + 500;   // save up for it (with a cushion)
+  if (!produce(f, 'settler')) return 0;
+  ai.settlerAt = game.time; ai.settlerGoal = { x: target.x, y: target.y }; ai.settlerTries = 0;
+  return 0;
+}
+// drives its bought Settler to the new ore and deploys it close by; returns true while one is queued or on its way
+function aiRunSettler() {
+  const ai = game.ai;
+  if (!ai.settlerGoal) return false;
+  const queued = game.ents.some(e => e.team === 1 && e.type === 'factory' && e.qTypes.includes('settler'));
+  const s = game.ents.find(e => e.team === 1 && e.type === 'settler' && e.hp > 0);
+  if (!s) { if (!queued) { ai.settlerGoal = null; ai.settlerAt = game.time; } return queued; }   // lost on the way (or deployed): the 5-minute wait starts again
+  const g = ai.settlerGoal;
+  if (!ai.settlerSpot) {   // a free spot for the HQ near the ore, on the side facing home
+    const hq = hqOf(1) || s;
+    for (let k = 0; k < 60 && !ai.settlerSpot; k++) {
+      const a = Math.atan2(hq.y - g.y, hq.x - g.x) + (Math.random() - 0.5) * 2.4, d = 150 + Math.random() * 150;
+      const x = g.x + Math.cos(a) * d, y = g.y + Math.sin(a) * d;
+      if (x > 60 && y > 60 && x < W - 60 && y < H - 60 && siteIsFree(x, y, STATS.hq.size)) ai.settlerSpot = { x, y };
+    }
+    if (!ai.settlerSpot) ai.settlerSpot = { x: g.x, y: g.y };
+    // a small escort clears the way
+    game.ents.filter(u => u.team === 1 && isCombat(u) && !u.air && !u.role).slice(0, 3).forEach(u => { u.order = { type: 'attackmove', x: ai.settlerSpot.x, y: ai.settlerSpot.y }; u.passive = false; });
+  }
+  const sp = ai.settlerSpot;
+  if (Math.hypot(s.x - sp.x, s.y - sp.y) > 40) { if (!s.order) { if (++ai.settlerTries > 8) { if (deploy(s)) ai.settlerGoal = ai.settlerSpot = null; } else s.order = { type: 'move', x: sp.x, y: sp.y }; } return true; }
+  if (deploy(s)) { ai.settlerGoal = ai.settlerSpot = null; return false; }
+  ai.settlerSpot = null; ai.settlerTries++;   // no room right there: look for another spot
+  return true;
 }
 
 // a new refinery goes as close as it can get to ore it knows about that still has plenty left
@@ -5703,14 +5754,14 @@ function updateHUD() {
   else if (placing && placing.type === 'wall') text = !placing.anchor ? 'Tap where the wall starts' : placing.end ? 'Tap the end again to build (or Build wall)' : 'Tap where the wall ends (or tap the start again for one piece)';
   else if (placing) text = placing.ghost ? 'Tap the square again (or Place here) to build' : `Tap inside the green area to place your ${NAMES[placing.type].toLowerCase()}`;
   else if (settler) text = 'Settler — move somewhere open, then Deploy';
-  else if (hq) text = 'Headquarters';
+  else if (hq) text = extraHqs(0) ? `Headquarters — ${extraHqs(0) + 1} HQs: +${Math.round(HQ_BONUS * extraHqs(0) * 100)}% build speed` : 'Headquarters';
   else if (ruinSel) text = ruinSel.team === NEUTRAL
     ? `Ruined ${NAMES[ruinSel.type]} — neutral. Send an Engineer to capture it, then repair it to half to bring it back into use`
     : ruinSel.team === 0 ? `Ruined ${NAMES[ruinSel.type]}: ${Math.floor(ruinSel.hp / ruinSel.maxHp * 100)}% — repair it to ${RUIN_WORKS * 100}% with Engineers to bring it back into use` : `Ruined ${NAMES[ruinSel.type]} (enemy)`;
   else if (sel.length === 1 && sel[0].type === 'gate') text = 'Gate — opens for your units, enemies must destroy it';
   else if (sel.length === 1 && sel[0].type === 'wall') text = 'Wall';
   else if (sel.length === 1 && sel[0].type === 'power') text = sel[0].built
-    ? `Power Plant — you build ${Math.round((powerBoost(0) - 1) * 100)}% faster${powerBoost(0) >= POWER_MAX ? ' (max)' : ''}`
+    ? `Power Plant — you build ${Math.round((powerBoost(0) - 1) * 100)}% faster${plantBoost(0) >= POWER_MAX ? ' (Power Plants maxed)' : ''}`
     : `Power Plant: ${Math.floor(sel[0].progress * 100)}% built`;
   else if (sel.length === 1 && sel[0].type === 'derrick') text = sel[0].team === 0
     ? 'Oil Derrick — pays $' + STATS.derrick.pay + ' every ' + STATS.derrick.payEvery + 's (next in ' + Math.ceil(STATS.derrick.payEvery - (sel[0].payT || 0)) + 's)'
