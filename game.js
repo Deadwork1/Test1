@@ -253,7 +253,7 @@ const BUILD_RADIUS = 300;             // how far from your HQ you can place buil
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
 
 // v5.52 prices (your picks, with the $500 loads): Sniper 250 (was 200), Buggy 400 (250), Light Tank 700 (400), Heavy Tank 1000 (700), Extractor 300 (150); v5.56: Artillery 500 (450)
-const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, mg: 300, cannon: 500, missile: 600, laser: 1000, wall: 20, gate: 150, soldier: 100, extractor: 300, buggy: 400, grenadier: 160, engineer: 200, rocket: 200, sniper: 250, light: 700, heavy: 1000, artillery: 500, tech: 600, radar: 300, medbay: 400, helipad: 500, heli: 800, sam: 600, settler: 3000, reactor: 1000, satellite: 1500 };   // (a new Settler is bought at the War Factory: the dearest thing in the game; $2,000 until v5.67)
+const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, mg: 300, cannon: 500, missile: 600, laser: 1000, wall: 20, gate: 150, soldier: 100, extractor: 500, buggy: 400, grenadier: 160, engineer: 200, rocket: 200, sniper: 250, light: 700, heavy: 1000, artillery: 500, tech: 600, radar: 300, medbay: 400, helipad: 500, heli: 800, sam: 600, settler: 3000, reactor: 1000, satellite: 1500 };   // (a new Settler is bought at the War Factory: the dearest thing in the game; $2,000 until v5.67)
 const WALL_REACH = 150;              // walls, gates and SAM Sites can go this much further out than other buildings
 // Turrets (v5.64): an Engineer builds them anywhere you can see, but never this close to an enemy building
 const TURRET_TYPES = ['mg', 'cannon', 'missile', 'laser'], TURRET_KEEP_OUT = 300;
@@ -304,7 +304,7 @@ const STATS = {
 const PRODUCES = { barracks: ['soldier', 'grenadier', 'rocket', 'sniper', 'engineer'], factory: ['buggy', 'light', 'artillery', 'heavy', 'extractor', 'settler'], helipad: ['heli'] };   // (the Settler is a unit: War Factory, v5.65)   // (Extractors were bought at the Refinery until v5.55; each Refinery still comes with one free)
 const HAS_DOOR = t => !!PRODUCES[t] || t === 'refinery';   // buildings whose front door must stay clear (the Refinery for its unloading bay)
 // Tech tree: what else you need (finished, and still standing) before you can build or train something
-const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['power'], mg: ['barracks'], cannon: ['factory'], missile: ['radar', 'factory'], laser: ['reactor'], heavy: ['reactor'], reactor: ['tech'], satellite: ['reactor'], settler: ['reactor', 'satellite'],   /* (Settlers need both since v5.67) */ artillery: ['power'], radar: ['power'], medbay: ['barracks'], helipad: ['factory'], sam: ['radar'] };   // (SAM Sites need a Radar since v5.67; a Power Plant before)
+const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['power'], mg: ['barracks'], cannon: ['factory'], missile: ['radar', 'factory'], laser: ['reactor'], heavy: ['reactor'], reactor: ['tech'], satellite: ['reactor'], settler: ['reactor', 'satellite'],   /* (Settlers need both since v5.67) */ artillery: ['power'], radar: ['power'], medbay: ['barracks'], helipad: ['factory'], sam: ['radar'], extractor: ['refinery'], light: ['power'] };   // (v5.69: Extractors need a Refinery standing, Light Tanks a Power Plant)   // (SAM Sites need a Radar since v5.67; a Power Plant before)
 const hasBuilt = (team, type) => game.ents.some(b => b.team === team && b.type === type && b.built && ruinWorks(b));   // (a captured ruin counts once it's repaired to half)
 const missingFor = (team, type) => (REQUIRES[type] || []).filter(t => !hasBuilt(team, t));
 const unlocked = (team, type) => missingFor(team, type).length === 0;
@@ -2952,7 +2952,7 @@ function runAI(dt) {
   const vehicle = !of('factory').some(f => f.built) ? null
     : ai.patrolWant && !qBuggies && unlocked(1, 'buggy') ? 'buggy'   // a Buggy for its scouting loop comes first (v5.66)
     : wantArty && (!wantTank || lights + heavies >= 1) ? 'artillery'
-    : wantTank ? (unlocked(1, 'heavy') && D.heavyTanks && heavies <= lights ? 'heavy' : 'light')
+    : wantTank && (unlocked(1, 'light') || unlocked(1, 'heavy')) ? (unlocked(1, 'heavy') && D.heavyTanks && (heavies <= lights || !unlocked(1, 'light')) ? 'heavy' : 'light')   // (Light Tanks need a Power Plant since v5.69)
     : wantBuggy ? 'buggy' : null;
   for (const f of of('factory')) {
     if (!vehicle || !f.built || f.queue >= 1 || army.length + queued >= D.maxArmy) continue;
