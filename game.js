@@ -4701,6 +4701,15 @@ function drawTank(e) {
   ctx.fillStyle = c.dark; ctx.fillRect(-L + 2, -2, 5, 4);   // engine deck grille
   ctx.fillStyle = 'rgba(0,0,0,0.25)'; for (let k = 0; k < 3; k++) ctx.fillRect(-L + 3 + k * 2, -Wd + 6, 1, Wd * 2 - 12);
   if (heavy) { ctx.fillStyle = c.dark; ctx.fillRect(-L + 2, -Wd + 4, L * 2 - 6, 2); ctx.fillRect(-L + 2, Wd - 6, L * 2 - 6, 2); }   // extra side armour
+  if (e.type === 'flametank') {   // (v5.69) a scorched, sooty hull and two big fuel drums across the rear deck with hazard bands
+    ctx.fillStyle = 'rgba(25,20,15,0.38)'; ctx.fillRect(-L + 2, -Wd + 4, L * 2 - 3, Wd * 2 - 8);
+    ctx.fillStyle = 'rgba(15,12,10,0.45)'; for (const [sx, sy, r] of [[L - 5, -3, 3], [L - 7, 4, 2.5], [2, -5, 2]]) { ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill(); }   // soot
+    for (const dx of [-L + 3, -L + 9.5]) {
+      ctx.fillStyle = '#8c8f92'; ctx.strokeStyle = '#3b3d40'; ctx.lineWidth = 1; ctx.fillRect(dx, -Wd + 3, 5.5, Wd * 2 - 6); ctx.strokeRect(dx, -Wd + 3, 5.5, Wd * 2 - 6);
+      ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(dx + 0.8, -Wd + 3.5, 1.4, Wd * 2 - 7);
+      for (let k = 0; k < 4; k++) { ctx.fillStyle = k % 2 ? '#1e1e1e' : '#f2c94c'; ctx.fillRect(dx, -3 + k * 1.5, 5.5, 1.5); }   // hazard band
+    }
+  }
   ctx.restore();
   // turret and gun(s), which turn on their own
   ctx.rotate(e.turret);
@@ -4709,13 +4718,15 @@ function drawTank(e) {
   ctx.beginPath();
   const flame = e.type === 'flametank';
   if (heavy) { ctx.moveTo(4, -2.4); ctx.lineTo(L + 9 + recoil, -2.4); ctx.moveTo(4, 2.4); ctx.lineTo(L + 9 + recoil, 2.4); }   // twin barrels
-  else if (flame) { ctx.lineWidth = 4.5; ctx.moveTo(3, 0); ctx.lineTo(L + 2, 0); }   // a short, fat flame projector
+  else if (flame) { ctx.lineWidth = 5.5; ctx.moveTo(3, 0); ctx.lineTo(L + 1, 0); }   // a short, fat flame projector
   else { ctx.moveTo(3, 0); ctx.lineTo(L + 7 + recoil, 0); }
   ctx.stroke();
-  if (flame) {   // nozzle with a pilot light, and two fuel tanks on the back of the turret
-    ctx.fillStyle = '#3a3630'; ctx.fillRect(L + 1, -3.5, 4, 7);
-    ctx.fillStyle = `rgba(255,170,60,${0.6 + 0.4 * Math.sin(performance.now() / 70 + e.id)})`; ctx.beginPath(); ctx.arc(L + 6, 0, 1.8, 0, Math.PI * 2); ctx.fill();
-    for (const ty of [-4.5, 4.5]) { ctx.fillStyle = '#b5332a'; ctx.beginPath(); ctx.ellipse(-9, ty, 4.5, 2.6, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fillRect(-11, ty - 1.6, 3, 1); }
+  if (flame) {   // a wide flared nozzle glowing hot, and a feed pipe back to the drums
+    ctx.fillStyle = '#2c2925'; ctx.beginPath(); ctx.moveTo(L, -3.2); ctx.lineTo(L + 6, -5); ctx.lineTo(L + 6, 5); ctx.lineTo(L, 3.2); ctx.closePath(); ctx.fill();
+    const glow = 0.55 + 0.45 * Math.sin(performance.now() / 70 + e.id), fire = e.cooldown > STATS.flametank.cooldown - 0.2;
+    const g = ctx.createRadialGradient(L + 7, 0, 0, L + 7, 0, fire ? 9 : 6); g.addColorStop(0, `rgba(255,240,170,${0.95})`); g.addColorStop(0.45, `rgba(255,140,40,${0.5 + 0.4 * glow})`); g.addColorStop(1, 'rgba(255,80,20,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(L + 7, 0, fire ? 9 : 6, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#55524b'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(-7, 2.5); ctx.quadraticCurveTo(-11, 6, -L + 8, 5); ctx.stroke();   // feed pipe
   }
   ctx.fillStyle = c.dark; ctx.beginPath(); ctx.arc(-1, 0, tr, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = c.color; ctx.beginPath(); ctx.arc(-1.5, -0.5, tr - 2, 0, Math.PI * 2); ctx.fill();
