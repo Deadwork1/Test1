@@ -2,6 +2,19 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.67', date: '25 Nov 2026', title: 'Nuclear Reactor, Satellite Radar and Napalm',
+    changes: [
+      'New: the Nuclear Reactor ($1,000, needs a Tech Centre). It gives as much power as 3 Power Plants and unlocks the Heavy Tank and the Laser Turret, which no longer come from the Tech Centre.',
+      'New: the Satellite Radar ($1,500, needs a Nuclear Reactor). While it stands you see everything on ground you have explored; black, unexplored ground stays hidden, and so do infantry in forests.',
+      'New: the Napalm Strike, from the Satellite Radar, once every 5 minutes. Press Napalm Strike, tap ground you can see, then tap again: a plane flies in and lays a strip of fire that burns for 6 seconds. It kills infantry, hurts vehicles a little and buildings a bit, and never your own side.',
+      'Settlers are now $3,000 and need both a Nuclear Reactor and a Satellite Radar (still bought at the War Factory).',
+      'The Missile Turret now needs a Radar and a War Factory (it needed a Helipad), and SAM Sites need a Radar (they needed a Power Plant).',
+      'The HQ\'s buttons are in a new order: Power Plant, Refinery, Barracks, Radar, Medbay, War Factory, Tech Centre, Helipad, Nuclear Reactor, Satellite Radar, Wall, Gate, SAM Site.',
+      '"New construction options" flashes on screen whenever something new becomes available to build or train.',
+      'On Hard the computer builds a Nuclear Reactor and a Satellite Radar too, and drops Napalm on your units when they bunch up.',
+    ],
+  },
+  {
     version: '5.66', date: '24 Nov 2026', title: 'The computer plays smarter',
     changes: [
       'On Normal and Hard the computer has new tricks. Its tanks go out of their way to run over your infantry when they come close, and its infantry jump out of the way of your tanks and Extractors.',
