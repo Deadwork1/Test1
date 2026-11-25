@@ -56,6 +56,13 @@
   #results th.you { color: #7fb1ff; } #results th.foe { color: #ff8a8a; }
   #overlay p { margin: 0; max-width: 520px; line-height: 1.45; opacity: .9; font-size: 15px; }
   #version { font-size: 13px; opacity: .6; margin-top: -8px; }
+  /* "New construction options" (v5.67): flickers in the middle of the screen when something new can be built or trained */
+  #newOpts { position: fixed; left: 50%; top: 22%; transform: translateX(-50%); pointer-events: none; z-index: 30; opacity: 0;
+    font: 800 clamp(13px, 4.6vw, 22px) system-ui, sans-serif; letter-spacing: .06em; text-transform: uppercase; color: #9dff9d; white-space: nowrap;
+    text-shadow: 0 0 8px rgba(80,255,120,.8), 0 0 2px #000, 0 2px 3px #000; padding: 6px 16px; border-radius: 8px;
+    background: rgba(6,20,8,.55); border: 1px solid rgba(120,255,140,.35); }
+  #newOpts.on { animation: newOpts 2.2s steps(1, end) forwards; }
+  @keyframes newOpts { 0% { opacity: 1 } 12% { opacity: .15 } 20% { opacity: 1 } 32% { opacity: .15 } 40% { opacity: 1 } 52% { opacity: .2 } 60% { opacity: 1 } 88% { opacity: 1 } 94% { opacity: .3 } 100% { opacity: 0 } }
   #diffInfo, .sub { font-size: 13px; opacity: .75; margin-top: -6px; max-width: 460px; }
   #overlay { overflow-y: auto; justify-content: flex-start; }
   #overlay > :first-child { margin-top: auto; } #overlay > :last-child { margin-bottom: auto; }   /* centred, but scrolls from the top when it doesn't fit */
@@ -97,6 +104,7 @@
 <!-- Sell sits on its own on the right, well away from the build buttons, so carrying on clicking after you build can't hit it -->
 <div id="sellBox"><button id="btnSell" class="ghost">Sell</button></div>
 
+<div id="newOpts">New construction options</div>
 <div id="panel" class="bar">
   <span id="info" class="chip">Tap your settler to begin</span>
   <button id="btnDeploy">Deploy HQ</button>

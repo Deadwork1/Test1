@@ -1075,6 +1075,7 @@ mmBg.getContext('2d').drawImage(bg, 0, 0, mmBg.width, mmBg.height);
 let game;
 
 function newGame() {
+  optsKnown = null; optsCheckAt = 0;   // (no "New construction options" for what a fresh game starts with)
   game = {
     ents: [], ore: [], nextId: 1, time: 0, grenades: [], rockets: [], strikes: [], napalmAt: [null, null],
     lost: [[], []],          // ids of each side's buildings that enemy engineers have taken (to win back)
@@ -6112,7 +6113,21 @@ function extractorStatus(e) {
   return 'Extractor: unloading';
 }
 
+// "New construction options" (v5.67): whenever something you couldn't build or train before becomes available (a new
+// building finished unlocks it), the words flicker in the middle of the screen for about 2 seconds. Checked twice a second.
+var optsKnown = null, optsCheckAt = 0;   // (var: newGame resets them, and it can run before this line)
+function checkNewOptions() {
+  if (!game || game.over || game.time < optsCheckAt) return;
+  optsCheckAt = game.time + 0.5;
+  const now = new Set(Object.keys(REQUIRES).filter(t => (COST[t] !== undefined || PRODUCES_ANY(t)) && unlocked(0, t)));
+  if (optsKnown && hqOf(0) && [...now].some(t => !optsKnown.has(t))) {
+    const el = $('newOpts'); el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');   // (restart the flicker)
+  }
+  optsKnown = now;
+}
+const PRODUCES_ANY = t => Object.values(PRODUCES).some(l => l.includes(t));
 function updateHUD() {
+  checkNewOptions();
   ui.credits.textContent = '$' + Math.floor(game.credits[0]);
   const secs = Math.floor(game.time), hh = Math.floor(secs / 3600), mm = Math.floor(secs / 60) % 60, ss = secs % 60;
   const clock = (hh ? hh + ':' + String(mm).padStart(2, '0') : mm) + ':' + String(ss).padStart(2, '0');
