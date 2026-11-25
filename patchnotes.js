@@ -2,6 +2,18 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.69', date: '25 Nov 2026', title: 'Flame units, rockets and forest fires',
+    changes: [
+      'New: the Flamethrower ($250, Barracks, needs a Power Plant). A short jet of fire that burns down infantry and buildings fast, but struggles against tanks.',
+      'New at the War Factory, once you have a Tech Centre: the Flame Tank ($800), a wedge-nosed tank with a big fuel tank and twin flame projectors, deadly to infantry and buildings but weak against other tanks; and the Rocket Launcher ($900), which fires a salvo of 6 rockets over an area from long range, then takes 8 seconds to reload.',
+      'Forests can burn. Flame units set trees alight when they fire into them, or select them and tap trees to burn them on purpose. Fire spreads to nearby trees, hurts enemies caught in it (never your own side), then burns out to open ground for good: vehicles can drive across and infantry can no longer hide there.',
+      'You and the computer now start with $1,500 (was $1,000).',
+      'Refineries cost $500 (were $400) and Extractors $400 (were $300); you need a Refinery standing to buy an Extractor.',
+      'Light Tanks, Gates and the Medbay now need a Power Plant.',
+      'On Normal and Hard the computer builds a Tech Centre and uses Flamethrowers, Flame Tanks and Rocket Launchers too.',
+    ],
+  },
+  {
     version: '5.68', date: '25 Nov 2026', title: 'Engineers keep building',
     changes: [
       'Engineers are no longer used up when they build a turret: the Engineer steps aside once the turret starts going up, and can go on to build another. Engineers now cost $200 (were $150). Turret prices are unchanged. Capturing a building still uses the Engineer up.',
