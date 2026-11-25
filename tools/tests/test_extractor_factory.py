@@ -36,7 +36,7 @@ with sync_playwright() as p:
     print(r)
     check(r['refBuilt'] and r['n1'] == r['n0'] + 1, 'a finished Refinery still comes with one free Extractor')
     check(r['refBuy'] is False, 'the Refinery can no longer buy Extractors')
-    check(r['facBuy'] is True and r['paid'] == 500, 'the War Factory buys an Extractor for $500 (v5.69, was $300)')
+    check(r['facBuy'] is True and r['paid'] == 400, 'the War Factory buys an Extractor for $400 (v5.69, was $300)')
     check(r['n2'] == r['n1'] + 1 and r['nearFactory'] < 120, 'the bought Extractor rolls out of the War Factory')
     # buttons: Refinery shows none, War Factory shows "Extractor $300"
     pg.evaluate("(()=>{ const r=game.ents.find(e=>e.team===0&&e.type==='refinery'); game.selected=new Set([r.id]); })()"); pg.wait_for_timeout(300)

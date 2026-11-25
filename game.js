@@ -253,7 +253,7 @@ const BUILD_RADIUS = 300;             // how far from your HQ you can place buil
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
 
 // v5.52 prices (your picks, with the $500 loads): Sniper 250 (was 200), Buggy 400 (250), Light Tank 700 (400), Heavy Tank 1000 (700), Extractor 300 (150); v5.56: Artillery 500 (450)
-const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, mg: 300, cannon: 500, missile: 600, laser: 1000, wall: 20, gate: 150, soldier: 100, extractor: 500, buggy: 400, grenadier: 160, engineer: 200, rocket: 200, sniper: 250, light: 700, heavy: 1000, artillery: 500, tech: 600, radar: 300, medbay: 400, helipad: 500, heli: 800, sam: 600, settler: 3000, reactor: 1000, satellite: 1500 };   // (a new Settler is bought at the War Factory: the dearest thing in the game; $2,000 until v5.67)
+const COST = { barracks: 300, refinery: 500, factory: 500, power: 200, mg: 300, cannon: 500, missile: 600, laser: 1000, wall: 20, gate: 150, soldier: 100, extractor: 400, buggy: 400, grenadier: 160, engineer: 200, rocket: 200, sniper: 250, light: 700, heavy: 1000, artillery: 500, tech: 600, radar: 300, medbay: 400, helipad: 500, heli: 800, sam: 600, settler: 3000, reactor: 1000, satellite: 1500 };   // (a new Settler is bought at the War Factory: the dearest thing in the game; $2,000 until v5.67)
 const WALL_REACH = 150;              // walls, gates and SAM Sites can go this much further out than other buildings
 // Turrets (v5.64): an Engineer builds them anywhere you can see, but never this close to an enemy building
 const TURRET_TYPES = ['mg', 'cannon', 'missile', 'laser'], TURRET_KEEP_OUT = 300;
@@ -304,7 +304,7 @@ const STATS = {
 const PRODUCES = { barracks: ['soldier', 'grenadier', 'rocket', 'sniper', 'engineer'], factory: ['buggy', 'light', 'artillery', 'heavy', 'extractor', 'settler'], helipad: ['heli'] };   // (the Settler is a unit: War Factory, v5.65)   // (Extractors were bought at the Refinery until v5.55; each Refinery still comes with one free)
 const HAS_DOOR = t => !!PRODUCES[t] || t === 'refinery';   // buildings whose front door must stay clear (the Refinery for its unloading bay)
 // Tech tree: what else you need (finished, and still standing) before you can build or train something
-const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['power'], mg: ['barracks'], cannon: ['factory'], missile: ['radar', 'factory'], laser: ['reactor'], heavy: ['reactor'], reactor: ['tech'], satellite: ['reactor'], settler: ['reactor', 'satellite'],   /* (Settlers need both since v5.67) */ artillery: ['power'], radar: ['power'], medbay: ['barracks'], helipad: ['factory'], sam: ['radar'], extractor: ['refinery'], light: ['power'] };   // (v5.69: Extractors need a Refinery standing, Light Tanks a Power Plant)   // (SAM Sites need a Radar since v5.67; a Power Plant before)
+const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['power'], mg: ['barracks'], cannon: ['factory'], missile: ['radar', 'factory'], laser: ['reactor'], heavy: ['reactor'], reactor: ['tech'], satellite: ['reactor'], settler: ['reactor', 'satellite'],   /* (Settlers need both since v5.67) */ artillery: ['power'], radar: ['power'], medbay: ['barracks'], helipad: ['factory'], sam: ['radar'], extractor: ['refinery'], light: ['power'], gate: ['power'] };   // (v5.69: Extractors need a Refinery standing, Light Tanks and Gates a Power Plant)   // (SAM Sites need a Radar since v5.67; a Power Plant before)
 const hasBuilt = (team, type) => game.ents.some(b => b.team === team && b.type === type && b.built && ruinWorks(b));   // (a captured ruin counts once it's repaired to half)
 const missingFor = (team, type) => (REQUIRES[type] || []).filter(t => !hasBuilt(team, t));
 const unlocked = (team, type) => missingFor(team, type).length === 0;
@@ -1470,6 +1470,7 @@ function fitGate(x, y, team, forced) {
 
 function canPlaceWallPiece(team, type, x, y, vertical = false) {
   const { hx, hy } = type === 'gate' ? gateHalf(vertical) : { hx: TC / 2, hy: TC / 2 };
+  if (type === 'gate' && !unlocked(team, 'gate')) return false;   // (Gates need a Power Plant since v5.69)
   if (!inBuildArea(team, x, y, WALL_REACH)) return false;
   if (x - hx < 0 || y - hy < 0 || x + hx > W || y + hy > H) return false;
   for (let yy = y - hy + TC / 2; yy < y + hy; yy += TC)
@@ -6160,7 +6161,7 @@ function updateHUD() {
   if (hasSatellite(0)) { const w = Math.ceil(napalmWait(0)), lbl = w > 0 ? `Napalm ${Math.floor(w / 60)}:${String(w % 60).padStart(2, '0')}` : 'Napalm Strike'; if (ui.napalm.textContent !== lbl) ui.napalm.textContent = lbl; ui.napalm.disabled = w > 0; }
   show(ui.heliHome, sel.some(e => e.air && e.team === 0 && !e.landed) && !placing);
   show(ui.wall, !!hq && !placing);
-  show(ui.gate, !!hq && !placing);
+  show(ui.gate, !!hq && !placing && unlocked(0, 'gate'));   // (needs a Power Plant, v5.69)
   syncProduceButtons(producer && !placing ? producer.type : null);
   show(ui.harvest, extractors.length > 0 && !placing);
   const engSel = sel.some(e => e.type === 'engineer' && e.team === 0);
