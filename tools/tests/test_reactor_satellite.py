@@ -1,6 +1,6 @@
 # v5.67: the Nuclear Reactor ($1,000, needs a Tech Centre: power worth 3 Power Plants, still capped at double; unlocks the Heavy
 # Tank and the Laser Turret) and the Satellite Radar ($1,500, needs a Reactor: everything in your explored fog is in view, black
-# fog stays black; unlocks the Missile Turret and the Napalm Strike, once every 5 minutes: a 300-long strip of fire for 6 s,
+# fog stays black; unlocks the Napalm Strike, once every 5 minutes: a 300-long strip of fire for 6 s,
 # deadly to infantry, a little to vehicles, never your own side). The computer builds and uses them on Hard only.
 # Usage: python3 tests/test_reactor_satellite.py <game folder> <port>
 import sys, http.server, threading, functools, json
@@ -32,7 +32,7 @@ with sync_playwright() as p:
       return JSON.stringify(out); })()"""))
     print(r)
     check(r['cost'] == [1000, 1500], 'Nuclear Reactor $1,000, Satellite Radar $1,500')
-    check(r['req'] == [['tech'], ['reactor'], ['reactor'], ['reactor'], ['satellite']], 'Reactor needs a Tech Centre, Satellite a Reactor; Heavy Tank and Laser need the Reactor, Missile Turret the Satellite')
+    check(r['req'] == [['tech'], ['reactor'], ['reactor'], ['reactor'], ['radar', 'factory']], 'Reactor needs a Tech Centre, Satellite a Reactor; Heavy Tank and Laser need the Reactor; Missile Turret a Radar and War Factory')
     check(not r['btnBefore'] and r['btnAfterTech'] and not r['heavyAfterTech'], 'the Reactor button appears with the Tech Centre (which no longer unlocks the Heavy Tank)')
     check(r['boost'] == [1, 1.75] and r['capped'] == 2, 'a Reactor counts as 3 Power Plants (+75%); with 2 more plants power still stops at double')
     check(r['after'] == [True, True, True, False], 'the Reactor unlocks the Heavy Tank, Laser Turret and Satellite Radar')
@@ -46,7 +46,7 @@ with sync_playwright() as p:
     print(r)
     check(not r['greyBefore'] and r['grey'] and not r['black'], 'Satellite Radar: ground you explored is in view (an enemy tank there shows); black ground stays hidden')
     check(not r['gone'], 'lose the Satellite Radar and the grey fog comes back')
-    check(r['missile'], 'it unlocks the Missile Turret')
+    check(not r['missile'], 'the Satellite Radar alone does not unlock the Missile Turret (that needs a Radar and War Factory)')
     # napalm
     r = json.loads(pg.evaluate("""(()=>{ const cx=hq.x+330, cy=hq.y-30; U(1); let unk=null; for(let k=0;k<3000&&!unk;k++){ const x=100+Math.random()*(W-200), y=100+Math.random()*(H-200); if(!fog[0].exp[cellIndex(x,y)]) unk={x,y}; }
       const foes=[]; for(let i=0;i<8;i++){ const s=spawn('soldier',1,cx-80+i*22,cy); s.passive=true; foes.push(s); } const tank=spawn('light',1,cx,cy+10); tank.passive=true;
