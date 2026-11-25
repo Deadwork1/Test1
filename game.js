@@ -304,7 +304,7 @@ const STATS = {
 const PRODUCES = { barracks: ['soldier', 'grenadier', 'rocket', 'sniper', 'engineer'], factory: ['buggy', 'light', 'artillery', 'heavy', 'extractor', 'settler'], helipad: ['heli'] };   // (the Settler is a unit: War Factory, v5.65)   // (Extractors were bought at the Refinery until v5.55; each Refinery still comes with one free)
 const HAS_DOOR = t => !!PRODUCES[t] || t === 'refinery';   // buildings whose front door must stay clear (the Refinery for its unloading bay)
 // Tech tree: what else you need (finished, and still standing) before you can build or train something
-const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['power'], mg: ['barracks'], cannon: ['factory'], missile: ['satellite'], laser: ['reactor'], heavy: ['reactor'], reactor: ['tech'], satellite: ['reactor'], settler: ['reactor', 'satellite'],   /* (Settlers need both since v5.67) */ artillery: ['power'], radar: ['power'], medbay: ['barracks'], helipad: ['factory'], sam: ['power'] };
+const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['power'], mg: ['barracks'], cannon: ['factory'], missile: ['satellite'], laser: ['reactor'], heavy: ['reactor'], reactor: ['tech'], satellite: ['reactor'], settler: ['reactor', 'satellite'],   /* (Settlers need both since v5.67) */ artillery: ['power'], radar: ['power'], medbay: ['barracks'], helipad: ['factory'], sam: ['radar'] };   // (SAM Sites need a Radar since v5.67; a Power Plant before)
 const hasBuilt = (team, type) => game.ents.some(b => b.team === team && b.type === type && b.built && ruinWorks(b));   // (a captured ruin counts once it's repaired to half)
 const missingFor = (team, type) => (REQUIRES[type] || []).filter(t => !hasBuilt(team, t));
 const unlocked = (team, type) => missingFor(team, type).length === 0;
@@ -2802,7 +2802,7 @@ function runAI(dt) {
   const wantTech = D.heavyTanks && sent >= 2 && of('factory').some(f => f.built) && !of('tech').length && unlocked(1, 'tech') && !aiBlocked('tech');
   const wantReactor = D.reactor && sent >= 2 && !of('reactor').length && unlocked(1, 'reactor') && !aiBlocked('reactor');   // Hard (v5.67): its Heavy Tanks and Lasers need one
   const wantSatellite = D.reactor && sent >= 3 && !of('satellite').length && unlocked(1, 'satellite') && !aiBlocked('satellite');   // Hard: for its Napalm Strike
-  const wantRadar = D.walls && sent >= 1 && !of('radar').length && unlocked(1, 'radar') && !aiBlocked('radar');   // Normal and Hard
+  const wantRadar = D.walls && (sent >= 1 || (D.sams && ai.seenAir)) && !of('radar').length && unlocked(1, 'radar') && !aiBlocked('radar');   // (sooner once it has seen your aircraft: its SAM Sites need one, v5.67)   // Normal and Hard
   const wantMedbay = D.walls && sent >= 1 && of('factory').some(f => f.built) && !of('medbay').length && unlocked(1, 'medbay') && !aiBlocked('medbay');   // Normal and Hard: somewhere to patch up the wounded (v5.61: only once its War Factory is up)
   const wantPad = D.helis && sent >= 2 && of('factory').some(f => f.built) && of('helipad').length < aiHeliPads(D) && (game.ai.heliMode === 'wave' || !of('helipad').some(p => !padHeli(p)))   /* no second pad while one stands empty (except while it builds up a bigger wave) */ && unlocked(1, 'helipad') && !aiBlocked('helipad');   // 1 on Normal, 2 on Hard
   const wantSam = D.sams && ai.seenAir && of('sam').length < D.sams && unlocked(1, 'sam') && !aiBlocked('sam');
@@ -2811,6 +2811,7 @@ function runAI(dt) {
   if (refineries.length === 0) aiPlaceRefinery(hq);
   else if (barracks.length === 0) aiPlace(hq, 'barracks');
   else if (wantSam && cash >= COST.sam) aiPlaceSam(hq, refineries);   // your aircraft are about: a SAM Site first
+  else if (D.sams && ai.seenAir && wantRadar && !of('sam').length && cash >= COST.radar) aiPlace(hq, 'radar');   // (no Radar yet for its SAM Site: that first, v5.67)
   else if (of('power').length < D.plants && cash >= COST.power) aiPlace(hq, 'power');
   else if (refineries.length < reqRefineries && cash >= COST.refinery && !aiBlocked('refinery')) aiPlaceRefinery(hq);
   else if (wantFactory && cash >= COST.factory) aiPlace(hq, 'factory');   // War Factory before any extra Barracks (v5.61: Hard used to build its 2nd and 3rd Barracks first)
