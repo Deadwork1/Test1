@@ -3909,7 +3909,8 @@ function draw() {
     else if (e.type === 'grenadier' || e.type === 'engineer' || e.type === 'rocket' || e.type === 'sniper' || e.type === 'civilian' || e.type === 'flamer') drawSoldier(e);
     else if (e.type === 'factory') drawFactory(e);
     else if (e.type === 'tech') drawTech(e);
-    else if (e.type === 'light' || e.type === 'flametank') drawTank(e);
+    else if (e.type === 'light') drawTank(e);
+    else if (e.type === 'flametank') drawFlameTank(e);
     else if (e.type === 'mrl') drawRocketLauncher(e);
     else if (e.type === 'heavy') drawHeavyTank(e);
     else if (e.type === 'artillery') drawArtillery(e);
@@ -4673,6 +4674,57 @@ function drawRocketLauncher(e) {
     if (k < loaded) { ctx.fillStyle = '#c9402f'; ctx.beginPath(); ctx.arc(tx + 3, ty, 1.3, 0, Math.PI * 2); ctx.fill(); }   // a rocket's red nose in the tube
   }
   if (e.cooldown > s.cooldown - 0.9) { ctx.fillStyle = 'rgba(255,200,120,0.5)'; ctx.beginPath(); ctx.arc(8, 0, 6, 0, Math.PI * 2); ctx.fill(); }   // backblast while firing
+  ctx.restore();
+}
+
+// Flame Tank (v5.69): its own shape, not a gun tank's. A low, wide, wedge-nosed hull with angled armour plates, a big
+// steel fuel cylinder lying lengthways along the back with hazard bands, and a squat armoured cupola up front carrying
+// twin stubby flame projectors that glow, flaring when they fire. Sooty and scorched all over.
+function drawFlameTank(e) {
+  const c = TEAMS[e.team], s = STATS.flametank;
+  const moving = e.lx !== undefined && Math.hypot(e.x - e.lx, e.y - e.ly) > 0.2;
+  e.lx = e.x; e.ly = e.y;
+  if (e.turret === undefined) e.turret = e.facing;
+  if (!e.order || (e.order.type !== 'attack' && e.order.type !== 'burn')) { let d = e.facing - e.turret; d = Math.atan2(Math.sin(d), Math.cos(d)); e.turret += d * 0.08; }
+  if (moving && Math.random() < 0.35) game.effects.push({ kind: 'dust', x: e.x - Math.cos(e.facing) * e.r, y: e.y - Math.sin(e.facing) * e.r, t: 0 });
+  const L = 17, Wd = 14;
+  ctx.save(); ctx.translate(e.x, e.y);
+  ctx.save(); ctx.rotate(e.facing);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.moveTo(-L + 3, -Wd + 4); ctx.lineTo(L + 9, 4); ctx.lineTo(-L + 3, Wd + 4); ctx.closePath(); ctx.fill();
+  // wide tracks
+  ctx.fillStyle = '#1f1f1c'; ctx.fillRect(-L, -Wd, L * 2 - 2, 6.5); ctx.fillRect(-L, Wd - 6.5, L * 2 - 2, 6.5);
+  ctx.strokeStyle = '#3d3d38'; ctx.lineWidth = 1;
+  const off = moving ? (performance.now() / 40) % 4 : 0;
+  for (let k = -L + off; k < L - 2; k += 4) { ctx.beginPath(); ctx.moveTo(k, -Wd); ctx.lineTo(k, -Wd + 6.5); ctx.moveTo(k, Wd - 6.5); ctx.lineTo(k, Wd); ctx.stroke(); }
+  // wedge hull: a long sloping nose to a point, angled side plates
+  ctx.fillStyle = c.color; ctx.strokeStyle = c.dark; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(-L + 1, -Wd + 4); ctx.lineTo(L - 6, -Wd + 4); ctx.lineTo(L + 6, 0); ctx.lineTo(L - 6, Wd - 4); ctx.lineTo(-L + 1, Wd - 4); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(L - 6, -Wd + 4); ctx.lineTo(L - 9, 0); ctx.lineTo(L - 6, Wd - 4); ctx.stroke();   // the nose's ridge lines
+  ctx.fillStyle = 'rgba(25,20,15,0.42)'; ctx.beginPath(); ctx.moveTo(-L + 1, -Wd + 4); ctx.lineTo(L - 6, -Wd + 4); ctx.lineTo(L + 6, 0); ctx.lineTo(L - 6, Wd - 4); ctx.lineTo(-L + 1, Wd - 4); ctx.closePath(); ctx.fill();   // scorched all over
+  ctx.fillStyle = 'rgba(10,8,6,0.5)'; for (const [sx, sy, r] of [[L + 1, -1, 3], [L - 3, 4, 2.4], [L - 4, -5, 2]]) { ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill(); }   // soot round the nose
+  // the fuel cylinder, lying lengthways along the back
+  const cx0 = -L + 2, cl = 17, cw = 9;
+  const g = ctx.createLinearGradient(0, -cw / 2, 0, cw / 2); g.addColorStop(0, '#c9ccd0'); g.addColorStop(0.4, '#9a9ea3'); g.addColorStop(1, '#55595e');
+  ctx.fillStyle = g; ctx.strokeStyle = '#33363a'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(cx0 + cw / 2, -cw / 2); ctx.lineTo(cx0 + cl - cw / 2, -cw / 2); ctx.arc(cx0 + cl - cw / 2, 0, cw / 2, -Math.PI / 2, Math.PI / 2); ctx.lineTo(cx0 + cw / 2, cw / 2); ctx.arc(cx0 + cw / 2, 0, cw / 2, Math.PI / 2, -Math.PI / 2); ctx.closePath(); ctx.fill(); ctx.stroke();
+  for (const bx of [cx0 + 4, cx0 + 11]) for (let k = 0; k < 3; k++) { ctx.fillStyle = k % 2 ? '#1e1e1e' : '#f2c94c'; ctx.fillRect(bx + k * 1.4, -cw / 2 + 0.5, 1.4, cw - 1); }   // hazard bands
+  ctx.fillStyle = '#b5332a'; ctx.beginPath(); ctx.arc(cx0 + cl - 2, 0, 1.4, 0, Math.PI * 2); ctx.fill();   // filler cap
+  ctx.restore();
+  // the cupola and its twin flame projectors (they turn to aim)
+  ctx.rotate(e.turret);
+  const fire = e.cooldown > s.cooldown - 0.2, glow = 0.55 + 0.45 * Math.sin(performance.now() / 70 + e.id);
+  ctx.strokeStyle = '#26241f'; ctx.lineWidth = 3.4;
+  ctx.beginPath(); ctx.moveTo(8, -3); ctx.lineTo(17, -3); ctx.moveTo(8, 3); ctx.lineTo(17, 3); ctx.stroke();
+  ctx.fillStyle = '#2c2925'; for (const ny of [-3, 3]) { ctx.beginPath(); ctx.moveTo(16, ny - 2); ctx.lineTo(20, ny - 3); ctx.lineTo(20, ny + 3); ctx.lineTo(16, ny + 2); ctx.closePath(); ctx.fill(); }
+  for (const ny of [-3, 3]) {
+    const r = fire ? 7 : 4.5, gg = ctx.createRadialGradient(21, ny, 0, 21, ny, r);
+    gg.addColorStop(0, 'rgba(255,240,170,0.95)'); gg.addColorStop(0.45, `rgba(255,140,40,${0.5 + 0.4 * glow})`); gg.addColorStop(1, 'rgba(255,80,20,0)');
+    ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(21, ny, r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.fillStyle = c.dark; ctx.beginPath(); ctx.moveTo(1, -6); ctx.lineTo(9, -5); ctx.lineTo(11, 0); ctx.lineTo(9, 5); ctx.lineTo(1, 6); ctx.lineTo(-1, 0); ctx.closePath(); ctx.fill();   // angular cupola
+  ctx.fillStyle = c.color; ctx.beginPath(); ctx.moveTo(2, -4.2); ctx.lineTo(8, -3.6); ctx.lineTo(9.3, 0); ctx.lineTo(8, 3.6); ctx.lineTo(2, 4.2); ctx.lineTo(0.6, 0); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(160,210,255,0.6)'; ctx.fillRect(6.5, -2, 1.5, 4);   // vision slit
   ctx.restore();
 }
 
