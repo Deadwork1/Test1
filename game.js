@@ -4704,12 +4704,13 @@ function drawFlameTank(e) {
   ctx.fillStyle = 'rgba(25,20,15,0.42)'; ctx.beginPath(); ctx.moveTo(-L + 1, -Wd + 4); ctx.lineTo(L - 6, -Wd + 4); ctx.lineTo(L + 6, 0); ctx.lineTo(L - 6, Wd - 4); ctx.lineTo(-L + 1, Wd - 4); ctx.closePath(); ctx.fill();   // scorched all over
   ctx.fillStyle = 'rgba(10,8,6,0.5)'; for (const [sx, sy, r] of [[L + 1, -1, 3], [L - 3, 4, 2.4], [L - 4, -5, 2]]) { ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill(); }   // soot round the nose
   // the fuel cylinder, lying lengthways along the back
-  const cx0 = -L + 2, cl = 17, cw = 9;
+  const cx0 = -L - 1, cl = 22, cw = 14;   // (it overhangs the back of the hull a little)
   const g = ctx.createLinearGradient(0, -cw / 2, 0, cw / 2); g.addColorStop(0, '#c9ccd0'); g.addColorStop(0.4, '#9a9ea3'); g.addColorStop(1, '#55595e');
   ctx.fillStyle = g; ctx.strokeStyle = '#33363a'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(cx0 + cw / 2, -cw / 2); ctx.lineTo(cx0 + cl - cw / 2, -cw / 2); ctx.arc(cx0 + cl - cw / 2, 0, cw / 2, -Math.PI / 2, Math.PI / 2); ctx.lineTo(cx0 + cw / 2, cw / 2); ctx.arc(cx0 + cw / 2, 0, cw / 2, Math.PI / 2, -Math.PI / 2); ctx.closePath(); ctx.fill(); ctx.stroke();
-  for (const bx of [cx0 + 4, cx0 + 11]) for (let k = 0; k < 3; k++) { ctx.fillStyle = k % 2 ? '#1e1e1e' : '#f2c94c'; ctx.fillRect(bx + k * 1.4, -cw / 2 + 0.5, 1.4, cw - 1); }   // hazard bands
-  ctx.fillStyle = '#b5332a'; ctx.beginPath(); ctx.arc(cx0 + cl - 2, 0, 1.4, 0, Math.PI * 2); ctx.fill();   // filler cap
+  for (const bx of [cx0 + 5, cx0 + 14]) for (let k = 0; k < 3; k++) { ctx.fillStyle = k % 2 ? '#1e1e1e' : '#f2c94c'; ctx.fillRect(bx + k * 1.4, -cw / 2 + 0.5, 1.4, cw - 1); }   // hazard bands
+  ctx.fillStyle = '#b5332a'; ctx.beginPath(); ctx.arc(cx0 + cl - 3, 0, 1.8, 0, Math.PI * 2); ctx.fill();   // filler cap
+  ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fillRect(cx0 + cw / 2, -cw / 2 + 1.5, cl - cw, 1.6);   // shine along the top
   ctx.restore();
   // the cupola and its twin flame projectors (they turn to aim)
   ctx.rotate(e.turret);
