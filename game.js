@@ -247,7 +247,7 @@ const SEA = Math.round(H / 15 / 50) * 50, HT = H + SEA;   // Classic 100, Large 
 const coastY = x => H + SEA * 0.3 + SEA * 0.08 * Math.sin(x / 260) + SEA * 0.05 * Math.sin(x / 97 + 1.3) + SEA * 0.025 * Math.sin(x / 41);   // where the beach meets the water
 const CELL = 50;                      // fog-of-war grid size
 const COLS = W / CELL, ROWS = HT / CELL;
-const START_CREDITS = 1000;
+const START_CREDITS = 1500;
 const INCOME = 1;                     // small trickle per second so nobody gets stuck at $0
 const BUILD_RADIUS = 300;             // how far from your HQ you can place buildings
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
