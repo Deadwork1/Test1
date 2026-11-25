@@ -1,0 +1,71 @@
+Medium test, v5.69 (25 Nov 2026): 100 games, 25 per mode (Large/Huge x Normal/Hard), scripted test player (5 strategies), 40-minute cap.
+Compared with the v5.61 Medium test (21 Nov): see 2026-11-21_v5.61_medium.txt.
+
+games 100  errors 0
+
+== Results (player = scripted test player, ai = computer)
+  large normal n= 25  computer wins  32%  player  68%  timeout   0%  median length 8.4 min
+  large hard   n= 25  computer wins  48%  player  48%  timeout   4%  median length 9.9 min
+  huge  normal n= 25  computer wins  36%  player  64%  timeout   0%  median length 14.2 min
+  huge  hard   n= 25  computer wins  52%  player  48%  timeout   0%  median length 13.0 min
+
+== Computer win rate by player strategy (all maps)
+  buggy     n= 20  computer  35%  player  65%  timeout   0%
+  infantry  n= 20  computer  40%  player  60%  timeout   0%
+  mixed     n= 20  computer  60%  player  40%  timeout   0%
+  tanks     n= 20  computer  45%  player  50%  timeout   5%
+  turtle    n= 20  computer  30%  player  70%  timeout   0%
+
+== Units: value killed per $1 spent (both sides), and split by side
+  [ALL]
+    sniper     made   936  died   644  spent $ 234,000  killed $ 314,750  value per $1: 1.35
+    rocket     made  1448  died   927  spent $ 289,600  killed $ 378,470  value per $1: 1.31
+    soldier    made 14175  died 11632  spent $1,417,500  killed $1,341,160  value per $1: 0.95
+    light      made   602  died   271  spent $ 421,400  killed $ 307,890  value per $1: 0.73
+    grenadier  made  1151  died   851  spent $ 184,160  killed $ 100,990  value per $1: 0.55
+    buggy      made   751  died   553  spent $ 300,400  killed $ 160,060  value per $1: 0.53
+    heavy      made     7  died     0  spent $   7,000  killed $   3,500  value per $1: 0.50
+    artillery  made   146  died    80  spent $  73,000  killed $  33,950  value per $1: 0.47
+    engineer   made  1935  died   595  spent $ 387,000  killed $       0  value per $1: 0.00
+  [LARGE]
+    sniper     made   398  died   282  spent $  99,500  killed $ 133,580  value per $1: 1.34
+    rocket     made   555  died   369  spent $ 111,000  killed $ 147,890  value per $1: 1.33
+    soldier    made  6234  died  5094  spent $ 623,400  killed $ 614,090  value per $1: 0.99
+    light      made   228  died    83  spent $ 159,600  killed $ 121,380  value per $1: 0.76
+    buggy      made   314  died   233  spent $ 125,600  killed $  72,560  value per $1: 0.58
+    grenadier  made   471  died   370  spent $  75,360  killed $  38,820  value per $1: 0.52
+    artillery  made    51  died    23  spent $  25,500  killed $   8,060  value per $1: 0.32
+    heavy      made     4  died     0  spent $   4,000  killed $       0  value per $1: 0.00
+    engineer   made   865  died   278  spent $ 173,000  killed $       0  value per $1: 0.00
+  [HUGE]
+    sniper     made   538  died   362  spent $ 134,500  killed $ 181,170  value per $1: 1.35
+    rocket     made   893  died   558  spent $ 178,600  killed $ 230,580  value per $1: 1.29
+    heavy      made     3  died     0  spent $   3,000  killed $   3,500  value per $1: 1.17
+    soldier    made  7941  died  6538  spent $ 794,100  killed $ 727,070  value per $1: 0.92
+    light      made   374  died   188  spent $ 261,800  killed $ 186,510  value per $1: 0.71
+    grenadier  made   680  died   481  spent $ 108,800  killed $  62,170  value per $1: 0.57
+    artillery  made    95  died    57  spent $  47,500  killed $  25,890  value per $1: 0.55
+    buggy      made   437  died   320  spent $ 174,800  killed $  87,500  value per $1: 0.50
+    engineer   made  1070  died   317  spent $ 214,000  killed $       0  value per $1: 0.00
+
+== High ground (fighting units, per side) [low ground, high ground]
+  large player   fighting-minutes low     1215 high     11 (1% on high ground) | shots/min low 62.2 high 33.8 | damage taken/min low 277.0 high 103.4 | deaths per fighting-minute low 4.255 high 1.413
+  large computer fighting-minutes low      476 high     19 (4% on high ground) | shots/min low 49.8 high 28.7 | damage taken/min low 354.8 high 98.9 | deaths per fighting-minute low 4.713 high 1.804
+  huge  player   fighting-minutes low     1543 high      6 (0% on high ground) | shots/min low 59.3 high 29.9 | damage taken/min low 291.7 high 197.8 | deaths per fighting-minute low 4.469 high 2.746
+  huge  computer fighting-minutes low      633 high     24 (4% on high ground) | shots/min low 48.6 high 25.0 | damage taken/min low 358.4 high 44.6 | deaths per fighting-minute low 4.181 high 0.864
+
+== Games where one side spent more unit-time on high ground: who won? (decided games only)
+  large side with more high-ground time won 84% of 49 games
+  huge  side with more high-ground time won 73% of 48 games
+
+== Other
+  large normal stuck/game 0.0  captures player 87 computer 107  derrick-min player 10.9 computer 1.8 per game  | computer Medbay built in 18/25 (median 5.4 min), units sent to heal 37, HP healed 2763  | AI waves 0.8  AI cash avg 252
+  large hard   stuck/game 0.0  captures player 126 computer 188  derrick-min player 14.3 computer 3.7 per game  | computer Medbay built in 20/25 (median 5.4 min), units sent to heal 45, HP healed 3108  | AI waves 0.8  AI cash avg 252
+  huge  normal stuck/game 0.0  captures player 138 computer 229  derrick-min player 18.7 computer 5.3 per game  | computer Medbay built in 22/25 (median 5.2 min), units sent to heal 83, HP healed 5532  | AI waves 1.4  AI cash avg 249
+  huge  hard   stuck/game 0.0  captures player 130 computer 183  derrick-min player 14.6 computer 4.6 per game  | computer Medbay built in 23/25 (median 5.3 min), units sent to heal 49, HP healed 2866  | AI waves 1.4  AI cash avg 258
+
+== New v5.69 units (computer only: the scripted player doesn't build them)
+  large normal  flamer: made 168 in 24/25 games, value per $1 0.39  flametank: made 6 in 4/25 games, value per $1 1.32  mrl: made 8 in 4/25 games, value per $1 0.31  | heavy tanks made 0
+  large hard    flamer: made 294 in 25/25 games, value per $1 0.42  flametank: made 13 in 5/25 games, value per $1 0.60  mrl: made 13 in 6/25 games, value per $1 0.25  | heavy tanks made 4
+  huge normal   flamer: made 193 in 24/25 games, value per $1 0.55  flametank: made 15 in 11/25 games, value per $1 0.85  mrl: made 21 in 13/25 games, value per $1 0.73  | heavy tanks made 0
+  huge hard     flamer: made 266 in 25/25 games, value per $1 0.56  flametank: made 13 in 5/25 games, value per $1 0.78  mrl: made 16 in 8/25 games, value per $1 0.54  | heavy tanks made 3
