@@ -39,7 +39,7 @@ A small real-time strategy game inspired by classic 90s RTS games, built step by
 - **Save game report** (pause menu or results screen) saves a file with the game's numbers for both sides, kills and value destroyed by each unit type, who killed whom, and a snapshot every 30 seconds, to keep or share.
 - Your money is shown just above the bottom bar. The pause menu has Resume, Restart, **Exit Game** (both tap twice) and the patch notes.
 - Tap a unit or building to select it. **Box select**, then drag, to select several units.
-- **Turrets** are built by **Engineers** ($150): select one, pick a turret, tap where it goes (and again, or **Send Engineer**). He walks there and is used up building it. Turrets can go anywhere you can see, but never within 300 of an enemy building you know about (red rings show where). They need no crew, can be sold, can't be captured and don't widen your build area.
+- **Turrets** are built by **Engineers** ($200): select one, pick a turret, tap where it goes (and again, or **Send Engineer**). It walks there, starts the turret and steps aside, ready to build another. Turrets can go anywhere you can see, but never within 300 of an enemy building you know about (red rings show where). They need no crew, can be sold, can't be captured and don't widen your build area.
   - **Machine Gun** ($300, needs a Barracks): fast fire, strong against infantry, weak against vehicles, can't hit aircraft.
   - **Cannon** ($500, needs a War Factory): heavy shells, strong against vehicles, weak against infantry, can't hit aircraft.
   - **Missile** ($600, needs a Radar and a War Factory): a tower with the longest range, salvos of two homing missiles at anything, aircraft hardest. Its lights turn red while an enemy is in sight.

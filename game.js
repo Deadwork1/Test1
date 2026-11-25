@@ -253,7 +253,7 @@ const BUILD_RADIUS = 300;             // how far from your HQ you can place buil
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
 
 // v5.52 prices (your picks, with the $500 loads): Sniper 250 (was 200), Buggy 400 (250), Light Tank 700 (400), Heavy Tank 1000 (700), Extractor 300 (150); v5.56: Artillery 500 (450)
-const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, mg: 300, cannon: 500, missile: 600, laser: 1000, wall: 20, gate: 150, soldier: 100, extractor: 300, buggy: 400, grenadier: 160, engineer: 150, rocket: 200, sniper: 250, light: 700, heavy: 1000, artillery: 500, tech: 600, radar: 300, medbay: 400, helipad: 500, heli: 800, sam: 600, settler: 3000, reactor: 1000, satellite: 1500 };   // (a new Settler is bought at the War Factory: the dearest thing in the game; $2,000 until v5.67)
+const COST = { barracks: 300, refinery: 400, factory: 500, power: 200, mg: 300, cannon: 500, missile: 600, laser: 1000, wall: 20, gate: 150, soldier: 100, extractor: 300, buggy: 400, grenadier: 160, engineer: 200, rocket: 200, sniper: 250, light: 700, heavy: 1000, artillery: 500, tech: 600, radar: 300, medbay: 400, helipad: 500, heli: 800, sam: 600, settler: 3000, reactor: 1000, satellite: 1500 };   // (a new Settler is bought at the War Factory: the dearest thing in the game; $2,000 until v5.67)
 const WALL_REACH = 150;              // walls, gates and SAM Sites can go this much further out than other buildings
 // Turrets (v5.64): an Engineer builds them anywhere you can see, but never this close to an enemy building
 const TURRET_TYPES = ['mg', 'cannon', 'missile', 'laser'], TURRET_KEEP_OUT = 300;
@@ -2167,7 +2167,8 @@ function updateEngineer(e, dt) {
   }
 }
 
-// Turrets (v5.64): an Engineer walks to the spot and builds one there (he's used up and the turret goes up on its own over its build time).
+// Turrets (v5.64): an Engineer walks to the spot and builds one there (the turret goes up on its own over its build time). Since v5.68 the
+// Engineer isn't used up: it steps off the spot and can build again (Engineers cost $200, were $150).
 // The spot: open ground you can see, clear of buildings and ore, and never within TURRET_KEEP_OUT of an enemy building.
 // (only enemy buildings this side has found count: you can't learn what's hidden in the fog by trying to build next to it)
 const knowsBuilding = (team, b) => team === 0 ? exploredAt(b.x, b.y) : (game.ai.known.has(b.id) || visibleAt(b.x, b.y, 1));
@@ -2194,8 +2195,9 @@ function buildTurret(en) {   // the Engineer has arrived: pay, and the turret st
   if (game.stats[en.team]) game.stats[en.team].buildings++;
   if (en.team === 1) game.ai.turretsBuilt = (game.ai.turretsBuilt || 0) + 1;
   game.effects.push({ kind: 'dust', x: o.x, y: o.y, t: 0 });
-  en.hp = 0; en.deployed = true; en.order = null;   // the Engineer is used up building it
-  game.selected.delete(en.id);
+  en.order = null;   // (v5.68: the Engineer is no longer used up) it steps off the spot, to whichever side is clear
+  const off = STATS[o.kind].size / 2 + en.r + 6;
+  for (const [dx, dy] of [[0, 1], [-1, 0], [1, 0], [0, -1], [0.7, 0.7], [-0.7, 0.7]]) { const nx = o.x + dx * off, ny = o.y + dy * off; if (walkable(terrainAt(nx, ny), false) && !game.ents.some(b => isSolid(b) && b !== t && Math.abs(b.x - nx) < halfX(b) + en.r && Math.abs(b.y - ny) < halfY(b) + en.r)) { en.x = nx; en.y = ny; break; } }
   bldDirty = true;
   return t;
 }
@@ -3000,7 +3002,7 @@ function runAI(dt) {
       }
       en.order = { type: 'buildTurret', kind: sp.kind, x: sp.x, y: sp.y };
       const r = buildTurret(en);
-      if (typeof r === 'object') { r.entrance = !!sp.entrance; continue; }
+      if (typeof r === 'object') { r.entrance = !!sp.entrance; en.turretAt = null; en.turretWalks = 0; continue; }   // (the Engineer lives on since v5.68: free for its next job)
       en.order = null;
       if (r === 'spot') { const nsp = sp.entrance ? aiEntranceTurretSpot(hq, sp.kind) : aiTurretSpot(hq, sp.kind); en.turretAt = nsp ? { ...nsp, kind: sp.kind, entrance: sp.entrance } : null; }
       continue;

@@ -32,14 +32,17 @@ with sync_playwright() as p:
     check(r['barracks']['mg'] and not r['barracks']['cannon'], 'the Barracks unlocks the Machine Gun only')
     check(all(r['all'].values()), 'War Factory unlocks the Cannon, War Factory + Radar the Missile, Nuclear Reactor the Laser (v5.67)')
     check(not any(r['noEngineer'].values()), 'buttons only show with an Engineer selected')
-    # --- building one: the Engineer walks there, pays, is used up; the turret goes up over its build time
+    # --- building one: the Engineer walks there, pays and steps off the spot (not used up since v5.68); the turret goes up over its build time
     r = json.loads(pg.evaluate("""(()=>{ const x=hq.x+260, y=hq.y+260; for (const v of game.ents) if (v.team===0) {} ;
       const c0=game.stats[0].spent; en.order={type:'buildTurret',kind:'mg',x,y}; let k=0; while(k<600 && !game.ents.some(t=>t.type==='mg'&&t.team===0)) { U(1); k++; }
-      const t=game.ents.find(t=>t.type==='mg'&&t.team===0); const paid=game.stats[0].spent-c0, enGone=!game.ents.includes(en)||en.hp<=0, startBuilt=t&&t.built;
+      const t=game.ents.find(t=>t.type==='mg'&&t.team===0); const paid=game.stats[0].spent-c0, enAlive=game.ents.includes(en)&&en.hp>0, enClear=t?Math.hypot(en.x-t.x,en.y-t.y)>t.size/2+en.r:false, startBuilt=t&&t.built;
       let j=0; while(t && !t.built && j<400){ U(1); j++; }
-      return JSON.stringify({made:!!t, paid, enGone, startBuilt, secsToBuild:+(j*0.05).toFixed(1), at:t?[Math.round(t.x-x),Math.round(t.y-y)]:null}); })()"""))
+      let again=null; if(t){ const x2=x+120, y2=y; const c1=game.stats[0].spent; en.order={type:'buildTurret',kind:'mg',x:x2,y:y2}; let m=0; while(m<600 && game.ents.filter(q=>q.type==='mg'&&q.team===0).length<2){ U(1); m++; } again={second:game.ents.filter(q=>q.type==='mg'&&q.team===0).length===2, paid:game.stats[0].spent-c1, alive:en.hp>0}; }
+      return JSON.stringify({made:!!t, paid, enAlive, enClear, again, engCost:COST.engineer, startBuilt, secsToBuild:+(j*0.05).toFixed(1), at:t?[Math.round(t.x-x),Math.round(t.y-y)]:null}); })()"""))
     print(r)
-    check(r['made'] and r['paid'] == 300 and r['enGone'], 'the Engineer walks over, pays $300 and is used up')
+    check(r['made'] and r['paid'] == 300 and r['enAlive'] and r['enClear'], 'the Engineer walks over, pays $300, and steps off the spot alive (v5.68: no longer used up)')
+    check(r['again'] and r['again']['second'] and r['again']['paid'] == 300 and r['again']['alive'], 'the same Engineer builds a second turret')
+    check(r['engCost'] == 200, 'Engineers cost $200 (were $150)')
     check(not r['startBuilt'] and 6 <= r['secsToBuild'] <= 14, 'the Machine Gun takes its build time to go up (about 8 s)')
     # --- the rules: not within 300 of an enemy building, not where you can't see
     r = json.loads(pg.evaluate("""(()=>{ const eb=spawn('barracks',1,hq.x+900,hq.y-700); eb.built=true; eb.progress=1;

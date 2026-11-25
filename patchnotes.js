@@ -2,6 +2,13 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.68', date: '25 Nov 2026', title: 'Engineers keep building',
+    changes: [
+      'Engineers are no longer used up when they build a turret: the Engineer steps aside once the turret starts going up, and can go on to build another. Engineers now cost $200 (were $150). Turret prices are unchanged. Capturing a building still uses the Engineer up.',
+      'The computer\'s Engineers keep building too.',
+    ],
+  },
+  {
     version: '5.67', date: '25 Nov 2026', title: 'Nuclear Reactor, Satellite Radar and Napalm',
     changes: [
       'New: the Nuclear Reactor ($1,000, needs a Tech Centre). It gives as much power as 3 Power Plants and unlocks the Heavy Tank and the Laser Turret, which no longer come from the Tech Centre.',
