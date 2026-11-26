@@ -1521,6 +1521,13 @@ function buildWallLine(team, tiles) {
   return built;
 }
 
+// One building goes up at a time (v5.70, your call): you can't start a new base building until the one going up is finished.
+// Each HQ (an extra one from a Settler) gives one more slot. Walls, Gates and the turrets an Engineer builds don't count; the same rule holds for the computer.
+const countsAsConstruction = t => !!STATS[t] && !isWallType(t) && !isTurretType(t) && t !== 'hq' && !isNeutralType(t);
+const buildSlots = team => Math.max(1, game.ents.filter(e => e.team === team && e.type === 'hq' && e.hp > 0).length);
+const goingUp = team => game.ents.filter(e => e.team === team && !e.built && e.hp > 0 && isBuilding(e) && countsAsConstruction(e.type));
+const canStartBuilding = team => goingUp(team).length < buildSlots(team);
+
 function placeBuilding(team, type, x, y, vertical) {
   if (type === 'gate') {
     const g = snapGate(x, y, !!vertical);
@@ -1529,7 +1536,7 @@ function placeBuilding(team, type, x, y, vertical) {
     const e = spawn('gate', team, g.x, g.y); e.vertical = g.vertical; bldDirty = true;
     return true;
   }
-  if (game.credits[team] < COST[type] || !canPlace(team, type, x, y)) return false;
+  if (game.credits[team] < COST[type] || (countsAsConstruction(type) && !canStartBuilding(team)) || !canPlace(team, type, x, y)) return false;
   spend(team, COST[type]); if (!isWallType(type)) game.stats[team].buildings++;
   spawn(type, team, x, y);
   return true;
@@ -2844,7 +2851,8 @@ function runAI(dt) {
   const wantSam = D.sams && ai.seenAir && of('sam').length < D.sams && unlocked(1, 'sam') && !aiBlocked('sam');
   const extrasDone = (refineries.length >= reqRefineries || aiBlocked('refinery')) && entranceDefs >= wantTowers && !wantFactory && !wantTech && !wantReactor && !wantSatellite;
   const building = game.time < (ai.buildUntil || 0) && !extrasDone;
-  if (refineries.length === 0) aiPlaceRefinery(hq);
+  if (!canStartBuilding(1)) { /* a building is still going up: wait for it before starting the next (v5.70) */ }
+  else if (refineries.length === 0) aiPlaceRefinery(hq);
   else if (barracks.length === 0) aiPlace(hq, 'barracks');
   else if (wantSam && cash >= COST.sam) aiPlaceSam(hq, refineries);   // your aircraft are about: a SAM Site first
   else if (D.sams && ai.seenAir && wantRadar && !of('sam').length && cash >= COST.radar) aiPlace(hq, 'radar');   // (no Radar yet for its SAM Site: that first, v5.67)
@@ -3579,6 +3587,7 @@ function aiManOutposts(army, spare) {
 // Returns how much money it wants to keep for that (0 if it isn't expanding).
 function aiExpand(hq, refineries, sent) {
   if (aiRunSettler()) return 0;   // a Settler it bought is on its way to a new base: nothing else until it has deployed
+  if (!canStartBuilding(1)) return 0;   // one building at a time (v5.70)
   if (refineries.length >= 4 || (!sent && game.time < 200) || aiBlocked('expand')) return 0;
   const oreNear = (x, y, r) => game.ore.reduce((s, o) => s + (o.amount > 0 && Math.hypot(o.x - x, o.y - y) < r ? o.amount : 0), 0);
   if (refineries.some(r => !r.built || oreNear(r.x, r.y, 450) > (diff().expandAt || 600) * ORE_MULT)) return 0;   // still plenty to mine (Hard moves on sooner)
@@ -6439,6 +6448,13 @@ function updateHUD() {
     btn.textContent = `${NAMES[type]} $${COST[type]}`;
     btn.disabled = miss.length > 0 || game.credits[0] < COST[type];
   }
+  // one building at a time (v5.70): while one is going up the base buildings grey out and show how far along it is
+  const up = canStartBuilding(0) ? null : goingUp(0).reduce((a, b) => b.progress > a.progress ? b : a);
+  for (const [btn, type] of [[ui.barracks, 'barracks'], [ui.refinery, 'refinery'], [ui.power, 'power'], [ui.factory, 'factory'], [ui.tech, 'tech'], [ui.radar, 'radar'], [ui.medbay, 'medbay'], [ui.helipad, 'helipad'], [ui.sam, 'sam'], [ui.reactor, 'reactor'], [ui.satellite, 'satellite']]) {
+    const lbl = up ? `${NAMES[type]} · wait ${Math.floor(up.progress * 100)}%` : `${NAMES[type]} $${COST[type]}`;
+    if (btn.textContent !== lbl) btn.textContent = lbl;
+    if (up) btn.disabled = true;
+  }
   ui.wall.disabled = game.credits[0] < COST.wall;
   ui.gate.disabled = game.credits[0] < COST.gate;
   const wallMode = placing && placing.type === 'wall';
@@ -6447,7 +6463,7 @@ function updateHUD() {
   if (placing && placing.ghost && placing.type === 'gate') ui.place.disabled = !canPlaceWallPiece(0, 'gate', placing.ghost.x, placing.ghost.y, placing.ghost.vertical) || game.credits[0] < COST.gate;
   else if (placing && placing.strike) ui.place.disabled = !placing.ghost || !visibleAt(placing.ghost.x, placing.ghost.y, 0);
   else if (placing && placing.ghost && placing.turret) ui.place.disabled = !turretSiteOk(0, placing.type, placing.ghost.x, placing.ghost.y) || game.credits[0] < COST[placing.type];
-  else if (placing && placing.ghost) ui.place.disabled = !canPlace(0, placing.type, placing.ghost.x, placing.ghost.y) || game.credits[0] < COST[placing.type];
+  else if (placing && placing.ghost) ui.place.disabled = !canPlace(0, placing.type, placing.ghost.x, placing.ghost.y) || game.credits[0] < COST[placing.type] || (countsAsConstruction(placing.type) && !canStartBuilding(0));
   else if (placing) ui.place.disabled = false;
   if (producer) {
     for (const btn of produceBox.children) {
