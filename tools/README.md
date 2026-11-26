@@ -38,6 +38,14 @@ Example: `python3 rec/record.py .. 8801 large hard mixed 60`
 - `test_extractor_crush.py` checks Extractors (and tanks) run over enemy infantry but not vehicles or their own side.
 - `test_rock_fire.py` checks direct fire can't pass through rock (lobbed grenades can).
 - `test_building_edges.py` checks an Extractor leaving its Refinery and a tank attacking past its own buildings don't snag on building edges.
+- Added 22-26 Nov (v5.64-v5.69), all `python3 tests/<name> <game folder> <port>`:
+  - `test_turrets.py`: turrets built by Engineers (unlocks, the 300 keep-out, damage, Engineers not used up, the computer's turrets).
+  - `test_settler.py`: Settlers ($3,000 at the War Factory, need a Nuclear Reactor and a Satellite Radar), second HQs, the +25% speed per extra HQ, the computer buying one for far ore.
+  - `test_ai_heli.py <..> <port> hard` (a 24-minute helicopter game), `test_ai_heli_giveup.py` (cheap losses, the bigger wave, giving up, defence) and `test_heli_turret_tweaks.py` (Laser charging, Missile Turret lights, Rocket Soldiers vs helicopters, helicopters landing).
+  - `test_behaviours.py`: the computer's six behaviours (run over, dodge, retreat, Buggy loop, harassing Sniper, Extractor raids).
+  - `test_reactor_satellite.py`: Nuclear Reactor, Satellite Radar vision, Napalm Strike, Hard building and using them.
+  - `test_flame.py`: Flamethrower, Flame Tank, Rocket Launcher, forest fires and restart, Normal using them.
+  - `test_ai_tanks.py` is broken (it made Extractors at the Refinery, before v5.55) and needs updating.
 - `test_back_to_menu.py` checks the pause menu's Exit Game button (two taps, fresh game on the start screen, Start plays again).
 - `test_heli.py` checks helicopters: Helipad builds one docked helicopter (one per pad), attack, flying home to land and reload, flying straight over rocks and river, only Rocket Soldiers and SAM Sites can hit it, SAM Sites shoot only aircraft, docking at a new Helipad after losing its own, and that a move order stops at the edge of land never seen while an attack carries on into it. `pic_heli.py <game folder> <port> <out prefix>` pictures the Helipad, a helicopter in action and a SAM Site.
 - `test_ai_heli.py <game folder> <port> [difficulties] [map]` plays a long game against an unbreakable player base and logs, minute by minute, the computer's Helipads, helicopters (and how many are flying), SAM Sites and waves, plus the damage its helicopters did.
