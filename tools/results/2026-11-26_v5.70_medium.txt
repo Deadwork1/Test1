@@ -1,0 +1,66 @@
+Medium test, v5.70 (26 Nov 2026): 100 games, 25 per mode (Large/Huge x Normal/Hard), scripted test player (5 strategies), 40-minute cap.
+v5.70: one building goes up at a time (per HQ), for both sides. Compared with the v5.69 Medium test (25 Nov): see 2026-11-25_v5.69_medium.txt.
+Computer wins, v5.69 -> v5.70: Large Normal 32% -> 44%, Large Hard 48% -> 68%, Huge Normal 36% -> 12%, Huge Hard 52% -> 64% (each good to about +/-10 points).
+
+games 100  errors 0
+
+== Results (player = scripted test player, ai = computer)
+  large normal n= 25  computer wins  44%  player  56%  timeout   0%  median length 10.5 min
+  large hard   n= 25  computer wins  68%  player  32%  timeout   0%  median length 8.3 min
+  huge  normal n= 25  computer wins  12%  player  88%  timeout   0%  median length 12.9 min
+  huge  hard   n= 25  computer wins  64%  player  36%  timeout   0%  median length 9.9 min
+
+== Computer win rate by player strategy (all maps)
+  buggy     n= 20  computer  50%  player  50%  timeout   0%
+  infantry  n= 20  computer  55%  player  45%  timeout   0%
+  mixed     n= 20  computer  55%  player  45%  timeout   0%
+  tanks     n= 20  computer  40%  player  60%  timeout   0%
+  turtle    n= 20  computer  35%  player  65%  timeout   0%
+
+== Units: value killed per $1 spent (both sides), and split by side
+  [ALL]
+    sniper     made   804  died   499  spent $ 201,000  killed $ 281,130  value per $1: 1.40
+    rocket     made  1463  died  1060  spent $ 292,600  killed $ 386,200  value per $1: 1.32
+    soldier    made 14071  died 11631  spent $1,407,100  killed $1,316,690  value per $1: 0.94
+    light      made   628  died   282  spent $ 439,600  killed $ 337,500  value per $1: 0.77
+    grenadier  made  1317  died  1054  spent $ 210,720  killed $ 126,710  value per $1: 0.60
+    artillery  made   161  died    93  spent $  80,500  killed $  48,060  value per $1: 0.60
+    heavy      made     6  died     2  spent $   6,000  killed $   3,500  value per $1: 0.58
+    buggy      made   776  died   553  spent $ 310,400  killed $ 149,030  value per $1: 0.48
+    engineer   made  1886  died   588  spent $ 377,200  killed $       0  value per $1: 0.00
+  [LARGE]
+    rocket     made   588  died   455  spent $ 117,600  killed $ 182,730  value per $1: 1.55
+    sniper     made   387  died   242  spent $  96,750  killed $ 126,640  value per $1: 1.31
+    soldier    made  6572  died  5623  spent $ 657,200  killed $ 621,830  value per $1: 0.95
+    light      made   333  died   169  spent $ 233,100  killed $ 199,550  value per $1: 0.86
+    artillery  made    73  died    44  spent $  36,500  killed $  22,670  value per $1: 0.62
+    grenadier  made   697  died   561  spent $ 111,520  killed $  67,750  value per $1: 0.61
+    buggy      made   380  died   285  spent $ 152,000  killed $  69,580  value per $1: 0.46
+    heavy      made     3  died     0  spent $   3,000  killed $       0  value per $1: 0.00
+    engineer   made   936  died   281  spent $ 187,200  killed $       0  value per $1: 0.00
+  [HUGE]
+    sniper     made   417  died   257  spent $ 104,250  killed $ 154,490  value per $1: 1.48
+    heavy      made     3  died     2  spent $   3,000  killed $   3,500  value per $1: 1.17
+    rocket     made   875  died   605  spent $ 175,000  killed $ 203,470  value per $1: 1.16
+    soldier    made  7499  died  6008  spent $ 749,900  killed $ 694,860  value per $1: 0.93
+    light      made   295  died   113  spent $ 206,500  killed $ 137,950  value per $1: 0.67
+    grenadier  made   620  died   493  spent $  99,200  killed $  58,960  value per $1: 0.59
+    artillery  made    88  died    49  spent $  44,000  killed $  25,390  value per $1: 0.58
+    buggy      made   396  died   268  spent $ 158,400  killed $  79,450  value per $1: 0.50
+    engineer   made   950  died   307  spent $ 190,000  killed $       0  value per $1: 0.00
+
+== High ground (fighting units, per side) [low ground, high ground]
+  large player   fighting-minutes low     1121 high     12 (1% on high ground) | shots/min low 60.6 high 28.6 | damage taken/min low 330.2 high 170.8 | deaths per fighting-minute low 5.174 high 2.408
+  large computer fighting-minutes low      644 high     14 (2% on high ground) | shots/min low 49.8 high 31.2 | damage taken/min low 353.3 high 94.9 | deaths per fighting-minute low 3.919 high 1.024
+  huge  player   fighting-minutes low     1451 high      7 (0% on high ground) | shots/min low 58.8 high 43.2 | damage taken/min low 274.2 high 235.6 | deaths per fighting-minute low 4.301 high 1.407
+  huge  computer fighting-minutes low      544 high     40 (7% on high ground) | shots/min low 48.7 high 27.1 | damage taken/min low 361.7 high 61.1 | deaths per fighting-minute low 4.600 high 1.080
+
+== Games where one side spent more unit-time on high ground: who won? (decided games only)
+  large side with more high-ground time won 86% of 49 games
+  huge  side with more high-ground time won 71% of 48 games
+
+== Other
+  large normal stuck/game 0.0  captures player 126 computer 184  derrick-min player 14.9 computer 5.0 per game  | computer Medbay built in 20/25 (median 5.3 min), units sent to heal 74, HP healed 7013  | AI waves 1.6  AI cash avg 317
+  large hard   stuck/game 0.0  captures player 112 computer 151  derrick-min player 10.1 computer 3.1 per game  | computer Medbay built in 22/25 (median 4.8 min), units sent to heal 39, HP healed 3267  | AI waves 1.2  AI cash avg 310
+  huge  normal stuck/game 0.0  captures player 119 computer 180  derrick-min player 18.1 computer 3.5 per game  | computer Medbay built in 23/25 (median 5.4 min), units sent to heal 63, HP healed 2137  | AI waves 0.7  AI cash avg 233
+  huge  hard   stuck/game 0.4  captures player 102 computer 163  derrick-min player 12.6 computer 3.7 per game  | computer Medbay built in 21/25 (median 4.8 min), units sent to heal 51, HP healed 3665  | AI waves 1.4  AI cash avg 312
