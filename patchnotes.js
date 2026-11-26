@@ -2,6 +2,15 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.70', date: '26 Nov 2026', title: 'One building at a time',
+    changes: [
+      'Only one building can go up at a time: you can\'t start a new building until the one under construction is finished. While one is going up, the HQ\'s build buttons grey out and show how far along it is.',
+      'Each extra Headquarters (from a Settler) lets one more building go up at the same time.',
+      'Walls, Gates and the turrets your Engineers build aren\'t affected.',
+      'The computer follows the same rule.',
+    ],
+  },
+  {
     version: '5.69', date: '25 Nov 2026', title: 'Flame units, rockets and forest fires',
     changes: [
       'New: the Flamethrower ($250, Barracks, needs a Power Plant). A short jet of fire that burns down infantry and buildings fast, but struggles against tanks.',
