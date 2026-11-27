@@ -1300,7 +1300,7 @@ function moveToward(e, tx, ty, dt) {
     const crusher = isTank(e) || e.type === 'extractor';
     for (const o of game.ents) {
       if (o === e || !isUnit(o) || o.docked || o.air || o.hp <= 0) continue;
-      if (crusher && o.team !== e.team && isInfantry(o)) continue;   // tanks and extractors drive straight over enemy infantry
+      if (crusher && o.team !== e.team && crushable(e, o)) continue;   // tanks and extractors drive straight over enemy infantry (Heavy Tanks over Buggies and Rocket Bikes too, v5.74)
       const ox = o.x - e.x, oy = o.y - e.y;
       if (Math.abs(ox) > look + 20 || Math.abs(oy) > look + 20) continue;
       const along = ox * ux + oy * uy;
@@ -2097,11 +2097,13 @@ function findEnemyNear(e, radius) {
 const RIFLES = { soldier: 1, buggy: 1, civilian: 1 };   // (handguns count as rifles: half damage to tanks)
 const armour = (attacker, t) => (isTank(t) && RIFLES[attacker] ? 0.5 : 1) * ((attacker === 'light' || attacker === 'heavy') && isInfantry(t) ? 0.25 : 1);   // (tank shells vs infantry: a quarter since v5.63, was half)
 // tanks run over enemy infantry they drive into
+// what a vehicle can run over: infantry, and for the Heavy Tank Buggies and Rocket Bikes too (v5.74, your call)
+const crushable = (e, o) => isInfantry(o) || (e.type === 'heavy' && (o.type === 'buggy' || o.type === 'bike'));
 function crush(e) {
   e.rolling = e.cx !== undefined && Math.hypot(e.x - e.cx, e.y - e.cy) > 0.2;
   if (e.rolling) {
     for (const o of game.ents) {
-      if (o.team === e.team || !isInfantry(o) || o.hp <= 0) continue;
+      if (o.team === e.team || !crushable(e, o) || o.hp <= 0 || o.air) continue;
       if (Math.hypot(o.x - e.x, o.y - e.y) < e.r * 0.75 + o.r * 0.5) {
         hurt(o, o.hp, e.type, e.team);
         game.effects.push({ kind: 'text', x: o.x, y: o.y - 10, text: 'Crushed!', t: 0, color: '#ffb0a0' });
@@ -2701,7 +2703,7 @@ function separate() {
       const b = units[j];
       const dx = b.x - a.x, dy = b.y - a.y;
       if (Math.abs(dx) > 40 || Math.abs(dy) > 40) continue;
-      if (a.team !== b.team && ((a.rolling && isInfantry(b)) || (b.rolling && isInfantry(a)))) continue;   // a moving tank drives over enemy infantry
+      if (a.team !== b.team && ((a.rolling && crushable(a, b)) || (b.rolling && crushable(b, a)))) continue;   // a moving tank drives over enemy infantry (a Heavy Tank over Buggies and Rocket Bikes too, v5.74)
       const d = Math.hypot(dx, dy) || 0.01, min = a.r + b.r;
       if (d < min) {
         const push = (min - d) / 2;
