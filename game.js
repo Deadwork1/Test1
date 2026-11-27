@@ -1228,7 +1228,7 @@ function spawn(type, team, x, y) {
   if (isBuildingType(type)) {
     bldDirty = true;
     e.size = s.size;
-    if (isBuildingType(type) && team !== NEUTRAL && factionOf(team)) e.style = factionOf(team);   // its look follows the side that built it (v5.74)
+    if (team !== NEUTRAL && factionOf(team)) e.style = factionOf(team);   // its look follows the side that made it (v5.74: buildings, Light Tanks, Buggies)
     if (type === 'hq' || isWallType(type) || isNeutralType(type) || team === NEUTRAL) { e.built = true; e.progress = 1; }   // walls go up instantly; neutral ruins are already standing
     else { e.built = false; e.progress = 0; e.hp = s.hp * 0.1; }
     e.queue = 0; e.trainT = 0; e.qTypes = [];
@@ -4152,12 +4152,12 @@ function draw() {
     else if (e.type === 'gate') drawGate(e);
     else if (e.type === 'settler') drawSettler(e);
     else if (e.type === 'extractor') drawExtractor(e);
-    else if (e.type === 'buggy') drawBuggy(e);
+    else if (e.type === 'buggy') { const st = e.style || factionOf(e.team); if (st === 'legion') drawBuggyLegion(e); else if (st === 'ashen') drawBuggyAshen(e); else drawBuggy(e); }
     else if (e.type === 'bike') drawBike(e);
     else if (e.type === 'grenadier' || e.type === 'engineer' || e.type === 'rocket' || e.type === 'sniper' || e.type === 'civilian' || e.type === 'flamer') drawSoldier(e);
     else if (e.type === 'factory') drawFactory(e);
     else if (e.type === 'tech') drawTech(e);
-    else if (e.type === 'light') drawTank(e);
+    else if (e.type === 'light') { const st = e.style || factionOf(e.team); if (st === 'legion') drawLightLegion(e); else if (st === 'ashen') drawLightAshen(e); else drawTank(e); }
     else if (e.type === 'flametank') drawFlameTank(e);
     else if (e.type === 'mrl') drawRocketLauncher(e);
     else if (e.type === 'heavy') drawHeavyTank(e);
@@ -5146,6 +5146,130 @@ function drawBuggy(e) {
   ctx.fillStyle = '#333'; ctx.beginPath(); ctx.arc(-3, 0, 3.5, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = '#111'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(-3, 0); ctx.lineTo(13, 0); ctx.stroke();
   if (e.cooldown > STATS.buggy.cooldown - 0.06) { ctx.fillStyle = '#ffe9a0'; ctx.beginPath(); ctx.arc(16, 0, 3, 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
+}
+
+
+// ---------- Faction vehicles (v5.74, your call: the Light Tank and the Buggy look different for each side) ----------
+// shared bits: track the turret toward its target (or drift back to the front), dust, and the scrolling tracks
+function tankPrep(e, turnRate) {
+  const moving = e.lx !== undefined && Math.hypot(e.x - e.lx, e.y - e.ly) > 0.2;
+  e.lx = e.x; e.ly = e.y;
+  if (e.turret === undefined) e.turret = e.facing;
+  if (!e.order || e.order.type !== 'attack') { let d = e.facing - e.turret; d = Math.atan2(Math.sin(d), Math.cos(d)); e.turret += d * turnRate; }
+  if (moving && Math.random() < 0.35) game.effects.push({ kind: 'dust', x: e.x - Math.cos(e.facing) * e.r, y: e.y - Math.sin(e.facing) * e.r, t: 0 });
+  return moving;
+}
+function tracks(L, Wd, w, moving, col, tread) {
+  ctx.fillStyle = col; ctx.fillRect(-L, -Wd, L * 2, w); ctx.fillRect(-L, Wd - w, L * 2, w);
+  ctx.strokeStyle = tread; ctx.lineWidth = 1; const off = moving ? (performance.now() / 40) % 4 : 0;
+  for (let k = -L + off; k < L; k += 4) { ctx.beginPath(); ctx.moveTo(k, -Wd); ctx.lineTo(k, -Wd + w); ctx.moveTo(k, Wd - w); ctx.lineTo(k, Wd); ctx.stroke(); }
+}
+
+// The Legion's Light Tank: sleek and modern - a white wedge hull with blue side panels and a dark engine grille, an angular
+// white turret with a blue stripe, a long gun with a muzzle brake, a commander's hatch and smoke dischargers
+function drawLightLegion(e) {
+  const c = TEAMS[e.team], moving = tankPrep(e, 0.08), L = 17, Wd = 12;
+  ctx.save(); ctx.translate(e.x, e.y);
+  ctx.save(); ctx.rotate(e.facing);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(-L + 3, -Wd + 4, L * 2, Wd * 2);
+  tracks(L, Wd, 5, moving, '#23262b', '#454a52');
+  ctx.fillStyle = '#e9edf3'; ctx.strokeStyle = '#8f98a6'; ctx.lineWidth = 1.2;           // the wedge hull
+  ctx.beginPath(); ctx.moveTo(-L + 1, -Wd + 4); ctx.lineTo(L - 7, -Wd + 4); ctx.lineTo(L + 1, -3); ctx.lineTo(L + 1, 3); ctx.lineTo(L - 7, Wd - 4); ctx.lineTo(-L + 1, Wd - 4); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = c.color; ctx.fillRect(-L + 3, -Wd + 4, L * 2 - 11, 2.5); ctx.fillRect(-L + 3, Wd - 6.5, L * 2 - 11, 2.5);   // blue side panels
+  ctx.fillStyle = '#4a515c'; ctx.fillRect(-L + 2, -3.5, 6, 7);                            // engine grille
+  ctx.fillStyle = 'rgba(255,255,255,0.4)'; for (let k = 0; k < 3; k++) ctx.fillRect(-L + 3, -2.5 + k * 2.2, 4, 0.8);
+  ctx.restore();
+  ctx.rotate(e.turret);
+  const recoil = e.cooldown > STATS.light.cooldown - 0.15 ? -3 : 0;
+  ctx.fillStyle = '#2e3239'; ctx.fillRect(4 + recoil, -1.4, 17, 2.8);                      // long gun
+  ctx.fillStyle = '#1d2025'; ctx.fillRect(19 + recoil, -2.3, 4, 4.6);                      // muzzle brake
+  ctx.fillStyle = '#f4f6fa'; ctx.strokeStyle = '#8f98a6'; ctx.lineWidth = 1.2;           // angular turret
+  ctx.beginPath(); ctx.moveTo(-7, -6); ctx.lineTo(3, -6); ctx.lineTo(7, -2.5); ctx.lineTo(7, 2.5); ctx.lineTo(3, 6); ctx.lineTo(-7, 6); ctx.lineTo(-9, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = c.color; ctx.fillRect(-7, -1.2, 13, 2.4);                                // blue stripe
+  ctx.fillStyle = '#c3cad4'; ctx.beginPath(); ctx.arc(-3, -2.8, 2, 0, Math.PI * 2); ctx.fill();   // commander's hatch
+  ctx.fillStyle = '#4a515c'; for (const sy of [-5, 5]) ctx.fillRect(1, sy - 1, 3, 2);     // smoke dischargers
+  if (recoil) { ctx.fillStyle = 'rgba(255,220,140,0.85)'; ctx.beginPath(); ctx.arc(25, 0, 3.2, 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
+}
+
+// The Ashen's Light Tank: improvised - a dark rusty hull covered in welded patch plates, slat cage armour along the sides,
+// jerry cans and a spare tyre on the back deck, and a squat black turret with a red band, sandbags on its front, a short
+// thick gun and a machine gun on top
+function drawLightAshen(e) {
+  const c = TEAMS[e.team], moving = tankPrep(e, 0.08), L = 17, Wd = 12;
+  ctx.save(); ctx.translate(e.x, e.y);
+  ctx.save(); ctx.rotate(e.facing);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(-L + 3, -Wd + 4, L * 2, Wd * 2);
+  tracks(L, Wd, 6, moving, '#1b1a18', '#3d3a34');
+  ctx.strokeStyle = '#5a5650'; ctx.lineWidth = 1;                                          // slat cage armour along the sides
+  for (const sy of [-Wd - 1.5, Wd + 1.5]) { ctx.beginPath(); ctx.moveTo(-L + 2, sy); ctx.lineTo(L - 2, sy); ctx.stroke(); for (let k = -L + 3; k < L - 2; k += 3.5) { ctx.beginPath(); ctx.moveTo(k, sy - 1.5); ctx.lineTo(k, sy + 1.5); ctx.stroke(); } }
+  ctx.fillStyle = '#2d2a26'; ctx.strokeStyle = '#111'; ctx.lineWidth = 1.2;              // the hull
+  ctx.beginPath(); ctx.moveTo(-L + 2, -Wd + 5); ctx.lineTo(L - 4, -Wd + 5); ctx.lineTo(L, -Wd + 9); ctx.lineTo(L, Wd - 9); ctx.lineTo(L - 4, Wd - 5); ctx.lineTo(-L + 2, Wd - 5); ctx.closePath(); ctx.fill(); ctx.stroke();
+  for (const [x, y, w, hh, col] of [[3, -6.5, 7, 4.5, '#4a443b'], [8, 2, 6, 4, '#3c3830'], [-6, 2.5, 5, 3.5, '#544a3c']]) { ctx.fillStyle = col; ctx.fillRect(x, y, w, hh); ctx.fillStyle = '#9a9384'; for (const [px, py] of [[x + 0.8, y + 0.8], [x + w - 0.8, y + 0.8], [x + 0.8, y + hh - 0.8], [x + w - 0.8, y + hh - 0.8]]) ctx.fillRect(px - 0.4, py - 0.4, 0.8, 0.8); }   // welded patches with rivets
+  ctx.fillStyle = 'rgba(150,70,25,0.6)'; ctx.beginPath(); ctx.arc(L - 6, -3, 2.2, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = c.color; ctx.fillRect(-L + 2, -Wd + 5, 2, Wd * 2 - 10);                 // red band across the back
+  for (const sy of [-5, -1]) { ctx.fillStyle = '#4c5a2e'; ctx.fillRect(-L + 5, sy, 5, 3.5); ctx.fillStyle = '#2e3a1a'; ctx.fillRect(-L + 5, sy + 1.4, 5, 0.7); }   // jerry cans
+  ctx.fillStyle = '#141414'; ctx.beginPath(); ctx.arc(-L + 8, 5, 3.4, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#3a3630'; ctx.beginPath(); ctx.arc(-L + 8, 5, 1.4, 0, Math.PI * 2); ctx.fill();   // spare tyre
+  ctx.restore();
+  ctx.rotate(e.turret);
+  const recoil = e.cooldown > STATS.light.cooldown - 0.15 ? -2.5 : 0;
+  ctx.fillStyle = '#1f1d1a'; ctx.fillRect(4 + recoil, -2.2, 12, 4.4);                      // short thick gun
+  ctx.fillStyle = '#151412'; ctx.fillRect(14 + recoil, -2.8, 3, 5.6);
+  ctx.fillStyle = '#161616'; ctx.beginPath(); ctx.ellipse(-1, 0, 7.5, 6.5, 0, 0, Math.PI * 2); ctx.fill();   // squat turret
+  ctx.strokeStyle = c.color; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.ellipse(-1, 0, 6, 5, 0, 0, Math.PI * 2); ctx.stroke();   // red band
+  ctx.fillStyle = '#7b7253'; for (const sy of [-3.5, 0, 3.5]) { ctx.beginPath(); ctx.ellipse(5.5, sy, 1.8, 1.6, 0, 0, Math.PI * 2); ctx.fill(); }   // sandbags on the front
+  ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(-3, -3); ctx.lineTo(3, -5.5); ctx.stroke();   // the machine gun on top
+  if (recoil) { ctx.fillStyle = 'rgba(255,180,90,0.85)'; ctx.beginPath(); ctx.arc(19, 0, 3.4, 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
+}
+
+// The Legion's Buggy: a white fast-attack jeep with a blue bonnet, a windscreen, a roll bar, a ring-mounted machine gun and
+// a spare wheel on the back
+function drawBuggyLegion(e) {
+  const c = TEAMS[e.team];
+  const moving = e.lx !== undefined && Math.hypot(e.x - e.lx, e.y - e.ly) > 0.3;
+  e.lx = e.x; e.ly = e.y;
+  if (moving && Math.random() < 0.5) game.effects.push({ kind: 'dust', x: e.x - Math.cos(e.facing) * 14, y: e.y - Math.sin(e.facing) * 14, t: 0 });
+  ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.facing);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(-12, -8, 28, 20);
+  ctx.fillStyle = '#1e2024'; for (const [wx, wy] of [[-12, -11.5], [6, -11.5], [-12, 6.5], [6, 6.5]]) { ctx.beginPath(); ctx.roundRect(wx, wy, 9, 5, 1.5); ctx.fill(); }   // wheels
+  ctx.fillStyle = '#eef1f5'; ctx.strokeStyle = '#8f98a6'; ctx.lineWidth = 1.2;           // body
+  ctx.beginPath(); ctx.roundRect(-13, -7, 27, 14, 3); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = c.color; ctx.beginPath(); ctx.roundRect(5, -6, 9, 12, 2); ctx.fill();    // blue bonnet
+  ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fillRect(7, -4.5, 5, 1.2);
+  ctx.fillStyle = 'rgba(150,200,240,0.85)'; ctx.fillRect(3, -6, 2, 12);                    // windscreen
+  ctx.strokeStyle = '#59606b'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(-6, -7); ctx.lineTo(-6, 7); ctx.stroke();   // roll bar
+  ctx.fillStyle = '#1e2024'; ctx.beginPath(); ctx.arc(-14, 0, 3.5, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#59606b'; ctx.beginPath(); ctx.arc(-14, 0, 1.4, 0, Math.PI * 2); ctx.fill();   // spare wheel
+  ctx.strokeStyle = '#59606b'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(-2, 0, 3.8, 0, Math.PI * 2); ctx.stroke();   // gun ring
+  ctx.strokeStyle = '#1b1d21'; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(-2, 0); ctx.lineTo(12, 0); ctx.stroke();   // machine gun
+  if (e.cooldown > STATS.buggy.cooldown - 0.06) { ctx.fillStyle = '#ffe9a0'; ctx.beginPath(); ctx.arc(15, 0, 3, 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
+}
+
+// The Ashen's Buggy: a black open dune buggy - a rusty tube frame, a red seat, a big engine at the back with two exhaust
+// pipes smoking, a pintle machine gun, mismatched wheels and a ragged red flag on a whip pole
+function drawBuggyAshen(e) {
+  const c = TEAMS[e.team], t = performance.now() / 1000;
+  const moving = e.lx !== undefined && Math.hypot(e.x - e.lx, e.y - e.ly) > 0.3;
+  e.lx = e.x; e.ly = e.y;
+  if (moving && Math.random() < 0.5) game.effects.push({ kind: 'dust', x: e.x - Math.cos(e.facing) * 14, y: e.y - Math.sin(e.facing) * 14, t: 0 });
+  if (moving && Math.random() < 0.15) game.effects.push({ kind: 'dust', x: e.x - Math.cos(e.facing) * 16 - Math.sin(e.facing) * 4, y: e.y - Math.sin(e.facing) * 16 + Math.cos(e.facing) * 4, t: 0.1 });   // exhaust
+  ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.facing);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(-12, -8, 28, 20);
+  for (const [wx, wy, col] of [[-13, -12, '#141414'], [7, -11, '#1d1d1d'], [-13, 7, '#141414'], [7, 6, '#242424']]) { ctx.fillStyle = col; ctx.beginPath(); ctx.roundRect(wx, wy, wx < 0 ? 10 : 8, wx < 0 ? 6 : 5, 2); ctx.fill(); }   // big rear, small front wheels
+  ctx.fillStyle = '#191919'; ctx.beginPath(); ctx.moveTo(-11, -6); ctx.lineTo(10, -4); ctx.lineTo(15, 0); ctx.lineTo(10, 4); ctx.lineTo(-11, 6); ctx.closePath(); ctx.fill();   // low black tub
+  ctx.strokeStyle = '#7a4a2a'; ctx.lineWidth = 1.6;                                          // rusty tube frame
+  ctx.beginPath(); ctx.moveTo(-9, -6); ctx.lineTo(4, -5); ctx.lineTo(10, 0); ctx.lineTo(4, 5); ctx.lineTo(-9, 6); ctx.moveTo(-3, -6); ctx.lineTo(-3, 6); ctx.stroke();
+  ctx.fillStyle = '#3a3a3a'; ctx.fillRect(-13, -4.5, 6, 9);                                // engine
+  ctx.fillStyle = '#555'; for (const sy of [-3, 3]) ctx.fillRect(-16, sy - 0.8, 4, 1.6);   // exhaust pipes
+  ctx.fillStyle = c.color; ctx.fillRect(-2, -3, 4, 6);                                     // red seat
+  ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(3, 0); ctx.lineTo(14, 0); ctx.stroke();   // pintle gun
+  ctx.fillStyle = '#2a2a2a'; ctx.beginPath(); ctx.arc(3, 0, 2, 0, Math.PI * 2); ctx.fill();
+  const wave = Math.sin(t * 7) * 1.4;                                                      // ragged flag on a whip
+  ctx.strokeStyle = '#999'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(-10, 5); ctx.lineTo(-18, 9); ctx.stroke();
+  ctx.fillStyle = c.color; ctx.beginPath(); ctx.moveTo(-18, 9); ctx.lineTo(-24, 9 + wave); ctx.lineTo(-21, 11 + wave); ctx.lineTo(-24, 13 + wave); ctx.lineTo(-17.5, 11); ctx.fill();
+  if (e.cooldown > STATS.buggy.cooldown - 0.06) { ctx.fillStyle = '#ffd08a'; ctx.beginPath(); ctx.arc(17, 0, 3, 0, Math.PI * 2); ctx.fill(); }
   ctx.restore();
 }
 
