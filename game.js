@@ -3449,6 +3449,7 @@ function aiNapalm() {
 // Plus the retreat: a wave of 7+ that's losing and down to its last 2 runs home (infantry; a vehicle runs when it's the last of 4+).
 // (Tanks running over infantry and infantry dodging tanks happen unit by unit: updateSoldier.)
 const AI_ERRANDS = ['patrol', 'harass', 'xraid', 'retreat'];
+const PATROL_CLEAR = 700;   // how far its scouting loop keeps from any base
 const PATROL_EVERY = 180, HARASS_EVERY = 420, XRAID_EVERY = 240, HARASS_TIME = 150, XRAID_TIME = 90;
 // a spot near (x, y) that a unit can stand on (nudged toward the middle of the map if it's water or rock)
 function landNear(x, y, vehicle) {
@@ -3487,7 +3488,9 @@ function aiBehaviours(D, army, hq, rally) {
   if (patrolDue) {
     const b = army.find(buggyFor);
     if (b) {
-      const m = 260, pts = [[m, m], [W / 2, m], [W - m, m], [W - m, H / 2], [W - m, H - m - 180], [W / 2, H - m - 180], [m, H - m - 180], [m, H / 2]].map(([x, y]) => landNear(x, y, false)).filter(Boolean);
+      // the loop skips the bases (v5.72, your call): no point within 700 of either side's start, any HQ, or a building of yours it has seen
+      const bases = [START[0], START[1], ...game.ents.filter(e => e.type === 'hq' && e.hp > 0), ...[...ai.known.values()].filter(k => k.type !== 'wall' && k.type !== 'gate')];
+      const m = 260, pts = [[m, m], [W / 2, m], [W - m, m], [W - m, H / 2], [W - m, H - m - 180], [W / 2, H - m - 180], [m, H - m - 180], [m, H / 2]].map(([x, y]) => landNear(x, y, false)).filter(p => p && !bases.some(q => Math.hypot(q.x - p.x, q.y - p.y) < PATROL_CLEAR));
       let first = 0, bd = Infinity; pts.forEach((p, i) => { const d = Math.hypot(p.x - b.x, p.y - b.y); if (d < bd) { bd = d; first = i; } });
       b.role = 'patrol'; b.passive = true; b.errand = { pts: pts.slice(first).concat(pts.slice(0, first)), i: 0 }; b.order = null;
       ai.patrolAt = now;

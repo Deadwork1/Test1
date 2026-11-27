@@ -57,14 +57,15 @@ with sync_playwright() as p:
     check(r['notLosing'] == ['wave', 'wave'], 'a wave that is down to 2 but not losing keeps going')
     # scout patrol
     r = json.loads(pg.evaluate("""(()=>{ clear(); const ral=aiRally(h1); const bg=spawn('buggy',1,ral.x,ral.y); game.time=400; game.ai.patrolAt=-999; beh();
-      const started=bg.role==='patrol', pts=bg.errand?bg.errand.pts.length:0, spread=bg.errand?Math.round(Math.max(...bg.errand.pts.map(p=>p.x))-Math.min(...bg.errand.pts.map(p=>p.x))):0; let k=0, maxI=0;
+      const started=bg.role==='patrol', pts=bg.errand?bg.errand.pts.length:0, gap=bg.errand?Math.round(Math.min(...bg.errand.pts.flatMap(p=>[START[0],START[1],h0,h1].map(q=>Math.hypot(q.x-p.x,q.y-p.y))))):0, spread=bg.errand?Math.round(Math.max(...bg.errand.pts.map(p=>p.x))-Math.min(...bg.errand.pts.map(p=>p.x))):0; let k=0, maxI=0;
       while(k<240 && bg.role==='patrol' && bg.hp>0){ U(20); beh(); k++; maxI=Math.max(maxI,bg.errand?bg.errand.i:0); }
       const again=(()=>{ beh(); return bg.role==='patrol'; })();
-      return JSON.stringify({started, pts, spread, secs:k, maxI, home:bg.role===null, again, wait:Math.round(game.ai.patrolAt) }); })()"""))
+      return JSON.stringify({started, pts, gap, spread, secs:k, maxI, home:bg.role===null, again, wait:Math.round(game.ai.patrolAt) }); })()"""))
     print(r)
-    check(r['started'] and r['pts'] >= 6 and r['spread'] > 2000, 'a Buggy sets off on a loop of %d points round the map' % r['pts'])
+    check(r['started'] and r['pts'] >= 4 and r['spread'] > 2000, 'a Buggy sets off on a loop of %d points round the map' % r['pts'])
     check(r['maxI'] >= r['pts'] - 1 and r['home'], 'it drives the whole loop (%d s) and comes home' % r['secs'])
     check(not r['again'], 'and the next loop waits 3 minutes')
+    check(r['gap'] >= 700, 'the loop keeps 700+ away from both bases (closest point %d)' % r['gap'])
     # harassing sniper
     r = json.loads(pg.evaluate("""(()=>{ clear(); const ral=aiRally(h1); const bar=mk('barracks',0,h0.x+160,h0.y-120); game.ai.known.set(bar.id,{x:bar.x,y:bar.y,type:'barracks'});
       const sn=spawn('sniper',1,ral.x,ral.y); game.time=500; game.ai.harassAt=-999; beh(); const started=sn.role==='harass'; const spot=sn.errand&&sn.errand.spot;
