@@ -2,6 +2,23 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.73', date: '27 Nov 2026', title: 'Two factions',
+    changes: [
+      'Two factions. Pick yours on the start screen: The Legion (armour and air, blue and white) or The Ashen (guerrillas and fire, red and black), or Random. The enemy is always the other one.',
+      'The Legion alone have the Heavy Tank, the Attack Helicopter and Helipad, Grenadiers, the Rocket Launcher, Machine Gun and Missile Turrets, the new Bulwark and the Orbital Barrage.',
+      'The Ashen alone have the Flamethrower, the Flame Tank, Snipers, the new Rocket Bike, Cannon and Laser Turrets, SAM Sites and the Napalm Strike.',
+      'Both have every other building (including the Nuclear Reactor and Satellite Radar) and the Soldier, Rocket Soldier, Engineer, Buggy, Light Tank, Artillery, Extractor and Settler.',
+      'Each faction has its own crest (on the start screen, its HQ, its banners and the results screen), its own Barracks and War Factory, and its own Light Tank and Buggy.',
+      'New for the Ashen: the Rocket Bike ($400, War Factory, needs a Power Plant). A fast dirt bike with a light rocket pod on each side, firing both at once; strong against vehicles, and it can ride through forests.',
+      'New for the Legion: the Bulwark ($650, War Factory, needs a Power Plant). An armoured carrier for 5 infantry with a light machine gun, and it crushes infantry. Select infantry and tap it to load them; Unload lets them out. If it is destroyed they jump out, hurt.',
+      'New for the Legion: the Orbital Barrage, from the Satellite Radar every 5 minutes. Tap a spot you can see: after a lock-on, 10 shells fall inside a circle, hardest on buildings and vehicles.',
+      'Napalm does a little more to buildings (20 a second, was 15).',
+      'Helicopters land sooner when they have nothing to do (half a second, was 3).',
+      'The computer only builds walls where they really close its base off (no more walls and gates in the middle of its base), keeps its buildings inside them, and leaves room between its buildings for units to get through.',
+      'War Factory buttons: the Heavy Tank now comes after the Rocket Launcher.',
+    ],
+  },
+  {
     version: '5.72', date: '27 Nov 2026', title: 'Sandbox, faster missiles',
     changes: [
       'New: Sandbox. Switch it on at the start screen for unlimited money and the whole map in view (no fog, and the minimap from the start). The enemy plays as usual at the difficulty you pick.',
