@@ -1451,10 +1451,19 @@ function inBuildArea(team, x, y, extra = 0) {
   return buildAreaSources(team).some(s => edgeDist(x, y, s.b) <= s.r - s.b.size / 2 + extra);
 }
 
+// The computer leaves a lane at least AI_GAP wide between a new building and any other (v5.73, your call), so tanks and
+// infantry can get between them (a vehicle's route keeps 20 from a building on each side, on a 25 grid). Walls, gates and
+// turrets don't count.
+const AI_GAP = 70;
+function aiRoomAround(x, y, size) {
+  return !game.ents.some(b => b.hp > 0 && isBuilding(b) && !isWallType(b.type) && !isTurretType(b.type) &&
+    Math.abs(b.x - x) < b.size / 2 + size / 2 + AI_GAP && Math.abs(b.y - y) < b.size / 2 + size / 2 + AI_GAP);
+}
 function canPlace(team, type, x, y) {
   const size = STATS[type].size;
   if (!unlocked(team, type)) return false;
   if (!inBuildArea(team, x, y, type === 'sam' ? WALL_REACH : 0) || !siteIsFree(x, y, size)) return false;
+  if (team === 1 && !isWallType(type) && !aiRoomAround(x, y, size)) return false;   // the computer leaves lanes between its buildings (v5.73)
   if (team === 1 && diff().walls && hqOf(1)) {   // the computer keeps its planned wall lines and gates clear
     if (!game.ai.wallPlans) { game.ai.wallPlans = aiWallPlans(hqOf(1)); game.ai.gateTried = []; }
     if (game.ai.wallPlans.some(pl => [...pl.tiles, pl.gate].some(t => Math.abs(t.x - x) < size / 2 + 22 && Math.abs(t.y - y) < size / 2 + 22))) return false;
@@ -2677,12 +2686,13 @@ function insideWalls(x, y, size) {
 function aiPlace(hq, type) {
   if (game.credits[1] < COST[type]) return false;
   const bases = buildAreaSources(1);
-  for (let tries = 0; tries < 90; tries++) {
+  const inside = !!aiInside(), most = inside ? 200 : 90;   // (with walls it looks harder for room inside them, v5.73)
+  for (let tries = 0; tries < most; tries++) {
     const src = tries < 30 ? hq : bases[Math.floor(Math.random() * bases.length)].b;
     const toward = Math.atan2(H / 2 - src.y, W / 2 - src.x);
     const a = toward + (Math.random() - 0.5) * (tries < 60 ? 2.6 : 6.2), d = src.size / 2 + 60 + Math.random() * 200;
     const x = src.x + Math.cos(a) * d, y = src.y + Math.sin(a) * d;
-    if (tries < 70 && !insideWalls(x, y, STATS[type].size)) continue;   // inside its walls first (v5.73)
+    if (tries < most - 20 && !insideWalls(x, y, STATS[type].size)) continue;   // inside its walls first (v5.73)
     if (placeBuilding(1, type, x, y)) return true;
   }
   game.ai.cantPlace = game.ai.cantPlace || {};
