@@ -254,7 +254,7 @@ const BUILD_RADIUS = 300;             // how far from your HQ you can place buil
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
 
 // v5.74: Light Tank 850 (was 700), Bulwark 700, Heavy Tank 1100 (was 1000): your calls. v5.52 prices (your picks, with the $500 loads): Sniper 250 (was 200), Buggy 400 (250), Light Tank 700 (400), Heavy Tank 1000 (700), Extractor 300 (150); v5.56: Artillery 500 (450)
-const COST = { barracks: 300, refinery: 500, factory: 500, power: 200, mg: 300, cannon: 500, missile: 600, laser: 1000, wall: 20, gate: 150, soldier: 100, extractor: 400, buggy: 400, grenadier: 160, engineer: 200, rocket: 200, sniper: 250, light: 850, heavy: 1100, artillery: 500, tech: 600, radar: 300, medbay: 400, helipad: 500, heli: 800, sam: 600, settler: 3000, reactor: 1000, satellite: 1500, flamer: 250, flametank: 800, mrl: 900, bike: 400, bulwark: 700 };   // (a new Settler is bought at the War Factory: the dearest thing in the game; $2,000 until v5.67)
+const COST = { barracks: 300, refinery: 500, factory: 500, power: 200, mg: 300, cannon: 500, missile: 600, laser: 1000, wall: 20, gate: 150, soldier: 100, extractor: 400, buggy: 400, grenadier: 160, engineer: 200, rocket: 200, sniper: 250, light: 850, heavy: 1100, artillery: 500, tech: 600, radar: 300, medbay: 400, helipad: 500, heli: 800, sam: 600, settler: 3000, reactor: 1000, satellite: 1500, flamer: 250, flametank: 800, mrl: 900, bike: 400, bulwark: 700, stalker: 300, veil: 750 };   // (a new Settler is bought at the War Factory: the dearest thing in the game; $2,000 until v5.67)
 const WALL_REACH = 150;              // walls, gates and SAM Sites can go this much further out than other buildings
 // Turrets (v5.64): an Engineer builds them anywhere you can see, but never this close to an enemy building
 const TURRET_TYPES = ['mg', 'cannon', 'missile', 'laser'], TURRET_KEEP_OUT = 300;
@@ -267,6 +267,8 @@ const STATS = {
   extractor: { hp: 300, speed: 42, r: 15, sight: 150, capacity: 500, rate: 50, unloadTime: 10 },   // (speed 34 until v5.62, +25%) // (v5.52: a $500 load mined at $50/s, paid out bit by bit over 10 s in the Refinery; was 150, 30/s, 1.5 s)
   buggy:     { hp: 140, speed: 119, r: 13, sight: 220, range: 110, dmg: 4,  cooldown: 0.25 },
   bulwark:   { hp: 500, speed: 85, r: 16, sight: 190, range: 120, dmg: 5, cooldown: 0.25, tank: true, carry: 5 },   // Bulwark (v5.73, the Legion's, your design; speed 85 and $700 since v5.74, were 62 and $650: faster than a Light Tank, your call): an armoured carrier for 5 infantry, a light machine gun like the Buggy's, crushes infantry (tank armour)
+  stalker:   { hp: 55,  speed: 60, r: 9,  sight: 180, range: 140, dmg: 22, cooldown: 1.4, vsVehicle: 0.3, vsBuilding: 0.3 },   // Stalker (v5.75, the Ashen's, your pick): a forest hunter with a silenced rifle; in a forest it stays hidden even when firing, moves at full speed, sees normally and does +50% damage
+  veil:      { hp: 300, speed: 90, r: 14, sight: 210, range: 170, dmg: 70, cooldown: 7, rocket: true, rockets: 2, reveal: 2, vsVehicle: 1.6, vsHeavy: 1.6, vsBuilding: 1, vsInfantry: 0.3 },   // Veil (v5.75, the Ashen's, your pick): an ambush truck under camouflage netting; hidden once still for 2 s or in a forest; a big pair of anti-tank rockets, then a long reload
   bike:      { hp: 120, speed: 132, r: 11, sight: 210, range: 135, dmg: 22, cooldown: 2.4, rocket: true, rockets: 2, vsVehicle: 2, vsHeavy: 1.6, vsBuilding: 1.5, vsInfantry: 0.5 },   // Rocket Bike (v5.74, the Ashen's, your idea): a fast motorbike with a light rocket pod each side; fires both at once, vehicles first; rides through forests; no anti-air   // (speed 95 until v5.62, +25%) // fast, machine gun (damage 5 until v5.41)
   light:     { hp: 350, speed: 75, r: 15, sight: 200, range: 130, dmg: 30, cooldown: 1.5, tank: true },   // (speed 60 until v5.62, +25%) // light tank: all-rounder
   heavy:     { hp: 1000, speed: 50, r: 19, sight: 210, range: 140, dmg: 60, cooldown: 2.0, tank: true },   // (speed 40 until v5.62, +25%) // heavy tank: slow, very tough
@@ -307,10 +309,10 @@ const STATS = {
   derrick:   { hp: 600, size: 64, sight: 160, pay: 100, payEvery: 15 },   // an Engineer captures it; then it pays its owner every 15s
   house:     { hp: 400, size: 42, sight: 0 },                             // village houses: scenery for now
 };
-const PRODUCES = { barracks: ['soldier', 'grenadier', 'rocket', 'sniper', 'flamer', 'engineer'], factory: ['buggy', 'bike', 'light', 'bulwark', 'artillery', 'flametank', 'mrl', 'heavy', 'extractor', 'settler'], helipad: ['heli'] };   // (Flamethrower, Flame Tank and Rocket Launcher since v5.69)   // (the Settler is a unit: War Factory, v5.65)   // (Extractors were bought at the Refinery until v5.55; each Refinery still comes with one free)
+const PRODUCES = { barracks: ['soldier', 'grenadier', 'rocket', 'sniper', 'stalker', 'flamer', 'engineer'], factory: ['buggy', 'bike', 'light', 'bulwark', 'artillery', 'flametank', 'veil', 'mrl', 'heavy', 'extractor', 'settler'], helipad: ['heli'] };   // (Flamethrower, Flame Tank and Rocket Launcher since v5.69)   // (the Settler is a unit: War Factory, v5.65)   // (Extractors were bought at the Refinery until v5.55; each Refinery still comes with one free)
 const HAS_DOOR = t => !!PRODUCES[t] || t === 'refinery';   // buildings whose front door must stay clear (the Refinery for its unloading bay)
 // Tech tree: what else you need (finished, and still standing) before you can build or train something
-const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['power'], mg: ['barracks'], cannon: ['factory'], missile: ['radar', 'factory'], laser: ['reactor'], heavy: ['reactor'], reactor: ['tech'], satellite: ['reactor'], settler: ['reactor', 'satellite'],   /* (Settlers need both since v5.67) */ artillery: ['power'], radar: ['power'], medbay: ['barracks', 'power'], helipad: ['factory'], sam: ['radar'], extractor: ['refinery'], light: ['power'], gate: ['power'], flamer: ['power'], flametank: ['tech'], mrl: ['tech'], bike: ['power'], bulwark: ['power'] };   // (v5.69: Extractors need a Refinery standing, Light Tanks and Gates a Power Plant)   // (SAM Sites need a Radar since v5.67; a Power Plant before)
+const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['power'], mg: ['barracks'], cannon: ['factory'], missile: ['radar', 'factory'], laser: ['reactor'], heavy: ['reactor'], reactor: ['tech'], satellite: ['reactor'], settler: ['reactor', 'satellite'],   /* (Settlers need both since v5.67) */ artillery: ['power'], radar: ['power'], medbay: ['barracks', 'power'], helipad: ['factory'], sam: ['radar'], extractor: ['refinery'], light: ['power'], gate: ['power'], flamer: ['power'], flametank: ['tech'], mrl: ['tech'], bike: ['power'], bulwark: ['power'], stalker: ['power'], veil: ['tech'] };   // (v5.69: Extractors need a Refinery standing, Light Tanks and Gates a Power Plant)   // (SAM Sites need a Radar since v5.67; a Power Plant before)
 const hasBuilt = (team, type) => game.ents.some(b => b.team === team && b.type === type && b.built && ruinWorks(b));   // (a captured ruin counts once it's repaired to half)
 const missingFor = (team, type) => (REQUIRES[type] || []).filter(t => !hasBuilt(team, t));
 // ---------- Factions (v5.74, your design) ----------
@@ -318,9 +320,9 @@ const missingFor = (team, type) => (REQUIRES[type] || []).filter(t => !hasBuilt(
 // it can build or train; everything else is shared. You pick yours on the start screen (or Random); the computer is always the other.
 // 'napalm' stands for the Napalm Strike (from the Satellite Radar, which both have). Campaign missions can read these lists too.
 const FACTIONS = {
-  legion: { name: 'The Legion', only: ['heavy', 'heli', 'helipad', 'grenadier', 'mrl', 'missile', 'mg', 'barrage', 'bulwark'],   // ('barrage' = the Orbital Barrage)
+  legion: { name: 'The Legion', only: ['heavy', 'heli', 'helipad', 'grenadier', 'mrl', 'missile', 'mg', 'barrage', 'bulwark', 'sniper'],   // (the Sniper since v5.75)   // ('barrage' = the Orbital Barrage)
             colors: { color: '#2f6fe0', dark: '#1b3c80', light: '#f2f6fc' } },
-  ashen:  { name: 'The Ashen', only: ['flamer', 'flametank', 'napalm', 'sniper', 'bike', 'cannon', 'laser', 'sam'],   // (Rocket Soldiers shared since v5.74's second step; the Rocket Bike is the Ashen's)
+  ashen:  { name: 'The Ashen', only: ['flamer', 'flametank', 'napalm', 'stalker', 'bike', 'veil', 'cannon', 'laser', 'sam'],   // (Stalker and Veil since v5.75; the Sniper moved to the Legion)   // (Rocket Soldiers shared since v5.74's second step; the Rocket Bike is the Ashen's)
             colors: { color: '#d62828', dark: '#141414', light: '#f08080' } },
 };
 const otherFaction = f => f === 'legion' ? 'ashen' : 'legion';
@@ -365,11 +367,11 @@ const allowed = (team, type) => { const f = factionOf(team); return !f || !FACTI
 // each side wears its faction's colours (you and the computer are always different factions)
 function applyFactionColours() { for (const t of [0, 1]) { const f = factionOf(t); if (f) Object.assign(TEAMS[t], FACTIONS[f].colors); } }
 const unlocked = (team, type) => allowed(team, type) && missingFor(team, type).length === 0;
-const TRAIN_TIME = { soldier: 4, buggy: 6, extractor: 6, grenadier: 4.5, engineer: 5, rocket: 5, sniper: 6, light: 10, heavy: 16, artillery: 12, heli: 15, settler: 40, flamer: 5, flametank: 12, mrl: 14, bike: 6, bulwark: 10 };   // seconds to make each unit
-const isCombat = e => e.type === 'civilian' || e.type === 'soldier' || e.type === 'buggy' || e.type === 'grenadier' || e.type === 'rocket' || e.type === 'sniper' || e.type === 'light' || e.type === 'heavy' || e.type === 'artillery' || e.type === 'heli' || e.type === 'flamer' || e.type === 'flametank' || e.type === 'mrl' || e.type === 'bike' || e.type === 'bulwark';
+const TRAIN_TIME = { soldier: 4, buggy: 6, extractor: 6, grenadier: 4.5, engineer: 5, rocket: 5, sniper: 6, light: 10, heavy: 16, artillery: 12, heli: 15, settler: 40, flamer: 5, flametank: 12, mrl: 14, bike: 6, bulwark: 10, stalker: 6, veil: 12 };   // seconds to make each unit
+const isCombat = e => e.type === 'civilian' || e.type === 'soldier' || e.type === 'buggy' || e.type === 'grenadier' || e.type === 'rocket' || e.type === 'sniper' || e.type === 'light' || e.type === 'heavy' || e.type === 'artillery' || e.type === 'heli' || e.type === 'flamer' || e.type === 'flametank' || e.type === 'mrl' || e.type === 'bike' || e.type === 'bulwark' || e.type === 'stalker' || e.type === 'veil';
 const isTank = e => e.type === 'light' || e.type === 'heavy' || e.type === 'flametank' || e.type === 'bulwark';   // (the Bulwark too: armour, and it crushes infantry, v5.74)
-const isInfantry = e => e.type === 'civilian' || e.type === 'soldier' || e.type === 'grenadier' || e.type === 'engineer' || e.type === 'rocket' || e.type === 'sniper' || e.type === 'flamer';
-const SHORT = { buggy: 'Buggy', rocket: 'Rocket', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', heli: 'Helicopter', flamer: 'Flamethrower', flametank: 'Flame Tank', mrl: 'Rocket Launcher', bike: 'Rocket Bike', bulwark: 'Bulwark' };   // shorter names for buttons
+const isInfantry = e => e.type === 'civilian' || e.type === 'soldier' || e.type === 'grenadier' || e.type === 'engineer' || e.type === 'rocket' || e.type === 'sniper' || e.type === 'flamer' || e.type === 'stalker';
+const SHORT = { buggy: 'Buggy', rocket: 'Rocket', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', heli: 'Helicopter', flamer: 'Flamethrower', flametank: 'Flame Tank', mrl: 'Rocket Launcher', bike: 'Rocket Bike', bulwark: 'Bulwark', stalker: 'Stalker', veil: 'Veil' };   // shorter names for buttons
 
 // How the computer plays at each difficulty.
 //  think: seconds between decisions   slow: build/train time multiplier   income: share of ore value it earns
@@ -403,7 +405,7 @@ const extraHqs = team => Math.max(0, game.ents.filter(b => b.team === team && b.
 const powerBoost = team => Math.min(BOOST_MAX, plantBoost(team) + HQ_BONUS * extraHqs(team));
 // how many times longer than normal this side takes to build things (difficulty slow-down ÷ power boost)
 const slowOf = e => (e.team === 1 ? diff().slow : 1) / powerBoost(e.team);
-const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', rocket: 'Rocket Soldier', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', mg: 'Machine Gun Turret', cannon: 'Cannon Turret', missile: 'Missile Turret', laser: 'Laser Turret', power: 'Power Plant', radar: 'Radar', medbay: 'Medbay', wall: 'Wall', gate: 'Gate', derrick: 'Oil Derrick', house: 'House', civilian: 'Civilian', helipad: 'Helipad', heli: 'Attack Helicopter', sam: 'SAM Site', reactor: 'Nuclear Reactor', satellite: 'Satellite Radar', flamer: 'Flamethrower', flametank: 'Flame Tank', mrl: 'Rocket Launcher', bike: 'Rocket Bike', bulwark: 'Bulwark' };
+const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', rocket: 'Rocket Soldier', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', mg: 'Machine Gun Turret', cannon: 'Cannon Turret', missile: 'Missile Turret', laser: 'Laser Turret', power: 'Power Plant', radar: 'Radar', medbay: 'Medbay', wall: 'Wall', gate: 'Gate', derrick: 'Oil Derrick', house: 'House', civilian: 'Civilian', helipad: 'Helipad', heli: 'Attack Helicopter', sam: 'SAM Site', reactor: 'Nuclear Reactor', satellite: 'Satellite Radar', flamer: 'Flamethrower', flametank: 'Flame Tank', mrl: 'Rocket Launcher', bike: 'Rocket Bike', bulwark: 'Bulwark', stalker: 'Stalker', veil: 'Veil' };
 
 const TEAMS = [
   { name: 'You',   color: '#3b82f6', dark: '#1d3f8f', light: '#93c5fd' },
@@ -1288,7 +1290,7 @@ function edgeDist(x, y, t) {
 
 function moveToward(e, tx, ty, dt) {
   const dx = tx - e.x, dy = ty - e.y, d = Math.hypot(dx, dy);
-  const step = STATS[e.type].speed * dt * (terrainAt(e.x, e.y) === T.FOREST ? 0.55 : 1);
+  const step = STATS[e.type].speed * dt * (terrainAt(e.x, e.y) === T.FOREST && e.type !== 'stalker' ? 0.55 : 1);   // (the Stalker moves at full speed in forests, v5.75)
   e.movedAt = game.time;
   if (d <= step || d < 0.5) { e.x = tx; e.y = ty; return true; }
   let ux = dx / d, uy = dy / d;
@@ -1440,7 +1442,7 @@ function updateFog() {
     if (e.team === NEUTRAL) continue;
     const f = fog[e.team];
     if (STATS[e.type].radar && e.built && ruinWorks(e)) { for (const i of radarCells(e.x, e.y, STATS[e.type].sight)) { f.vis[i] = 1; f.exp[i] = 1; } continue; }
-    const r = (STATS[e.type].radar ? RUIN_SIGHT : STATS[e.type].sight) * (isBuilding(e) && !e.built ? 0.6 : 1) * (!e.air && elevAt(e.x, e.y) ? HIGH_SIGHT : 1) * (isUnit(e) && !e.air && terrainAt(e.x, e.y) === T.FOREST ? FOREST_SIGHT : 1);
+    const r = (STATS[e.type].radar ? RUIN_SIGHT : STATS[e.type].sight) * (isBuilding(e) && !e.built ? 0.6 : 1) * (!e.air && elevAt(e.x, e.y) ? HIGH_SIGHT : 1) * (isUnit(e) && !e.air && e.type !== 'stalker' && terrainAt(e.x, e.y) === T.FOREST ? FOREST_SIGHT : 1);
     for (const i of visibleCells(e.x, e.y, r)) { f.vis[i] = 1; f.exp[i] = 1; }
   }
   // a Satellite Radar (v5.67): all the ground its side has explored is in view; black, unexplored ground stays unknown
@@ -1457,6 +1459,10 @@ function updateFog() {
 
 // soldiers in a forest can't be seen unless an enemy unit is close, or they've just fired
 function hiddenFrom(e, team) {
+  if (e.type === 'veil') {   // (v5.75)
+    if (e.revealT > 0 || (terrainAt(e.x, e.y) !== T.FOREST && (e.stillT || 0) < 2)) return false;
+    return !game.ents.some(o => o.team === team && isUnit(o) && Math.abs(o.x - e.x) < 80 && Math.abs(o.y - e.y) < 80 && Math.hypot(o.x - e.x, o.y - e.y) < 80);
+  }
   if (!isInfantry(e) || e.revealT > 0 || terrainAt(e.x, e.y) !== T.FOREST) return false;
   return !game.ents.some(o => o.team === team && isUnit(o) && Math.abs(o.x - e.x) < 90 && Math.abs(o.y - e.y) < 90 &&
     Math.hypot(o.x - e.x, o.y - e.y) < 90);
@@ -2234,6 +2240,7 @@ function unloadCarrier(c, hurtBy) {
   return out.length;
 }
 function updateSoldier(e, dt) {   // soldiers and buggies
+  if (e.type === 'veil') { const mv = e.sx !== undefined && Math.hypot(e.x - e.sx, e.y - e.sy) > 0.3; e.stillT = mv ? 0 : (e.stillT || 0) + dt; e.sx = e.x; e.sy = e.y; }   // (how long it has stood still, for its camouflage)
   if (boardStep(e)) return;
   const s = STATS[e.type];
   if (s.tank) crush(e);
@@ -2337,7 +2344,7 @@ function updateSoldier(e, dt) {   // soldiers and buggies
       else e.facing = Math.atan2(t.y - e.y, t.x - e.x);
       if (e.cooldown <= 0) {
         e.cooldown = s.cooldown;
-        e.revealT = s.reveal || 1.5;   // firing gives away your position (snipers only briefly)
+        e.revealT = e.type === 'stalker' && terrainAt(e.x, e.y) === T.FOREST ? 0 : (s.reveal || 1.5);   // firing gives away your position (snipers only briefly; a Stalker in a forest not at all, v5.75)
         t.hitBy = e.id; t.hitAt = game.time;   // who shot it (so the owner's units nearby can deal with it, and the computer's Extractors can run the shooter down)
         if (s.rocket) {   // rocket: flies fast and homes in, so it's hard to dodge
           for (let k = 0; k < (s.rockets || 1); k++) {   // (the Rocket Bike fires one from each pod, v5.74)
@@ -2365,7 +2372,7 @@ function updateSoldier(e, dt) {   // soldiers and buggies
                                t: 0, dur: s.flight, team: e.team, dmg: s.dmg, r: s.splash, src: e.id, srcType: e.type });
           e.throwT = 0.25;
         } else {
-          hurt(t, s.dmg * (isInfantry(t) ? 1 : isBuilding(t) ? (s.vsBuilding || 1) : (s.vsVehicle || 1)) * armour(e.type, t) * uphill(e.x, e.y, t), e.type, e.team);
+          hurt(t, s.dmg * (isInfantry(t) ? 1 : isBuilding(t) ? (s.vsBuilding || 1) : (s.vsVehicle || 1)) * armour(e.type, t) * uphill(e.x, e.y, t) * (e.type === 'stalker' && terrainAt(e.x, e.y) === T.FOREST ? 1.5 : 1), e.type, e.team);
           if (s.tank) {   // shell burst: also nicks enemy infantry right next to the target (quarter damage)
             game.effects.push({ kind: 'blast', x: t.x, y: t.y, r: e.type === 'heavy' ? 18 : 13, t: 0 });
             for (const o of game.ents) if (o !== t && o.team !== e.team && isInfantry(o) && Math.hypot(o.x - t.x, o.y - t.y) < 22) hurt(o, s.dmg * 0.25 * armour(e.type, o) * uphill(e.x, e.y, o), e.type, e.team);
@@ -3228,6 +3235,7 @@ function runAI(dt) {
     ? armour > 0 && of('rocket').length + qOf('rocket') < Math.min(D.antiArmor, Math.ceil(armour))
     : (ai.seenBuggies || 0) > 0 && of('rocket').length + qOf('rocket') < Math.min(6, ai.seenBuggies));
   const wantFlamer = D.techUnits && unlocked(1, 'flamer') && (ai.seen && ai.seen.infantry >= 6) && of('flamer').length + qOf('flamer') < D.techUnits + 1;
+  const wantStalker = unlocked(1, 'stalker') && game.time > 180 && of('stalker').length + qOf('stalker') < (D.snipers || 1) + 1;   // the Ashen's Stalkers (v5.75), as many as the Legion would have Snipers, plus one
   const wantSniper = unlocked(1, 'sniper') && game.time > 240 && (of('sniper').length + qOf('sniper') < D.snipers || (ai.harassWant && !qOf('sniper')));   // (or one to harass your base, v5.66)   // (the ones it has go up the plateaus first)
   // engineers: a repairer only when something is badly damaged, and now and then a raider sent the long way round to steal a building
   const repairers = of('engineer').filter(en => !en.raid).length + qOf('engineer') - (ai.raidPending ? 1 : 0);
@@ -3269,6 +3277,8 @@ function runAI(dt) {
   const wantMrl = D.techUnits && sent >= 2 && unlocked(1, 'mrl') && mrls < D.techUnits;
   const bulwarks = of('bulwark').length + qF('bulwark');   // the Legion's Bulwarks (v5.74): one, and one more for every 15 in its army; they fight with its tanks
   const wantBulwark = D.techUnits && unlocked(1, 'bulwark') && bulwarks < 1 + Math.floor(army.length / 15);
+  const veils = of('veil').length + qF('veil');   // the Ashen's Veils (v5.75): one, and one more for every 15 in its army
+  const wantVeil = D.techUnits && unlocked(1, 'veil') && veils < 1 + Math.floor(army.length / 15);
   const bikes = of('bike').length + qF('bike');   // the Ashen's Rocket Bikes (v5.74): a couple, and one more for every 10 in its army
   const wantBike = D.techUnits && unlocked(1, 'bike') && bikes < 2 + Math.floor(army.length / 10);
   const wantFlameTank = D.techUnits && unlocked(1, 'flametank') && (ai.seen && ai.seen.infantry >= 8) && flameTanks < D.techUnits;
@@ -3278,6 +3288,7 @@ function runAI(dt) {
     : wantMrl && lights + heavies >= 1 ? 'mrl'
     : wantFlameTank && lights + heavies >= 1 ? 'flametank'
     : wantBike && lights + heavies >= 1 ? 'bike'
+    : wantVeil && lights + heavies >= 1 ? 'veil'
     : wantBulwark && lights + heavies >= 1 ? 'bulwark'
     : wantTank && (unlocked(1, 'light') || unlocked(1, 'heavy')) ? (unlocked(1, 'heavy') && D.heavyTanks && (heavies <= lights || !unlocked(1, 'light')) ? 'heavy' : 'light')   // (Light Tanks need a Power Plant since v5.69)
     : wantBuggy ? 'buggy' : null;
@@ -3295,7 +3306,8 @@ function runAI(dt) {
     }
     if (army.length + queued >= D.maxArmy) continue;
     if (wantRocket) { if (game.credits[1] >= COST.rocket) produce(b, 'rocket'); }   // answering your vehicles comes before saving up
-    else if (wantSniper) { if (game.credits[1] >= COST.sniper) produce(b, 'sniper'); }   // only 1-2 of them, so they don't wait for savings
+    else if (wantSniper) { if (game.credits[1] >= COST.sniper) produce(b, 'sniper'); }
+    else if (wantStalker) { if (game.credits[1] >= COST.stalker) produce(b, 'stalker'); }   // only 1-2 of them, so they don't wait for savings
     else if (wantFlamer) { if (game.credits[1] >= COST.flamer + reserve) produce(b, 'flamer'); }   // (v5.69: a few Flamethrowers against big infantry armies)
     else if (wantGren) { if (game.credits[1] >= COST.grenadier + reserve) produce(b, 'grenadier'); }
     else if (game.credits[1] >= COST.soldier + reserve) produce(b, 'soldier');
@@ -4230,8 +4242,9 @@ function draw() {
     else if (e.type === 'extractor') drawExtractor(e);
     else if (e.type === 'buggy') { const st = e.style || factionOf(e.team); if (st === 'legion') drawBuggyLegion(e); else if (st === 'ashen') drawBuggyAshen(e); else drawBuggy(e); }
     else if (e.type === 'bike') drawBike(e);
+    else if (e.type === 'veil') drawVeil(e);
     else if (e.type === 'bulwark') drawBulwark(e);
-    else if (e.type === 'grenadier' || e.type === 'engineer' || e.type === 'rocket' || e.type === 'sniper' || e.type === 'civilian' || e.type === 'flamer') drawSoldier(e);
+    else if (e.type === 'grenadier' || e.type === 'engineer' || e.type === 'rocket' || e.type === 'sniper' || e.type === 'civilian' || e.type === 'flamer' || e.type === 'stalker') drawSoldier(e);
     else if (e.type === 'factory') drawFactory(e);
     else if (e.type === 'tech') drawTech(e);
     else if (e.type === 'light') { const st = e.style || factionOf(e.team); if (st === 'legion') drawLightLegion(e); else if (st === 'ashen') drawLightAshen(e); else drawTank(e); }
@@ -4520,7 +4533,7 @@ function drawSelection(e) {
 // Buildings and vehicles show how hurt they are: below 2/3 health scorch marks, cracks or dents and a thin wisp of smoke;
 // below 1/3 more scorching, flickering fires, thick black smoke and sparks. Infantry don't show it.
 const DMG_DAMAGED = 2 / 3, DMG_CRITICAL = 1 / 3;
-const DMG_VEHICLES = new Set(['settler', 'extractor', 'buggy', 'bike', 'bulwark', 'light', 'heavy', 'artillery', 'heli', 'flametank', 'mrl']);
+const DMG_VEHICLES = new Set(['settler', 'extractor', 'buggy', 'bike', 'bulwark', 'veil', 'light', 'heavy', 'artillery', 'heli', 'flametank', 'mrl']);
 function dmgShows(e) { return e.built !== false && e.type !== 'house' && !(e.ruin && !ruinWorks(e)) && (isBuilding(e) || DMG_VEHICLES.has(e.type)); }
 function dmgRand(e, i) { const x = Math.sin(e.id * 127.1 + i * 311.7) * 43758.5453; return x - Math.floor(x); }   // the same marks every frame for a given unit
 function dmgSpots(e, n, salt) {   // spots spread over a building's footprint, or over a vehicle's hull (in its own turned frame)
@@ -4813,6 +4826,11 @@ function drawSoldier(e) {   // soldiers, grenadiers and engineers share a body; 
     ctx.fillStyle = '#e0b48a';
     ctx.beginPath(); ctx.arc(2.5, 2.6, 2, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(9, 2.8, 2, 0, Math.PI * 2); ctx.fill();
+  } else if (kind === 'stalker') {
+    // a short silenced rifle held low and ready, a fat suppressor on the end (v5.75)
+    ctx.strokeStyle = '#151515'; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(-2, 4); ctx.lineTo(13, 3); ctx.stroke();
+    ctx.fillStyle = '#2a2a2a'; ctx.fillRect(12, 1.6, 6, 2.8);   // suppressor
+    ctx.fillStyle = '#c8a07a'; ctx.beginPath(); ctx.arc(2, 4.4, 1.9, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(8, 3.4, 1.9, 0, Math.PI * 2); ctx.fill();
   } else if (kind === 'sniper') {
     // long rifle with a scope, held well forward
     ctx.strokeStyle = '#1c1c1c'; ctx.lineWidth = 2.2;
@@ -4859,6 +4877,12 @@ function drawSoldier(e) {   // soldiers, grenadiers and engineers share a body; 
     ctx.fillStyle = '#fbfaf5'; ctx.beginPath(); ctx.arc(0, 0, 3.8, 0, Math.PI * 2); ctx.fill(); ctx.stroke();   // dome
     ctx.fillStyle = '#d8d4c8'; ctx.fillRect(-3.6, -0.8, 7.2, 1.6);   // ridge
     ctx.fillStyle = c.color; ctx.beginPath(); ctx.arc(4.6, 0, 1.4, 0, Math.PI * 2); ctx.fill();   // team badge on the front
+  } else if (kind === 'stalker') {
+    // a ragged ghillie of dark leaves over the shoulders, a charcoal hood and a red rag tied round it (v5.75)
+    ctx.fillStyle = '#2f3d22'; for (const [px, py, pr] of [[-4, -5.5, 2.4], [-4, 5.5, 2.4], [-6, 0, 2.4], [-1, -7, 1.8], [-1, 7, 1.8], [-7.5, -3.5, 1.6], [-7.5, 3.5, 1.6]]) { ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = '#1e231a'; ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = c.color; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(0, 0, 4.2, -1.2, 1.2); ctx.stroke();
+    ctx.fillStyle = c.color; ctx.beginPath(); ctx.moveTo(-4, 0.5); ctx.lineTo(-8.5, 2.5); ctx.lineTo(-8, -0.5); ctx.fill();   // the rag's loose end
   } else if (kind === 'sniper') {
     // camouflage hood with leafy patches over the shoulders, team colour band
     ctx.fillStyle = '#6b8a40'; for (const [px, py, pr] of [[-3.5, -5, 2], [-3.5, 5, 2], [-5.5, 0, 2], [0.5, -6, 1.6], [0.5, 6, 1.6]]) { ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2); ctx.fill(); }
@@ -5063,6 +5087,38 @@ function drawBulwark(e) {
   ctx.fillStyle = c.light; ctx.strokeStyle = c.dark; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(0, 0, 4.2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   ctx.fillStyle = c.color; ctx.beginPath(); ctx.arc(0, 0, 1.8, 0, Math.PI * 2); ctx.fill();
   if (e.cooldown > STATS.bulwark.cooldown - 0.06) { ctx.fillStyle = '#ffe9a0'; ctx.beginPath(); ctx.arc(16, 0, 2.6, 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
+}
+
+// The Veil (v5.75, the Ashen's): a low truck under a camouflage net - mottled green and brown patches over the whole body
+// with the net's cords across it, a pair of fat anti-tank rocket tubes on the back (empty after firing until it reloads),
+// a red rag on the aerial. Drawn faded for you while the enemy can't see it.
+function drawVeil(e) {
+  const c = TEAMS[e.team], s = STATS.veil;
+  const moving = e.lx !== undefined && Math.hypot(e.x - e.lx, e.y - e.ly) > 0.3;
+  e.lx = e.x; e.ly = e.y;
+  if (moving && Math.random() < 0.3) game.effects.push({ kind: 'dust', x: e.x - Math.cos(e.facing) * 14, y: e.y - Math.sin(e.facing) * 14, t: 0 });
+  const hidden = e.team === 0 && hiddenFrom(e, 1);
+  ctx.save(); if (hidden) ctx.globalAlpha = 0.5;
+  ctx.translate(e.x, e.y); ctx.rotate(e.facing);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(-14, -9, 32, 22);
+  ctx.fillStyle = '#161616'; for (const [wx, wy] of [[-13, -11], [5, -11], [-13, 7], [5, 7]]) { ctx.beginPath(); ctx.roundRect(wx, wy, 9, 4.5, 1.5); ctx.fill(); }   // wheels
+  ctx.fillStyle = '#3c4a2c'; ctx.beginPath(); ctx.roundRect(-15, -9, 31, 18, 5); ctx.fill();          // the netted shape
+  for (const [px, py, r, col] of [[-9, -4, 4, '#556b34'], [-2, 3, 4.5, '#5a4a30'], [6, -3, 3.5, '#4a5e2c'], [10, 4, 3, '#2f3b22'], [-11, 4, 3, '#5a4a30'], [1, -5, 3, '#2f3b22']]) { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.fill(); }   // mottled patches
+  ctx.strokeStyle = 'rgba(20,20,12,0.55)'; ctx.lineWidth = 0.7;                                        // the net's cords
+  for (let k = -14; k <= 15; k += 4) { ctx.beginPath(); ctx.moveTo(k, -9); ctx.lineTo(k + 4, 9); ctx.stroke(); ctx.beginPath(); ctx.moveTo(k + 4, -9); ctx.lineTo(k, 9); ctx.stroke(); }
+  ctx.fillStyle = '#22281a'; ctx.fillRect(9, -6, 6, 12);                                               // the cab under the net
+  ctx.fillStyle = 'rgba(150,190,160,0.55)'; ctx.fillRect(14, -4.5, 1.3, 9);                           // a slit of windscreen
+  const loaded = e.cooldown <= 0.3 || e.cooldown > s.cooldown;
+  for (const sy of [-4, 4]) {                                                                          // two fat rocket tubes on the back
+    ctx.fillStyle = '#262626'; ctx.fillRect(-13, sy - 2.6, 16, 5.2);
+    ctx.fillStyle = '#3a3a3a'; ctx.fillRect(-13, sy - 2.6, 16, 1.4);
+    ctx.fillStyle = '#0d0d0d'; ctx.beginPath(); ctx.arc(3, sy, 2.1, 0, Math.PI * 2); ctx.fill();
+    if (loaded) { ctx.fillStyle = c.color; ctx.beginPath(); ctx.arc(3, sy, 1.5, 0, Math.PI * 2); ctx.fill(); }   // the warhead's red nose
+  }
+  const wave = Math.sin(performance.now() / 160 + e.id) * 1.4;                                         // red rag on the aerial
+  ctx.strokeStyle = '#888'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(10, 6); ctx.lineTo(4, 12); ctx.stroke();
+  ctx.fillStyle = c.color; ctx.beginPath(); ctx.moveTo(4, 12); ctx.lineTo(-1, 13 + wave); ctx.lineTo(3, 15 + wave * 0.5); ctx.fill();
   ctx.restore();
 }
 
@@ -7096,8 +7152,8 @@ function showFaction() {
   for (const b of document.querySelectorAll('#factionRow button')) if (!b.dataset.done) { b.dataset.done = 1; if (CRESTS[b.dataset.f]) b.innerHTML = crestSVG(b.dataset.f, 26) + ' ' + b.textContent; }
   for (const b of document.querySelectorAll('#factionRow button')) b.classList.toggle('on', b.dataset.f === factionPick);
   $('factionInfo').textContent = {
-    legion: 'The Legion: armour and air. Heavy Tanks, helicopters, Grenadiers, Rocket Launchers, the Orbital Barrage, Machine Gun and Missile Turrets. You face The Ashen.',
-    ashen: 'The Ashen: guerrillas and fire. Flamethrowers, Flame Tanks, Rocket Bikes, Snipers, Napalm, Cannon and Laser Turrets, SAM Sites. You face The Legion.',
+    legion: 'The Legion: armour and air. Heavy Tanks, helicopters, Bulwarks, Grenadiers, Snipers, Rocket Launchers, the Orbital Barrage, Machine Gun and Missile Turrets. You face The Ashen.',
+    ashen: 'The Ashen: guerrillas and fire. Flamethrowers, Flame Tanks, Rocket Bikes, Stalkers, the stealthy Veil, Napalm, Cannon and Laser Turrets, SAM Sites. You face The Legion.',
     random: 'Random: you get The Legion or The Ashen; the enemy is the other.',
   }[factionPick];
 }
@@ -7285,7 +7341,7 @@ function updateHUD() {
   } else if (sel.length) {
     const counts = {};
     for (const e of sel) counts[e.type] = (counts[e.type] || 0) + 1;
-    const plural = { soldier: 'soldiers', buggy: 'buggies', extractor: 'extractors', grenadier: 'grenadiers', rocket: 'rocket soldiers', sniper: 'snipers', light: 'light tanks', heavy: 'heavy tanks', artillery: 'artillery', flamer: 'flamethrowers', flametank: 'flame tanks', mrl: 'rocket launchers', engineer: 'engineers', settler: 'settlers', civilian: 'civilians', heli: 'helicopters', bike: 'rocket bikes', bulwark: 'bulwarks' };
+    const plural = { soldier: 'soldiers', buggy: 'buggies', extractor: 'extractors', grenadier: 'grenadiers', rocket: 'rocket soldiers', sniper: 'snipers', light: 'light tanks', heavy: 'heavy tanks', artillery: 'artillery', flamer: 'flamethrowers', flametank: 'flame tanks', mrl: 'rocket launchers', engineer: 'engineers', settler: 'settlers', civilian: 'civilians', heli: 'helicopters', bike: 'rocket bikes', bulwark: 'bulwarks', stalker: 'stalkers', veil: 'veils' };
     const parts = Object.entries(counts).map(([t, n]) => `${n} ${n > 1 ? plural[t] || t + 's' : (SHORT[t] || NAMES[t]).toLowerCase()}`);
     text = parts.join(', ') + (sel.some(e => e.team === 0 && STATS[e.type] && STATS[e.type].flame) ? ' — tap to move, or tap trees to burn them' : ' — tap to move');
   } else text = hqOf(0) ? 'Drag to scroll, pinch to zoom' : game.landing && game.landing.phase !== 'leave' ? 'Your Settler is coming ashore…' : 'Tap your settler to begin';
