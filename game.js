@@ -248,6 +248,7 @@ const coastY = x => H + SEA * 0.3 + SEA * 0.08 * Math.sin(x / 260) + SEA * 0.05 
 const CELL = 50;                      // fog-of-war grid size
 const COLS = W / CELL, ROWS = HT / CELL;
 const START_CREDITS = 1500;
+const SANDBOX_MONEY = 1e6;           // Sandbox: your money is kept topped up to this
 const INCOME = 1;                     // small trickle per second so nobody gets stuck at $0
 const BUILD_RADIUS = 300;             // how far from your HQ you can place buildings
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
@@ -335,6 +336,10 @@ const DIFFICULTY = {
 };
 let difficulty = 'normal';
 try { if (DIFFICULTY[localStorage.getItem('mini-rts-difficulty')]) difficulty = localStorage.getItem('mini-rts-difficulty'); } catch (err) {}
+// Sandbox (v5.72, your idea): a start-screen switch. You have unlimited money and see the whole map (no fog, minimap from the start);
+// the computer plays as usual at the chosen difficulty. Remembered between games.
+let sandbox = false;
+try { sandbox = localStorage.getItem('mini-rts-sandbox') === 'on'; } catch (err) {}
 const diff = () => DIFFICULTY[difficulty];
 // Power Plants: each finished one makes building and training 25% faster, up to double speed
 // Extra Headquarters (from bought Settlers, v5.65): each one past the first adds another 25% on top, up to triple speed in all
@@ -372,7 +377,7 @@ const cam = { x: START[0].x, y: START[0].y, zoom: 1 };
 const MM = { w: 168, h: 105, x: 0, y: 0 };   // minimap rectangle (screen px)
 // The minimap needs a Radar (v5.71, your call): no minimap and no Map button until you have a finished Radar
 // (a Satellite Radar, or a captured ruined Radar repaired to half, counts too); lose it and the minimap goes again.
-const hasMinimap = () => !!game && (hasBuilt(0, 'radar') || hasBuilt(0, 'satellite'));
+const hasMinimap = () => !!game && (game.sandbox || hasBuilt(0, 'radar') || hasBuilt(0, 'satellite'));   // (Sandbox: always, v5.72)
 const minimapOn = () => !MM.hidden && hasMinimap();
 let mmHad = null;   // did you have the minimap last time the HUD was drawn (for the message when it comes or goes)
 
@@ -1099,6 +1104,7 @@ function newGame() {
     placing: null,           // { type, ghost:{x,y} } while choosing where to build
     effects: [],
     over: null, paused: false,
+    sandbox,   // (v5.72)
     ai: { timer: 0, attacking: false, known: new Map(), scout: null, exploreTarget: null },
     track: { made: [{}, {}], lost: [{}, {}], hits: [{}, {}], whoKilled: [{}, {}], timeline: [], nextSample: 0 },   // for the game report: what each side made and lost, and a snapshot every 30 s
   };
@@ -1383,6 +1389,7 @@ function updateFog() {
   }
   // a Satellite Radar (v5.67): all the ground its side has explored is in view; black, unexplored ground stays unknown
   for (const t of [0, 1]) if (game.ents.some(b => b.team === t && b.type === 'satellite' && b.built && b.hp > 0)) { const f = fog[t]; for (let i = 0; i < f.vis.length; i++) if (f.exp[i]) f.vis[i] = 1; }
+  if (game.sandbox) { fog[0].vis.fill(1); fog[0].exp.fill(1); }   // Sandbox: you see the whole map (v5.72)
   const d = fogImg.data;
   const mine = fog[0];
   for (let i = 0; i < mine.vis.length; i++) {
@@ -1880,6 +1887,7 @@ function update(dt) {
   game.time += dt;
   if (game.track && game.time >= game.track.nextSample) { game.track.timeline.push(reportSnapshot()); game.track.nextSample += 30; }
   game.credits[0] += INCOME * dt;
+  if (game.sandbox) game.credits[0] = Math.max(game.credits[0], SANDBOX_MONEY);   // Sandbox: money never runs out (v5.72)
   game.credits[1] += INCOME * dt;
   updateLanding(dt);
   updateReinforcements(dt);
@@ -6462,9 +6470,19 @@ for (const b of document.querySelectorAll('#diffRow button')) {
   });
 }
 showDifficulty();
+function showSandbox() {
+  $('sandboxBtn').classList.toggle('on', sandbox);
+  $('sandboxBtn').textContent = 'Sandbox: ' + (sandbox ? 'on' : 'off');
+  $('sandboxInfo').textContent = sandbox ? 'Sandbox: unlimited money and the whole map in view. The enemy plays as usual.' : '';
+}
+$('sandboxBtn').addEventListener('click', () => { sandbox = !sandbox; try { localStorage.setItem('mini-rts-sandbox', sandbox ? 'on' : 'off'); } catch (err) {} showSandbox(); });
+showSandbox();
 
 ui.ovBtn.addEventListener('click', () => {
   if (game.over) newGame();
+  game.sandbox = sandbox;   // (the switch as it is when you press Start, v5.72)
+  if (!sandbox && game.time < 1) game.credits[0] = Math.min(game.credits[0], START_CREDITS);
+  updateFog();
   $('ovReport').style.display = 'none';
   game.paused = false; ui.overlay.style.display = 'none'; ui.pause.textContent = '❚❚';
 });
@@ -6496,7 +6514,8 @@ function checkNewOptions() {
 const PRODUCES_ANY = t => Object.values(PRODUCES).some(l => l.includes(t));
 function updateHUD() {
   checkNewOptions();
-  ui.credits.textContent = '$' + Math.floor(game.credits[0]);
+  const cash = game.sandbox ? '$∞' : '$' + Math.floor(game.credits[0]);
+  if (ui.credits.textContent !== cash) ui.credits.textContent = cash;
   const secs = Math.floor(game.time), hh = Math.floor(secs / 3600), mm = Math.floor(secs / 60) % 60, ss = secs % 60;
   const clock = (hh ? hh + ':' + String(mm).padStart(2, '0') : mm) + ':' + String(ss).padStart(2, '0');
   if (ui.clock.textContent !== clock) ui.clock.textContent = clock;
@@ -6670,7 +6689,7 @@ function reportHits(team) {
 function buildReport() {
   return {
     game: 'Mini RTS', version: (typeof PATCH_NOTES !== 'undefined' && PATCH_NOTES[0].version) || '?', saved: new Date().toISOString(),
-    map: mapChoice === 'random' ? `random-${randomSize} #${mapNumber}` : mapChoice, difficulty: difficulty, secondsPlayed: Math.round(game.time), result: game.over || 'in progress',
+    map: mapChoice === 'random' ? `random-${randomSize} #${mapNumber}` : mapChoice, difficulty: difficulty, sandbox: !!game.sandbox, secondsPlayed: Math.round(game.time), result: game.over || 'in progress',
     stats: { you: game.stats[0], enemy: game.stats[1] },
     made: { you: game.track.made[0], enemy: game.track.made[1] }, lost: { you: game.track.lost[0], enemy: game.track.lost[1] },
     byUnit: { you: reportHits(0), enemy: reportHits(1) },
