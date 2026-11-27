@@ -322,6 +322,38 @@ const FACTIONS = {
             colors: { color: '#d62828', dark: '#141414', light: '#f08080' } },
 };
 const otherFaction = f => f === 'legion' ? 'ashen' : 'legion';
+// Crests (v5.74, your picks): The Legion's Iron Chevrons (a six-sided badge, two chevrons, a laurel) and The Ashen's Broken Ring
+// (a red flame on black in a ring left open). Each is a list of shapes in a 120 x 120 box: d = SVG path, fill / stroke.
+const leaf = (cx, cy, a) => { const c = Math.cos(a), s = Math.sin(a), P = (x, y) => `${(cx + x * c - y * s).toFixed(1)} ${(cy + x * s + y * c).toFixed(1)}`;
+  return `M${P(-5.5, 0)} Q${P(0, -3.4)} ${P(5.5, 0)} Q${P(0, 3.4)} ${P(-5.5, 0)} Z`; };
+const CRESTS = {
+  legion: [
+    { d: 'M60 10 L104 30 L104 70 L60 110 L16 70 L16 30 Z', fill: '#1b3c80', stroke: '#f2f6fc', w: 4 },
+    { d: 'M30 56 L60 40 L90 56', stroke: '#f2f6fc', w: 9 },
+    { d: 'M30 76 L60 60 L90 76', stroke: '#2f6fe0', w: 9 },
+    { d: 'M38 94 C46 100 54 102 60 102 C66 102 74 100 82 94', stroke: '#f2f6fc', w: 3 },
+    { d: leaf(42, 92, 0.61) + leaf(50, 98, 0.35) + leaf(78, 92, -0.61) + leaf(70, 98, -0.35), fill: '#f2f6fc' },
+  ],
+  ashen: [
+    { d: 'M60 8 A52 52 0 1 1 22 24', stroke: '#d62828', w: 8, cap: 'round' },
+    { d: 'M16 60 A44 44 0 1 0 104 60 A44 44 0 1 0 16 60 Z', fill: '#141414' },
+    { d: 'M60 22 C78 42 84 60 74 80 C70 70 66 66 62 66 C64 74 60 84 52 90 C40 82 36 66 44 52 C46 60 50 62 54 60 C50 48 52 34 60 22 Z', fill: '#d62828' },
+    { d: 'M60 58 C66 66 66 76 60 84 C55 78 54 70 60 58 Z', fill: '#f08080' },
+  ],
+};
+const crestPaths = {};
+function drawCrest(f, x, y, size) {   // on the game canvas, centred on (x, y)
+  const shapes = CRESTS[f]; if (!shapes) return;
+  ctx.save(); ctx.translate(x - size / 2, y - size / 2); ctx.scale(size / 120, size / 120); ctx.lineJoin = 'miter';
+  for (const sh of shapes) {
+    const p = crestPaths[sh.d] || (crestPaths[sh.d] = new Path2D(sh.d));
+    if (sh.fill) { ctx.fillStyle = sh.fill; ctx.fill(p); }
+    if (sh.stroke) { ctx.strokeStyle = sh.stroke; ctx.lineWidth = sh.w; ctx.lineCap = sh.cap || 'butt'; ctx.stroke(p); }
+  }
+  ctx.restore();
+}
+const crestSVG = (f, px) => !CRESTS[f] ? '' : `<svg class="crest" viewBox="0 0 120 120" width="${px}" height="${px}" aria-hidden="true">` +
+  CRESTS[f].map(sh => `<path d="${sh.d}" fill="${sh.fill || 'none'}"${sh.stroke ? ` stroke="${sh.stroke}" stroke-width="${sh.w}" stroke-linecap="${sh.cap || 'butt'}"` : ''}/>`).join('') + '</svg>';
 let factionPick = 'legion';   // what the start screen is set to: 'legion', 'ashen' or 'random'
 try { const f = localStorage.getItem('mini-rts-faction'); if (f === 'legion' || f === 'ashen' || f === 'random' || f === 'all') factionPick = f; } catch (err) {}   // ('all' = no factions, everything for both: only the test tools set it)
 const rollFactions = () => { if (factionPick === 'all') return [null, null]; const mine = factionPick === 'random' ? (Math.random() < 0.5 ? 'legion' : 'ashen') : factionPick; return [mine, otherFaction(mine)]; };
@@ -5331,7 +5363,12 @@ function emblemPlate(x, y, r, team) {
 function flag(x, y, team) {
   ctx.strokeStyle = '#ddd'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 22); ctx.stroke();
-  const wave = Math.sin(performance.now() / 300 + x) * 1.5;
+  const wave = Math.sin(performance.now() / 300 + x) * 1.5, f = factionOf(team);
+  if (f) {   // a banner with the faction's crest (v5.74)
+    ctx.fillStyle = TEAMS[team].dark; ctx.beginPath(); ctx.moveTo(x, y - 23); ctx.lineTo(x + 15, y - 22 + wave * 0.6); ctx.lineTo(x + 15, y - 9 + wave); ctx.lineTo(x, y - 10); ctx.closePath(); ctx.fill();
+    drawCrest(f, x + 7.6, y - 16 + wave * 0.5, 11);
+    return;
+  }
   ctx.fillStyle = TEAMS[team].color;
   ctx.beginPath(); ctx.moveTo(x, y - 22); ctx.lineTo(x + 15, y - 19 + wave); ctx.lineTo(x, y - 13); ctx.fill();
 }
@@ -5538,7 +5575,7 @@ function drawHQArt(e) {
   const glow = 0.6 + 0.4 * Math.sin(t * 2);
   for (let i = 0; i < 6; i++) R(50 + i * 7, 64, 5, 6, `rgba(127,208,255,${0.55 + 0.45 * glow})`);
   R(58, 26, 30, 32, 'rgba(0,0,0,0.35)'); R(55, 50, 30, 6, '#6c675d'); R(55, 22, 30, 30, '#aaa498');
-  emblemPlate(70, 37, 14, e.team); star(70, 37, 10, '#fff');
+  if (styleOf(e)) drawCrest(styleOf(e), 70, 37, 34); else { emblemPlate(70, 37, 14, e.team); star(70, 37, 10, '#fff'); }   // (its faction's crest, v5.74)
   // steam puffs from a vent on the tower roof
   for (let k = 0; k < 3; k++) {
     const ph = (t * 0.6 + k / 3) % 1;
@@ -6742,6 +6779,7 @@ for (const b of document.querySelectorAll('#diffRow button')) {
 }
 showDifficulty();
 function showFaction() {
+  for (const b of document.querySelectorAll('#factionRow button')) if (!b.dataset.done) { b.dataset.done = 1; if (CRESTS[b.dataset.f]) b.innerHTML = crestSVG(b.dataset.f, 26) + ' ' + b.textContent; }
   for (const b of document.querySelectorAll('#factionRow button')) b.classList.toggle('on', b.dataset.f === factionPick);
   $('factionInfo').textContent = {
     legion: 'The Legion: armour and air. Heavy Tanks, helicopters, Grenadiers, Rocket Launchers, Machine Gun and Missile Turrets. You face The Ashen.',
@@ -7002,7 +7040,7 @@ function showResults() {
     ['Troops lost', s[0].unitsLost, s[1].unitsLost, n], ['Buildings lost', s[0].buildingsLost, s[1].buildingsLost, n],
     ['Buildings captured', s[0].captured, s[1].captured, n], ['Money earned', s[0].earned, s[1].earned, money], ['Money spent', s[0].spent, s[1].spent, money],
   ];
-  box.innerHTML = '<div class="resTime">Time played <b>' + mins + ':' + secs + '</b></div><table><tr><th></th><th class="you">You</th><th class="foe">Enemy</th></tr>' +
+  box.innerHTML = '<div class="resTime">Time played <b>' + mins + ':' + secs + '</b></div><table><tr><th></th><th class="you">' + crestSVG(factionOf(0), 34) + '<br>You' + (factionOf(0) ? '<br><small>' + FACTIONS[factionOf(0)].name + '</small>' : '') + '</th><th class="foe">' + crestSVG(factionOf(1), 34) + '<br>Enemy' + (factionOf(1) ? '<br><small>' + FACTIONS[factionOf(1)].name + '</small>' : '') + '</th></tr>' +
     rows.map(([label, a, b, f]) => '<tr><td>' + label + '</td><td>' + f(a) + '</td><td>' + f(b) + '</td></tr>').join('') + '</table>';
   box.style.display = 'block';
 }
