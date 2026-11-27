@@ -39,17 +39,17 @@ with sync_playwright() as p:
       out.flamerVsSoldier=duel('flamer','soldier',50); out.flamerVsLight=duel('flamer','light',50); out.ftVsSoldier=duel('flametank','soldier',65); out.ftVsLight=duel('flametank','light',65);
       // rocket launcher: a salvo of 6 at a bunch of soldiers 250 away
       const s=open(280); const m=spawn('mrl',0,s.x,s.y); m.hp=m.maxHp=1e9; const grp=[]; for(let i=0;i<6;i++){ const g=spawn('soldier',1,s.x+250+(i%3)*14,s.y+Math.floor(i/3)*14); g.passive=true; g.hp=g.maxHp=1e9; grp.push(g); }
-      let salvos=0, last=m.cooldown, rockets=0; const step=()=>{ for(const g of grp) g.order=null; sight(); U(1); if(m.cooldown>last+1){ salvos++; rockets=Math.max(rockets, game.grenades.filter(q=>q.srcType==='mrl').length); } last=m.cooldown; };
-      m.order={type:'attack',target:grp[0].id}; for(let k=0;k<20*4;k++) step();
-      const hit=grp.filter(g=>g.hp<g.maxHp).length, first=salvos; for(let k=0;k<20*3;k++) step(); const at7=salvos; for(let k=0;k<20*3;k++) step();
-      out.mrl={first, rockets, hit, at7, at10:salvos}; m.hp=0; for(const g of grp) g.hp=0; U(2);
+      let salvos=0, last=m.cooldown, rockets=0, k=0, firstAt=null, hitAt=null; const step=()=>{ for(const g of grp) g.order=null; sight(); U(1); k++; if(m.cooldown>last+1){ salvos++; if(firstAt===null) firstAt=k/20; } rockets=Math.max(rockets, game.grenades.filter(q=>q.srcType==='mrl').length); if(hitAt===null && grp.some(g=>g.hp<g.maxHp)) hitAt=k/20; last=m.cooldown; };
+      m.order={type:'attack',target:grp[0].id}; while(k<20*12 && firstAt===null) step(); const s0=salvos; for(let j=0;j<20*10;j++) step();
+      const hit=grp.filter(g=>g.hp<g.maxHp).length;
+      out.mrl={rockets, hit, flight:+(hitAt-firstAt).toFixed(2), in10:salvos-s0}; m.hp=0; for(const g of grp) g.hp=0; U(2);
       return JSON.stringify(out); })()"""))
     print(r)
     check(isinstance(r['flamerVsSoldier'], float) and r['flamerVsSoldier'] < 3, 'a Flamethrower burns down a Soldier in %s s' % r['flamerVsSoldier'])
     check(isinstance(r['flamerVsLight'], float) and r['flamerVsLight'] > 20 or not isinstance(r['flamerVsLight'], float), 'but struggles against a Light Tank (%s)' % r['flamerVsLight'])
     check(isinstance(r['ftVsSoldier'], float) and r['ftVsSoldier'] < 2, 'a Flame Tank burns down a Soldier in %s s' % r['ftVsSoldier'])
     check(not isinstance(r['ftVsLight'], float) or r['ftVsLight'] > 15, 'and is weak against a Light Tank (%s)' % r['ftVsLight'])
-    check(r['mrl']['first'] == 1 and r['mrl']['rockets'] == 6 and r['mrl']['hit'] >= 3 and r['mrl']['at7'] == 1 and r['mrl']['at10'] == 2, 'the Rocket Launcher fires a salvo of 6 that splashes a group, then reloads for 8 s: %s' % r['mrl'])
+    check(r['mrl']['rockets'] == 2 and r['mrl']['flight'] <= 0.8 and r['mrl']['in10'] in (5, 6) and r['mrl']['hit'] >= 2, 'the Rocket Launcher fires 2 fast missiles (first hit %s s after firing) every 2 s (%s pairs in 10 s) that splash a group: %s' % (r['mrl']['flight'], r['mrl']['in10'], r['mrl']))
     # forest fire
     r = json.loads(pg.evaluate("""(()=>{ sight();
       let edge=null; for(let i=0;i<terrain.length&&!edge;i++){ if(terrain[i]!==T.FOREST) continue; const c=i%TCOLS, rr=Math.floor(i/TCOLS); let n=0; for(let dc=-2;dc<=2;dc++) for(let dr=-2;dr<=2;dr++) if(terrain[(rr+dr)*TCOLS+c+dc]===T.FOREST) n++;

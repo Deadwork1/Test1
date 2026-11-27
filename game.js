@@ -272,7 +272,7 @@ const STATS = {
   // shells take a while to land, so moving units can dodge them.
   flamer:    { hp: 60,  speed: 58, r: 9,  sight: 160, range: 55, dmg: 6, cooldown: 0.25, flame: true, vsInfantry: 1.5, vsBuilding: 1.5, vsVehicle: 0.4 },   // Flamethrower (v5.69): a short jet of fire, deadly to infantry and buildings, sets trees alight
   flametank: { hp: 450, speed: 55, r: 15, sight: 180, range: 70, dmg: 10, cooldown: 0.25, tank: true, flame: true, vsInfantry: 1.5, vsBuilding: 1.5, vsVehicle: 0.3 },   // Flame Tank (v5.69): the same, bigger; weak against other tanks
-  mrl:       { hp: 200, speed: 50, r: 15, sight: 180, range: 300, minRange: 90, dmg: 30, cooldown: 8, siege: true, salvo: 6, splash: 35, flight: 1.4, spread: 45, vsBuilding: 1.5, vsVehicle: 0.8 },   // Rocket Launcher (v5.69): a salvo of 6 rockets over an area, slow to reload, fragile
+  mrl:       { hp: 200, speed: 50, r: 15, sight: 180, range: 300, minRange: 90, dmg: 23, cooldown: 2, siege: true, salvo: 2, salvoGap: 0.12, splash: 35, flight: 0.5, arc: 22, spread: 22, vsBuilding: 1.5, vsVehicle: 0.8 },   // Rocket Launcher (v5.69): fragile, long range. v5.72 (your call): 2 fast missiles every 2 s (was a salvo of 6 slow rockets every 8 s; damage per missile 30 to 23 so its damage per second stays about the same)
   artillery: { hp: 120, speed: 40, r: 13, sight: 150, range: 250, minRange: 80, dmg: 45, cooldown: 4, siege: true, splash: 40, flight: 1.3, spread: 14, vsBuilding: 3, vsVehicle: 0.6 },   // (speed 32 until v5.62, +25%) // (speed 28 until v5.56)
   sniper:    { hp: 45,  speed: 56, r: 9,  sight: 220, range: 160, dmg: 75, cooldown: 2.7, vsVehicle: 0.15, vsBuilding: 0.1, reveal: 0.5 },   // (speed 46 until v5.62; 56 since, swapped with the Rocket Soldier) // one-shots infantry from far away; useless vs vehicles
   rocket:    { hp: 55,  speed: 58, r: 9,  sight: 170, range: 130, dmg: 40, cooldown: 2.5, rocket: true, vsVehicle: 2, vsHeavy: 2, vsBuilding: 2, vsInfantry: 0.4, vsAir: 1 },   // (vsAir 1.5 until v5.65: 8 rockets bring down a helicopter, was 5)   // (speed 45 until v5.62; 58 since, swapped with the Sniper) // (vsHeavy 1.5 until v5.50: Heavy Tanks were too hard to stop)   // (and the only soldier that can hit aircraft)
@@ -2229,10 +2229,12 @@ function updateSoldier(e, dt) {   // soldiers and buggies
           e.throwT = 0.2;
         } else if (s.siege) {   // artillery shell: a long, high arc that lands near (not exactly on) the target (the Rocket Launcher fires a salvo of them, v5.69)
           const sp = isBuilding(t) && !s.salvo ? 0 : s.spread;
-          for (let k = 0; k < (s.salvo || 1); k++)   // (each rocket of a salvo leaves 0.15 s after the last)
-            game.grenades.push({ x0: e.x + Math.cos(e.turret) * 26, y0: e.y + Math.sin(e.turret) * 26, x: t.x + (Math.random() - .5) * 2 * sp, y: t.y + (Math.random() - .5) * 2 * sp,
-                                 t: -k * 0.15, dur: s.flight, team: e.team, dmg: s.dmg, r: s.splash, vsBuilding: s.vsBuilding, vsVehicle: s.vsVehicle, shell: true, rocket: !!s.salvo, srcType: e.type });
-          game.effects.push({ kind: 'blast', x: e.x + Math.cos(e.turret) * 52, y: e.y + Math.sin(e.turret) * 52, r: 9, t: 0 });   // muzzle blast
+          for (let k = 0; k < (s.salvo || 1); k++) {   // (each one of a salvo leaves s.salvoGap after the last; the Rocket Launcher's pair from its left and right rails, v5.72)
+            const side = s.salvo ? (k % 2 ? 1 : -1) * 5 : 0, px = -Math.sin(e.turret) * side, py = Math.cos(e.turret) * side;
+            game.grenades.push({ x0: e.x + Math.cos(e.turret) * 26 + px, y0: e.y + Math.sin(e.turret) * 26 + py, x: t.x + (Math.random() - .5) * 2 * sp, y: t.y + (Math.random() - .5) * 2 * sp,
+                                 t: -k * (s.salvoGap || 0.15), dur: s.flight, arc: s.arc, team: e.team, dmg: s.dmg, r: s.splash, vsBuilding: s.vsBuilding, vsVehicle: s.vsVehicle, shell: true, rocket: !!s.salvo, srcType: e.type });
+          }
+          game.effects.push({ kind: 'blast', x: e.x + Math.cos(e.turret) * (s.salvo ? 30 : 52), y: e.y + Math.sin(e.turret) * (s.salvo ? 30 : 52), r: 9, t: 0 });   // muzzle blast
         } else if (s.flame) {   // a jet of fire (v5.69): burns the target, scorches anyone right beside it, and sets trees alight
           const mult = isInfantry(t) ? s.vsInfantry : isBuilding(t) ? s.vsBuilding : s.vsVehicle;
           hurt(t, s.dmg * mult, e.type, e.team);
@@ -4088,15 +4090,20 @@ function draw() {
   // grenades in flight: a little ball on an arc
   for (const g of game.grenades) {
     if (g.t < 0) continue;   // (a Rocket Launcher's rocket still waiting its turn in the salvo)
-    const arc = g.rocket ? 60 : g.shell ? 90 : 28, k = g.t / g.dur, gx = g.x0 + (g.x - g.x0) * k, gy = g.y0 + (g.y - g.y0) * k, x = gx, y = gy - Math.sin(k * Math.PI) * arc;
+    const arc = g.arc || (g.rocket ? 60 : g.shell ? 90 : 28), k = g.t / g.dur, gx = g.x0 + (g.x - g.x0) * k, gy = g.y0 + (g.y - g.y0) * k, x = gx, y = gy - Math.sin(k * Math.PI) * arc;
     if (!visibleAt(gx, gy)) continue;
-    if (g.rocket) {   // a rocket: a small dart with a fiery tail, pointing along its arc
-      const k2 = Math.min(1, k + 0.03), nx = g.x0 + (g.x - g.x0) * k2, ny = g.y0 + (g.y - g.y0) * k2 - Math.sin(k2 * Math.PI) * arc, a = Math.atan2(ny - y, nx - x);
+    if (g.rocket) {   // the Rocket Launcher's missile (v5.72): a long white body, red nose, four fins, and a long hot exhaust flame for its speed
+      const k2 = Math.min(1, k + 0.04), nx = g.x0 + (g.x - g.x0) * k2, ny = g.y0 + (g.y - g.y0) * k2 - Math.sin(k2 * Math.PI) * arc, a = Math.atan2(ny - y, nx - x);
       ctx.save(); ctx.translate(x, y); ctx.rotate(a);
-      ctx.fillStyle = 'rgba(255,160,60,0.8)'; ctx.beginPath(); ctx.moveTo(-4, -2); ctx.lineTo(-13, 0); ctx.lineTo(-4, 2); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#d9d4c6'; ctx.fillRect(-4, -1.5, 9, 3); ctx.fillStyle = '#b5332a'; ctx.fillRect(4, -1.5, 2, 3);
+      const fl = 14 + Math.random() * 6;
+      ctx.fillStyle = 'rgba(255,120,40,0.55)'; ctx.beginPath(); ctx.moveTo(-8, -3); ctx.lineTo(-8 - fl - 6, 0); ctx.lineTo(-8, 3); ctx.closePath(); ctx.fill();   // flame
+      ctx.fillStyle = 'rgba(255,235,160,0.95)'; ctx.beginPath(); ctx.moveTo(-8, -1.6); ctx.lineTo(-8 - fl * 0.55, 0); ctx.lineTo(-8, 1.6); ctx.closePath(); ctx.fill();   // white-hot core
+      ctx.fillStyle = '#4a4d44'; ctx.beginPath(); ctx.moveTo(-8, -2); ctx.lineTo(-11, -5); ctx.lineTo(-5, -2); ctx.moveTo(-8, 2); ctx.lineTo(-11, 5); ctx.lineTo(-5, 2); ctx.fill();   // tail fins
+      ctx.fillStyle = '#eceae2'; ctx.fillRect(-8, -2, 15, 4);                                                                       // body
+      ctx.fillStyle = '#4a4d44'; ctx.fillRect(-1, -2, 1.5, 4);                                                                      // a band round its middle
+      ctx.fillStyle = '#c0392b'; ctx.beginPath(); ctx.moveTo(7, -2); ctx.lineTo(11.5, 0); ctx.lineTo(7, 2); ctx.closePath(); ctx.fill();   // nose
       ctx.restore();
-      if (Math.random() < 0.5) game.effects.push({ kind: 'dust', x, y, t: 0.25 });
+      if (Math.random() < 0.8) game.effects.push({ kind: 'dust', x: x - Math.cos(a) * 14, y: y - Math.sin(a) * 14, t: 0.2 });   // smoke trail
       continue;
     }
     ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.arc(gx, gy, g.shell ? 3.5 : 2.5, 0, Math.PI * 2); ctx.fill();
@@ -4744,8 +4751,8 @@ function drawArtillery(e) {
   ctx.restore();
 }
 
-// Rocket Launcher (v5.69): a six-wheeled truck with a cab at the front and a box of rocket tubes on a turntable behind it,
-// raised toward the target; the tubes empty as it fires and fill again as it reloads
+// Rocket Launcher (v5.69): a six-wheeled truck with a cab at the front and, on a turntable behind it, two launch rails
+// (v5.72; a box of 6 tubes before) each with a big missile; the rails empty as it fires and are loaded again before the next pair
 function drawRocketLauncher(e) {
   const c = TEAMS[e.team], s = STATS.mrl;
   const moving = e.lx !== undefined && Math.hypot(e.x - e.lx, e.y - e.ly) > 0.2;
@@ -4765,18 +4772,25 @@ function drawRocketLauncher(e) {
   ctx.fillStyle = 'rgba(160,210,255,0.55)'; ctx.fillRect(L - 3, -3, 1.8, 6);                // windscreen
   ctx.fillStyle = '#4e4c42'; ctx.fillRect(-L + 2, -Wd + 4, L * 2 - 14, Wd * 2 - 8);       // flatbed
   ctx.restore();
-  // the launcher: a turntable and a box of 2 x 3 tubes, angled up
+  // the launcher (v5.72): a turntable carrying two long launch rails side by side, a big missile on each; they fire as a pair,
+  // and each rail is loaded again a moment before the next pair (a missile slides forward onto it)
   ctx.rotate(e.turret);
-  const reload = Math.max(0, Math.min(1, 1 - e.cooldown / s.cooldown)), loaded = e.cooldown <= 0.3 ? 6 : Math.floor(reload * 6);
-  ctx.fillStyle = '#2a2a24'; ctx.beginPath(); ctx.arc(-5, 0, 5.5, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#5b5e52'; ctx.strokeStyle = '#2b2b25'; ctx.lineWidth = 1.2; ctx.fillRect(-12, -7, 16, 14); ctx.strokeRect(-12, -7, 16, 14);
-  ctx.fillStyle = c.color; ctx.fillRect(-12, -7, 16, 2.5);
-  for (let k = 0; k < 6; k++) {
-    const tx = -9 + (k % 3) * 5, ty = k < 3 ? -2.2 : 3;
-    ctx.fillStyle = '#1a1a16'; ctx.beginPath(); ctx.arc(tx + 3, ty, 2, 0, Math.PI * 2); ctx.fill();
-    if (k < loaded) { ctx.fillStyle = '#c9402f'; ctx.beginPath(); ctx.arc(tx + 3, ty, 1.3, 0, Math.PI * 2); ctx.fill(); }   // a rocket's red nose in the tube
+  const reload = Math.max(0, Math.min(1, 1 - e.cooldown / s.cooldown)), slide = e.cooldown <= 0.05 ? 1 : Math.max(0, (reload - 0.35) / 0.65);
+  ctx.fillStyle = '#2a2a24'; ctx.beginPath(); ctx.arc(-5, 0, 6, 0, Math.PI * 2); ctx.fill();          // turntable
+  ctx.fillStyle = '#5b5e52'; ctx.strokeStyle = '#2b2b25'; ctx.lineWidth = 1.1; ctx.fillRect(-11, -8, 10, 16); ctx.strokeRect(-11, -8, 10, 16);   // the mount
+  ctx.fillStyle = c.color; ctx.fillRect(-11, -8, 10, 2.2);
+  for (const sy of [-4, 4]) {
+    ctx.fillStyle = '#33352e'; ctx.fillRect(-13, sy - 2.4, 26, 4.8);                                   // the rail
+    ctx.fillStyle = '#6b6e62'; ctx.fillRect(-13, sy - 0.6, 26, 1.2);
+    if (slide > 0) {                                                                                   // its missile, sliding up the rail as it's loaded
+      const mx = -14 + slide * 4;
+      ctx.fillStyle = '#4a4d44'; ctx.beginPath(); ctx.moveTo(mx, sy - 1.8); ctx.lineTo(mx - 2.5, sy - 3.6); ctx.lineTo(mx + 3, sy - 1.8); ctx.moveTo(mx, sy + 1.8); ctx.lineTo(mx - 2.5, sy + 3.6); ctx.lineTo(mx + 3, sy + 1.8); ctx.fill();   // fins
+      ctx.fillStyle = '#eceae2'; ctx.fillRect(mx, sy - 1.8, 20, 3.6);                                   // body
+      ctx.fillStyle = '#4a4d44'; ctx.fillRect(mx + 9, sy - 1.8, 1.2, 3.6);
+      ctx.fillStyle = '#c0392b'; ctx.beginPath(); ctx.moveTo(mx + 20, sy - 1.8); ctx.lineTo(mx + 24, sy); ctx.lineTo(mx + 20, sy + 1.8); ctx.closePath(); ctx.fill();   // red nose
+    }
   }
-  if (e.cooldown > s.cooldown - 0.9) { ctx.fillStyle = 'rgba(255,200,120,0.5)'; ctx.beginPath(); ctx.arc(8, 0, 6, 0, Math.PI * 2); ctx.fill(); }   // backblast while firing
+  if (e.cooldown > s.cooldown - 0.35) { ctx.fillStyle = 'rgba(255,200,120,0.55)'; ctx.beginPath(); ctx.arc(-16, 0, 7, 0, Math.PI * 2); ctx.fill(); }   // backblast behind the rails while firing
   ctx.restore();
 }
 

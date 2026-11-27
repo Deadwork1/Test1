@@ -22,7 +22,7 @@ with sync_playwright() as p:
       M.order={type:'attack',target:grp[0].id};
       for(let k=0;k<400;k++){ for(const g of grp) g.order=null; for(const t of [0,1]) fog[t].vis.fill(1); update(0.05); if(game.grenades.some(q=>q.srcType==='mrl')) break; }
       window.GRP=grp; cam.x=s.x+150; cam.y=s.y; setZoom(1.5); clampCam(); game.paused=true; })()""")
-    for i, steps in enumerate([6, 10, 12]):
+    for i, steps in enumerate([2, 3, 4]):
         pg.evaluate("n=>{ game.paused=false; for(let k=0;k<n;k++){ for(const g of GRP) g.order=null; update(0.05); } game.paused=true; }", steps)
         pg.wait_for_timeout(300); pg.screenshot(path=f'{out}/mrl_salvo{i+1}.png')
     b.close()
