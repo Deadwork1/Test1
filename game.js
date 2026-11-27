@@ -5224,8 +5224,8 @@ function drawLightAshen(e) {
   ctx.restore();
 }
 
-// The Legion's Buggy: a white fast-attack jeep with a blue bonnet, a windscreen, a roll bar, a ring-mounted machine gun and
-// a spare wheel on the back
+// The Legion's Buggy: a white fast-attack jeep with a blue bonnet, a windscreen, a roll bar, twin guns in the front bumper
+// (no gun on top, your call) and a spare wheel on the back
 function drawBuggyLegion(e) {
   const c = TEAMS[e.team];
   const moving = e.lx !== undefined && Math.hypot(e.x - e.lx, e.y - e.ly) > 0.3;
@@ -5241,9 +5241,11 @@ function drawBuggyLegion(e) {
   ctx.fillStyle = 'rgba(150,200,240,0.85)'; ctx.fillRect(3, -6, 2, 12);                    // windscreen
   ctx.strokeStyle = '#59606b'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(-6, -7); ctx.lineTo(-6, 7); ctx.stroke();   // roll bar
   ctx.fillStyle = '#1e2024'; ctx.beginPath(); ctx.arc(-14, 0, 3.5, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#59606b'; ctx.beginPath(); ctx.arc(-14, 0, 1.4, 0, Math.PI * 2); ctx.fill();   // spare wheel
-  ctx.strokeStyle = '#59606b'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(-2, 0, 3.8, 0, Math.PI * 2); ctx.stroke();   // gun ring
-  ctx.strokeStyle = '#1b1d21'; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(-2, 0); ctx.lineTo(12, 0); ctx.stroke();   // machine gun
-  if (e.cooldown > STATS.buggy.cooldown - 0.06) { ctx.fillStyle = '#ffe9a0'; ctx.beginPath(); ctx.arc(15, 0, 3, 0, Math.PI * 2); ctx.fill(); }
+  // twin guns built into the front bumper (your call: nothing on top), firing forward
+  ctx.fillStyle = '#59606b'; ctx.fillRect(13, -5.5, 2.5, 11);                                // bumper bar
+  for (const sy of [-3.2, 3.2]) { ctx.fillStyle = '#1b1d21'; ctx.fillRect(13, sy - 0.9, 5, 1.8); }   // the two short barrels
+  if (e.cooldown > STATS.buggy.cooldown - 0.06) { ctx.fillStyle = '#ffe9a0'; for (const sy of [-3.2, 3.2]) { ctx.beginPath(); ctx.arc(19.5, sy, 2.2, 0, Math.PI * 2); ctx.fill(); } }
+  ctx.fillStyle = '#c9ced6'; ctx.fillRect(-5, -4.5, 6, 3.5); ctx.fillRect(-5, 1, 6, 3.5);   // two seats behind the windscreen
   ctx.restore();
 }
 
