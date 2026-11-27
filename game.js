@@ -254,7 +254,7 @@ const BUILD_RADIUS = 300;             // how far from your HQ you can place buil
 const BUILD_RADIUS_OTHER = 200;       // every other finished building (not walls) extends your build area this far
 
 // v5.52 prices (your picks, with the $500 loads): Sniper 250 (was 200), Buggy 400 (250), Light Tank 700 (400), Heavy Tank 1000 (700), Extractor 300 (150); v5.56: Artillery 500 (450)
-const COST = { barracks: 300, refinery: 500, factory: 500, power: 200, mg: 300, cannon: 500, missile: 600, laser: 1000, wall: 20, gate: 150, soldier: 100, extractor: 400, buggy: 400, grenadier: 160, engineer: 200, rocket: 200, sniper: 250, light: 700, heavy: 1000, artillery: 500, tech: 600, radar: 300, medbay: 400, helipad: 500, heli: 800, sam: 600, settler: 3000, reactor: 1000, satellite: 1500, flamer: 250, flametank: 800, mrl: 900 };   // (a new Settler is bought at the War Factory: the dearest thing in the game; $2,000 until v5.67)
+const COST = { barracks: 300, refinery: 500, factory: 500, power: 200, mg: 300, cannon: 500, missile: 600, laser: 1000, wall: 20, gate: 150, soldier: 100, extractor: 400, buggy: 400, grenadier: 160, engineer: 200, rocket: 200, sniper: 250, light: 700, heavy: 1000, artillery: 500, tech: 600, radar: 300, medbay: 400, helipad: 500, heli: 800, sam: 600, settler: 3000, reactor: 1000, satellite: 1500, flamer: 250, flametank: 800, mrl: 900, bike: 400 };   // (a new Settler is bought at the War Factory: the dearest thing in the game; $2,000 until v5.67)
 const WALL_REACH = 150;              // walls, gates and SAM Sites can go this much further out than other buildings
 // Turrets (v5.64): an Engineer builds them anywhere you can see, but never this close to an enemy building
 const TURRET_TYPES = ['mg', 'cannon', 'missile', 'laser'], TURRET_KEEP_OUT = 300;
@@ -265,7 +265,8 @@ const STATS = {
   settler:   { hp: 200, speed: 48, r: 22, sight: 180 },   // (speed 38 until v5.62, +25%) // (r 16 until v5.59: it's a bigger truck now, with the folded HQ on its back)
   soldier:   { hp: 60,  speed: 65, r: 9,  sight: 170, range: 85, dmg: 7, cooldown: 0.8 },   // (speed 52 until v5.62: every unit +25%)
   extractor: { hp: 300, speed: 42, r: 15, sight: 150, capacity: 500, rate: 50, unloadTime: 10 },   // (speed 34 until v5.62, +25%) // (v5.52: a $500 load mined at $50/s, paid out bit by bit over 10 s in the Refinery; was 150, 30/s, 1.5 s)
-  buggy:     { hp: 140, speed: 119, r: 13, sight: 220, range: 110, dmg: 4,  cooldown: 0.25 },   // (speed 95 until v5.62, +25%) // fast, machine gun (damage 5 until v5.41)
+  buggy:     { hp: 140, speed: 119, r: 13, sight: 220, range: 110, dmg: 4,  cooldown: 0.25 },
+  bike:      { hp: 120, speed: 132, r: 11, sight: 210, range: 135, dmg: 22, cooldown: 2.4, rocket: true, rockets: 2, vsVehicle: 2, vsHeavy: 1.6, vsBuilding: 1.5, vsInfantry: 0.5 },   // Rocket Bike (v5.74, the Ashen's, your idea): a fast motorbike with a light rocket pod each side; fires both at once, vehicles first; rides through forests; no anti-air   // (speed 95 until v5.62, +25%) // fast, machine gun (damage 5 until v5.41)
   light:     { hp: 350, speed: 75, r: 15, sight: 200, range: 130, dmg: 30, cooldown: 1.5, tank: true },   // (speed 60 until v5.62, +25%) // light tank: all-rounder
   heavy:     { hp: 1000, speed: 50, r: 19, sight: 210, range: 140, dmg: 60, cooldown: 2.0, tank: true },   // (speed 40 until v5.62, +25%) // heavy tank: slow, very tough
   // artillery: very slow and fragile, but its shells fly further than a guard tower can shoot and wreck buildings.
@@ -305,10 +306,10 @@ const STATS = {
   derrick:   { hp: 600, size: 64, sight: 160, pay: 100, payEvery: 15 },   // an Engineer captures it; then it pays its owner every 15s
   house:     { hp: 400, size: 42, sight: 0 },                             // village houses: scenery for now
 };
-const PRODUCES = { barracks: ['soldier', 'grenadier', 'rocket', 'sniper', 'flamer', 'engineer'], factory: ['buggy', 'light', 'artillery', 'flametank', 'mrl', 'heavy', 'extractor', 'settler'], helipad: ['heli'] };   // (Flamethrower, Flame Tank and Rocket Launcher since v5.69)   // (the Settler is a unit: War Factory, v5.65)   // (Extractors were bought at the Refinery until v5.55; each Refinery still comes with one free)
+const PRODUCES = { barracks: ['soldier', 'grenadier', 'rocket', 'sniper', 'flamer', 'engineer'], factory: ['buggy', 'bike', 'light', 'artillery', 'flametank', 'mrl', 'heavy', 'extractor', 'settler'], helipad: ['heli'] };   // (Flamethrower, Flame Tank and Rocket Launcher since v5.69)   // (the Settler is a unit: War Factory, v5.65)   // (Extractors were bought at the Refinery until v5.55; each Refinery still comes with one free)
 const HAS_DOOR = t => !!PRODUCES[t] || t === 'refinery';   // buildings whose front door must stay clear (the Refinery for its unloading bay)
 // Tech tree: what else you need (finished, and still standing) before you can build or train something
-const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['power'], mg: ['barracks'], cannon: ['factory'], missile: ['radar', 'factory'], laser: ['reactor'], heavy: ['reactor'], reactor: ['tech'], satellite: ['reactor'], settler: ['reactor', 'satellite'],   /* (Settlers need both since v5.67) */ artillery: ['power'], radar: ['power'], medbay: ['barracks', 'power'], helipad: ['factory'], sam: ['radar'], extractor: ['refinery'], light: ['power'], gate: ['power'], flamer: ['power'], flametank: ['tech'], mrl: ['tech'] };   // (v5.69: Extractors need a Refinery standing, Light Tanks and Gates a Power Plant)   // (SAM Sites need a Radar since v5.67; a Power Plant before)
+const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['power'], mg: ['barracks'], cannon: ['factory'], missile: ['radar', 'factory'], laser: ['reactor'], heavy: ['reactor'], reactor: ['tech'], satellite: ['reactor'], settler: ['reactor', 'satellite'],   /* (Settlers need both since v5.67) */ artillery: ['power'], radar: ['power'], medbay: ['barracks', 'power'], helipad: ['factory'], sam: ['radar'], extractor: ['refinery'], light: ['power'], gate: ['power'], flamer: ['power'], flametank: ['tech'], mrl: ['tech'], bike: ['power'] };   // (v5.69: Extractors need a Refinery standing, Light Tanks and Gates a Power Plant)   // (SAM Sites need a Radar since v5.67; a Power Plant before)
 const hasBuilt = (team, type) => game.ents.some(b => b.team === team && b.type === type && b.built && ruinWorks(b));   // (a captured ruin counts once it's repaired to half)
 const missingFor = (team, type) => (REQUIRES[type] || []).filter(t => !hasBuilt(team, t));
 // ---------- Factions (v5.74, your design) ----------
@@ -318,7 +319,7 @@ const missingFor = (team, type) => (REQUIRES[type] || []).filter(t => !hasBuilt(
 const FACTIONS = {
   legion: { name: 'The Legion', only: ['heavy', 'heli', 'helipad', 'grenadier', 'mrl', 'missile', 'mg'],
             colors: { color: '#2f6fe0', dark: '#1b3c80', light: '#f2f6fc' } },
-  ashen:  { name: 'The Ashen', only: ['flamer', 'flametank', 'napalm', 'sniper', 'rocket', 'cannon', 'laser', 'sam'],
+  ashen:  { name: 'The Ashen', only: ['flamer', 'flametank', 'napalm', 'sniper', 'bike', 'cannon', 'laser', 'sam'],   // (Rocket Soldiers shared since v5.74's second step; the Rocket Bike is the Ashen's)
             colors: { color: '#d62828', dark: '#141414', light: '#f08080' } },
 };
 const otherFaction = f => f === 'legion' ? 'ashen' : 'legion';
@@ -363,11 +364,11 @@ const allowed = (team, type) => { const f = factionOf(team); return !f || !FACTI
 // each side wears its faction's colours (you and the computer are always different factions)
 function applyFactionColours() { for (const t of [0, 1]) { const f = factionOf(t); if (f) Object.assign(TEAMS[t], FACTIONS[f].colors); } }
 const unlocked = (team, type) => allowed(team, type) && missingFor(team, type).length === 0;
-const TRAIN_TIME = { soldier: 4, buggy: 6, extractor: 6, grenadier: 4.5, engineer: 5, rocket: 5, sniper: 6, light: 10, heavy: 16, artillery: 12, heli: 15, settler: 40, flamer: 5, flametank: 12, mrl: 14 };   // seconds to make each unit
-const isCombat = e => e.type === 'civilian' || e.type === 'soldier' || e.type === 'buggy' || e.type === 'grenadier' || e.type === 'rocket' || e.type === 'sniper' || e.type === 'light' || e.type === 'heavy' || e.type === 'artillery' || e.type === 'heli' || e.type === 'flamer' || e.type === 'flametank' || e.type === 'mrl';
+const TRAIN_TIME = { soldier: 4, buggy: 6, extractor: 6, grenadier: 4.5, engineer: 5, rocket: 5, sniper: 6, light: 10, heavy: 16, artillery: 12, heli: 15, settler: 40, flamer: 5, flametank: 12, mrl: 14, bike: 6 };   // seconds to make each unit
+const isCombat = e => e.type === 'civilian' || e.type === 'soldier' || e.type === 'buggy' || e.type === 'grenadier' || e.type === 'rocket' || e.type === 'sniper' || e.type === 'light' || e.type === 'heavy' || e.type === 'artillery' || e.type === 'heli' || e.type === 'flamer' || e.type === 'flametank' || e.type === 'mrl' || e.type === 'bike';
 const isTank = e => e.type === 'light' || e.type === 'heavy' || e.type === 'flametank';
 const isInfantry = e => e.type === 'civilian' || e.type === 'soldier' || e.type === 'grenadier' || e.type === 'engineer' || e.type === 'rocket' || e.type === 'sniper' || e.type === 'flamer';
-const SHORT = { buggy: 'Buggy', rocket: 'Rocket', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', heli: 'Helicopter', flamer: 'Flamethrower', flametank: 'Flame Tank', mrl: 'Rocket Launcher' };   // shorter names for buttons
+const SHORT = { buggy: 'Buggy', rocket: 'Rocket', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', heli: 'Helicopter', flamer: 'Flamethrower', flametank: 'Flame Tank', mrl: 'Rocket Launcher', bike: 'Rocket Bike' };   // shorter names for buttons
 
 // How the computer plays at each difficulty.
 //  think: seconds between decisions   slow: build/train time multiplier   income: share of ore value it earns
@@ -401,7 +402,7 @@ const extraHqs = team => Math.max(0, game.ents.filter(b => b.team === team && b.
 const powerBoost = team => Math.min(BOOST_MAX, plantBoost(team) + HQ_BONUS * extraHqs(team));
 // how many times longer than normal this side takes to build things (difficulty slow-down ÷ power boost)
 const slowOf = e => (e.team === 1 ? diff().slow : 1) / powerBoost(e.team);
-const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', rocket: 'Rocket Soldier', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', mg: 'Machine Gun Turret', cannon: 'Cannon Turret', missile: 'Missile Turret', laser: 'Laser Turret', power: 'Power Plant', radar: 'Radar', medbay: 'Medbay', wall: 'Wall', gate: 'Gate', derrick: 'Oil Derrick', house: 'House', civilian: 'Civilian', helipad: 'Helipad', heli: 'Attack Helicopter', sam: 'SAM Site', reactor: 'Nuclear Reactor', satellite: 'Satellite Radar', flamer: 'Flamethrower', flametank: 'Flame Tank', mrl: 'Rocket Launcher' };
+const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', rocket: 'Rocket Soldier', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', mg: 'Machine Gun Turret', cannon: 'Cannon Turret', missile: 'Missile Turret', laser: 'Laser Turret', power: 'Power Plant', radar: 'Radar', medbay: 'Medbay', wall: 'Wall', gate: 'Gate', derrick: 'Oil Derrick', house: 'House', civilian: 'Civilian', helipad: 'Helipad', heli: 'Attack Helicopter', sam: 'SAM Site', reactor: 'Nuclear Reactor', satellite: 'Satellite Radar', flamer: 'Flamethrower', flametank: 'Flame Tank', mrl: 'Rocket Launcher', bike: 'Rocket Bike' };
 
 const TEAMS = [
   { name: 'You',   color: '#3b82f6', dark: '#1d3f8f', light: '#93c5fd' },
@@ -2003,7 +2004,7 @@ function update(dt) {
       }
       game.selected.delete(e.id);
       if (isBuilding(e)) bldDirty = true;
-      if (!e.deployed) game.effects.push({ kind: 'boom', x: e.x, y: e.y, t: 0, big: e.type !== 'soldier' && e.type !== 'buggy' });
+      if (!e.deployed) game.effects.push({ kind: 'boom', x: e.x, y: e.y, t: 0, big: e.type !== 'soldier' && e.type !== 'buggy' && e.type !== 'bike' });
     }
   }
   game.ents = game.ents.filter(e => e.hp > 0);
@@ -2297,7 +2298,10 @@ function updateSoldier(e, dt) {   // soldiers and buggies
         e.revealT = s.reveal || 1.5;   // firing gives away your position (snipers only briefly)
         t.hitBy = e.id; t.hitAt = game.time;   // who shot it (so the owner's units nearby can deal with it, and the computer's Extractors can run the shooter down)
         if (s.rocket) {   // rocket: flies fast and homes in, so it's hard to dodge
-          game.rockets.push({ x: e.x + Math.cos(e.facing) * 12, y: e.y + Math.sin(e.facing) * 12, target: t.id, tx: t.x, ty: t.y, team: e.team, dmg: s.dmg, life: 1.5, fromX: e.x, fromY: e.y, src: e.id, srcType: e.type });
+          for (let k = 0; k < (s.rockets || 1); k++) {   // (the Rocket Bike fires one from each pod, v5.74)
+            const side = s.rockets > 1 ? (k ? 5 : -5) : 0, px = -Math.sin(e.facing) * side, py = Math.cos(e.facing) * side;
+            game.rockets.push({ x: e.x + Math.cos(e.facing) * 12 + px, y: e.y + Math.sin(e.facing) * 12 + py, target: t.id, tx: t.x, ty: t.y, team: e.team, dmg: s.dmg, life: 1.5, fromX: e.x, fromY: e.y, src: e.id, srcType: e.type });
+          }
           e.throwT = 0.2;
         } else if (s.siege) {   // artillery shell: a long, high arc that lands near (not exactly on) the target (the Rocket Launcher fires a salvo of them, v5.69)
           const sp = isBuilding(t) && !s.salvo ? 0 : s.spread;
@@ -3221,12 +3225,15 @@ function runAI(dt) {
   // Tech Centre units (v5.69, Normal and Hard): a Rocket Launcher or two once it's attacking, a Flame Tank or two against infantry
   const mrls = of('mrl').length + qF('mrl'), flameTanks = of('flametank').length + qF('flametank');
   const wantMrl = D.techUnits && sent >= 2 && unlocked(1, 'mrl') && mrls < D.techUnits;
+  const bikes = of('bike').length + qF('bike');   // the Ashen's Rocket Bikes (v5.74): a couple, and one more for every 10 in its army
+  const wantBike = D.techUnits && unlocked(1, 'bike') && bikes < 2 + Math.floor(army.length / 10);
   const wantFlameTank = D.techUnits && unlocked(1, 'flametank') && (ai.seen && ai.seen.infantry >= 8) && flameTanks < D.techUnits;
   const vehicle = !of('factory').some(f => f.built) ? null
     : ai.patrolWant && !qBuggies && unlocked(1, 'buggy') ? 'buggy'   // a Buggy for its scouting loop comes first (v5.66)
     : wantArty && (!wantTank || lights + heavies >= 1) ? 'artillery'
     : wantMrl && lights + heavies >= 1 ? 'mrl'
     : wantFlameTank && lights + heavies >= 1 ? 'flametank'
+    : wantBike && lights + heavies >= 1 ? 'bike'
     : wantTank && (unlocked(1, 'light') || unlocked(1, 'heavy')) ? (unlocked(1, 'heavy') && D.heavyTanks && (heavies <= lights || !unlocked(1, 'light')) ? 'heavy' : 'light')   // (Light Tanks need a Power Plant since v5.69)
     : wantBuggy ? 'buggy' : null;
   for (const f of of('factory')) {
@@ -4146,6 +4153,7 @@ function draw() {
     else if (e.type === 'settler') drawSettler(e);
     else if (e.type === 'extractor') drawExtractor(e);
     else if (e.type === 'buggy') drawBuggy(e);
+    else if (e.type === 'bike') drawBike(e);
     else if (e.type === 'grenadier' || e.type === 'engineer' || e.type === 'rocket' || e.type === 'sniper' || e.type === 'civilian' || e.type === 'flamer') drawSoldier(e);
     else if (e.type === 'factory') drawFactory(e);
     else if (e.type === 'tech') drawTech(e);
@@ -4411,7 +4419,7 @@ function drawSelection(e) {
 // Buildings and vehicles show how hurt they are: below 2/3 health scorch marks, cracks or dents and a thin wisp of smoke;
 // below 1/3 more scorching, flickering fires, thick black smoke and sparks. Infantry don't show it.
 const DMG_DAMAGED = 2 / 3, DMG_CRITICAL = 1 / 3;
-const DMG_VEHICLES = new Set(['settler', 'extractor', 'buggy', 'light', 'heavy', 'artillery', 'heli', 'flametank', 'mrl']);
+const DMG_VEHICLES = new Set(['settler', 'extractor', 'buggy', 'bike', 'light', 'heavy', 'artillery', 'heli', 'flametank', 'mrl']);
 function dmgShows(e) { return e.built !== false && e.type !== 'house' && !(e.ruin && !ruinWorks(e)) && (isBuilding(e) || DMG_VEHICLES.has(e.type)); }
 function dmgRand(e, i) { const x = Math.sin(e.id * 127.1 + i * 311.7) * 43758.5453; return x - Math.floor(x); }   // the same marks every frame for a given unit
 function dmgSpots(e, n, salt) {   // spots spread over a building's footprint, or over a vehicle's hull (in its own turned frame)
@@ -4926,6 +4934,47 @@ function drawRocketLauncher(e) {
     }
   }
   if (e.cooldown > s.cooldown - 0.35) { ctx.fillStyle = 'rgba(255,200,120,0.55)'; ctx.beginPath(); ctx.arc(-16, 0, 7, 0, Math.PI * 2); ctx.fill(); }   // backblast behind the rails while firing
+  ctx.restore();
+}
+
+// Rocket Bike (v5.74, the Ashen's): a lean dirt bike seen from above, nose along +x - knobbly tyres, a black tank and frame,
+// the rider hunched over the bars in a black helmet with a red stripe and a red scarf flapping behind, and a short rocket pod
+// either side of the rear wheel (red noses while loaded, empty right after firing). Kicks up dust when it moves.
+function drawBike(e) {
+  const c = TEAMS[e.team], s = STATS.bike, t = performance.now() / 1000;
+  const moving = e.lx !== undefined && Math.hypot(e.x - e.lx, e.y - e.ly) > 0.2;
+  e.lx = e.x; e.ly = e.y;
+  if (moving && Math.random() < 0.45) game.effects.push({ kind: 'dust', x: e.x - Math.cos(e.facing) * 14, y: e.y - Math.sin(e.facing) * 14, t: 0 });
+  ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.facing); ctx.scale(1.35, 1.35);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(2, 2.5, 15, 6.5, 0, 0, Math.PI * 2); ctx.fill();   // shadow
+  // rocket pods either side of the back wheel
+  const loaded = e.cooldown <= 0.3 || e.cooldown > s.cooldown;
+  for (const sy of [-6.5, 6.5]) {
+    ctx.fillStyle = '#6f6d66'; ctx.fillRect(-12, sy - 2.2, 12, 4.4);              // pod casing, lighter so it reads
+    ctx.fillStyle = '#9a978e'; ctx.fillRect(-12, sy - 2.2, 12, 1.3);
+    ctx.fillStyle = c.color; ctx.fillRect(-8, sy - 2.2, 2, 4.4);                  // a band in the faction colour
+    ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(0, sy, 1.7, 0, Math.PI * 2); ctx.fill();   // the tube's mouth
+    if (loaded) { ctx.fillStyle = '#f2efe6'; ctx.fillRect(-1, sy - 1.4, 4, 2.8); ctx.fillStyle = '#d63a2a'; ctx.beginPath(); ctx.moveTo(3, sy - 1.4); ctx.lineTo(6, sy); ctx.lineTo(3, sy + 1.4); ctx.fill(); }   // a rocket, nose out
+  }
+  // wheels: knobbly tyres, spinning tread when it moves
+  for (const wx of [-10, 10]) {
+    ctx.fillStyle = '#151515'; ctx.beginPath(); ctx.roundRect(wx - 5, -2.2, 10, 4.4, 2); ctx.fill();
+    ctx.fillStyle = '#3a3a36'; const off = moving ? (t * 30) % 3 : 0; for (let k = -4; k < 5; k += 3) ctx.fillRect(wx + k + off - 1.5, -2.2, 1, 4.4);
+  }
+  // frame and fuel tank, the faction colour stripe
+  ctx.fillStyle = '#1d1d1c'; ctx.fillRect(-9, -1.6, 18, 3.2);
+  ctx.fillStyle = '#121212'; ctx.beginPath(); ctx.ellipse(2.5, 0, 5, 3, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = c.color; ctx.fillRect(1, -0.8, 4.5, 1.6);
+  // handlebars
+  ctx.strokeStyle = '#888'; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.moveTo(7, -4.5); ctx.lineTo(8, 0); ctx.lineTo(7, 4.5); ctx.stroke();
+  // the rider: shoulders, arms to the bars, black helmet with a red stripe, scarf flapping behind
+  const wave = Math.sin(t * (moving ? 18 : 4)) * 1.5;
+  ctx.fillStyle = c.color; ctx.beginPath(); ctx.moveTo(-3, -1); ctx.lineTo(-12, -1.5 + wave); ctx.lineTo(-11, 1 + wave); ctx.lineTo(-3, 1); ctx.fill();   // scarf
+  ctx.fillStyle = '#2b2b29'; ctx.beginPath(); ctx.ellipse(-1, 0, 3.5, 4.8, 0, 0, Math.PI * 2); ctx.fill();               // shoulders and back
+  ctx.strokeStyle = '#2b2b29'; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(0, -3.5); ctx.lineTo(6.5, -4.2); ctx.moveTo(0, 3.5); ctx.lineTo(6.5, 4.2); ctx.stroke();   // arms
+  ctx.fillStyle = c.dark; ctx.beginPath(); ctx.arc(1.5, 0, 2.9, 0, Math.PI * 2); ctx.fill();                            // helmet
+  ctx.fillStyle = c.color; ctx.fillRect(-1, -0.6, 5, 1.2);
+  ctx.fillStyle = 'rgba(160,210,255,0.7)'; ctx.fillRect(3.4, -1.6, 1.1, 3.2);                                          // visor
   ctx.restore();
 }
 
@@ -6783,7 +6832,7 @@ function showFaction() {
   for (const b of document.querySelectorAll('#factionRow button')) b.classList.toggle('on', b.dataset.f === factionPick);
   $('factionInfo').textContent = {
     legion: 'The Legion: armour and air. Heavy Tanks, helicopters, Grenadiers, Rocket Launchers, Machine Gun and Missile Turrets. You face The Ashen.',
-    ashen: 'The Ashen: guerrillas and fire. Flamethrowers, Flame Tanks, Snipers, Rocket Soldiers, Napalm, Cannon and Laser Turrets, SAM Sites. You face The Legion.',
+    ashen: 'The Ashen: guerrillas and fire. Flamethrowers, Flame Tanks, Rocket Bikes, Snipers, Napalm, Cannon and Laser Turrets, SAM Sites. You face The Legion.',
     random: 'Random: you get The Legion or The Ashen; the enemy is the other.',
   }[factionPick];
 }
@@ -6968,7 +7017,7 @@ function updateHUD() {
   } else if (sel.length) {
     const counts = {};
     for (const e of sel) counts[e.type] = (counts[e.type] || 0) + 1;
-    const plural = { soldier: 'soldiers', buggy: 'buggies', extractor: 'extractors', grenadier: 'grenadiers', rocket: 'rocket soldiers', sniper: 'snipers', light: 'light tanks', heavy: 'heavy tanks', artillery: 'artillery', flamer: 'flamethrowers', flametank: 'flame tanks', mrl: 'rocket launchers', engineer: 'engineers', settler: 'settlers', civilian: 'civilians', heli: 'helicopters' };
+    const plural = { soldier: 'soldiers', buggy: 'buggies', extractor: 'extractors', grenadier: 'grenadiers', rocket: 'rocket soldiers', sniper: 'snipers', light: 'light tanks', heavy: 'heavy tanks', artillery: 'artillery', flamer: 'flamethrowers', flametank: 'flame tanks', mrl: 'rocket launchers', engineer: 'engineers', settler: 'settlers', civilian: 'civilians', heli: 'helicopters', bike: 'rocket bikes' };
     const parts = Object.entries(counts).map(([t, n]) => `${n} ${n > 1 ? plural[t] || t + 's' : (SHORT[t] || NAMES[t]).toLowerCase()}`);
     text = parts.join(', ') + (sel.some(e => e.team === 0 && STATS[e.type] && STATS[e.type].flame) ? ' — tap to move, or tap trees to burn them' : ' — tap to move');
   } else text = hqOf(0) ? 'Drag to scroll, pinch to zoom' : game.landing && game.landing.phase !== 'leave' ? 'Your Settler is coming ashore…' : 'Tap your settler to begin';

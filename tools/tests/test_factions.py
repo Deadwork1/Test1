@@ -14,7 +14,7 @@ def check(cond, msg):
     global ok
     print(('  ok   ' if cond else '  FAIL ') + msg); ok = ok and cond
 LEGION = ['heavy', 'heli', 'helipad', 'grenadier', 'mrl', 'missile', 'mg']
-ASHEN = ['flamer', 'flametank', 'sniper', 'rocket', 'cannon', 'laser', 'sam']
+ASHEN = ['flamer', 'flametank', 'sniper', 'bike', 'cannon', 'laser', 'sam']   # (Rocket Soldiers shared since the second step)
 with sync_playwright() as p:
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--no-sandbox'])
     pg = b.new_page(viewport={'width': 430, 'height': 860}, device_scale_factor=2, has_touch=True); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)))
