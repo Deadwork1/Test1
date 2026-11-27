@@ -1195,6 +1195,7 @@ function spawn(type, team, x, y) {
   if (isBuildingType(type)) {
     bldDirty = true;
     e.size = s.size;
+    if (isBuildingType(type) && team !== NEUTRAL && factionOf(team)) e.style = factionOf(team);   // its look follows the side that built it (v5.74)
     if (type === 'hq' || isWallType(type) || isNeutralType(type) || team === NEUTRAL) { e.built = true; e.progress = 1; }   // walls go up instantly; neutral ruins are already standing
     else { e.built = false; e.progress = 0; e.hp = s.hp * 0.1; }
     e.queue = 0; e.trainT = 0; e.qTypes = [];
@@ -4173,8 +4174,8 @@ function draw() {
       ctx.beginPath(); ctx.arc(fx.x, fx.y, fx.r * (0.5 + 0.6 * k), 0, Math.PI * 2); ctx.stroke();
     } else if (fx.kind === 'spark') {   // engineer repairing
       const k = fx.t / 0.3;
-      ctx.fillStyle = `rgba(150,255,170,${1 - k})`;
-      ctx.beginPath(); ctx.arc(fx.x, fx.y - k * 8, 2.5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = fx.weld ? `rgba(255,190,90,${1 - k})` : `rgba(150,255,170,${1 - k})`;   // (orange: welding in an Ashen War Factory, v5.74)
+      ctx.beginPath(); ctx.arc(fx.x, fx.y - k * 8, fx.weld ? 1.6 : 2.5, 0, Math.PI * 2); ctx.fill();
       ctx.fillRect(fx.x - 4, fx.y - k * 8 - 0.8, 8, 1.6); ctx.fillRect(fx.x - 0.8, fx.y - k * 8 - 4, 1.6, 8);
     } else if (fx.kind === 'dust') {
       const k = fx.t / 0.6;
@@ -5067,7 +5068,7 @@ function drawBuggy(e) {
   ctx.restore();
 }
 
-function drawFactory(e) {
+function drawFactoryClassic(e) {
   if (!e.built) return drawConstruction(e);
   const c = TEAMS[e.team], h = e.size / 2, x0 = e.x - h, y0 = e.y - h;
   ctx.fillStyle = '#8a857a'; ctx.fillRect(x0 - 3, y0 - 3, e.size + 6, e.size + 6);
@@ -5096,12 +5097,18 @@ function drawFactory(e) {
   ctx.fillStyle = '#9a958a';
   for (let k = 0; k < dh * (1 - open); k += 4) ctx.fillRect(e.x - dw / 2, dy + k, dw, 3);
   ctx.fillStyle = c.color; ctx.fillRect(e.x - dw / 2 - 3, dy - 3, dw + 6, 3);
+  factoryRamp(e, dw);
+  drawQueue(e);
+}
+
+function factoryRamp(e, dw, planks) {
+  const y0 = e.y - e.size / 2;
   // vehicle ramp sloping down from the garage door: ribbed steel, hazard-striped edges, side rails
   const ry = y0 + e.size, rl = 18, topW = dw + 4, botW = dw + 16;
   ctx.fillStyle = 'rgba(0,0,0,0.3)';
   ctx.beginPath(); ctx.moveTo(e.x - topW / 2 + 3, ry + 3); ctx.lineTo(e.x + topW / 2 + 3, ry + 3); ctx.lineTo(e.x + botW / 2 + 3, ry + rl + 3); ctx.lineTo(e.x - botW / 2 + 3, ry + rl + 3); ctx.closePath(); ctx.fill();
   const rg = ctx.createLinearGradient(0, ry, 0, ry + rl);
-  rg.addColorStop(0, '#9c978b'); rg.addColorStop(1, '#6f6b61');   // lighter at the top: it slopes away from you
+  if (planks) { rg.addColorStop(0, '#8a6a44'); rg.addColorStop(1, '#5a4228'); } else { rg.addColorStop(0, '#9c978b'); rg.addColorStop(1, '#6f6b61'); }   // lighter at the top: it slopes away from you (planks for the Ashen)
   ctx.fillStyle = rg;
   ctx.beginPath(); ctx.moveTo(e.x - topW / 2, ry); ctx.lineTo(e.x + topW / 2, ry); ctx.lineTo(e.x + botW / 2, ry + rl); ctx.lineTo(e.x - botW / 2, ry + rl); ctx.closePath(); ctx.fill();
   ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 1;
@@ -5112,12 +5119,165 @@ function drawFactory(e) {
   for (const side of [-1, 1]) {        // hazard-striped edges
     for (let k = 0; k < rl; k += 3) {
       const w = topW + (botW - topW) * k / rl;
-      ctx.fillStyle = (k / 3) % 2 ? '#1e1e1e' : '#f2c230';
+      ctx.fillStyle = (k / 3) % 2 ? '#1e1e1e' : planks ? TEAMS[e.team].color : '#f2c230';
       ctx.fillRect(e.x + side * (w / 2) - (side > 0 ? 4 : 0), ry + k, 4, 3);
     }
     ctx.strokeStyle = '#4a4740'; ctx.lineWidth = 2;   // rails
     ctx.beginPath(); ctx.moveTo(e.x + side * (topW / 2 + 2), ry); ctx.lineTo(e.x + side * (botW / 2 + 2), ry + rl); ctx.stroke();
   }
+}
+
+// ---------- Faction buildings (v5.74, your call: each side has its own Barracks and War Factory) ----------
+// A building keeps the look of the side that built it (e.style, set when it's placed), so one you capture still looks like theirs,
+// in your colours. Neutral ruins (and test games with factions off) keep the classic look.
+const styleOf = e => e.style || factionOf(e.team);
+function drawBarracks(e) { const st = styleOf(e); return st === 'legion' ? drawBarracksLegion(e) : st === 'ashen' ? drawBarracksAshen(e) : drawBarracksClassic(e); }
+function drawFactory(e) { const st = styleOf(e); return st === 'legion' ? drawFactoryLegion(e) : st === 'ashen' ? drawFactoryAshen(e) : drawFactoryClassic(e); }
+
+// The Legion's Barracks: a clean white prefab block on a concrete pad, blue roof stripes, two rooftop units, a canopy over the
+// entrance with the chevrons, white bollards along the front and the flag
+function drawBarracksLegion(e) {
+  if (!e.built) return drawConstruction(e);
+  const c = TEAMS[e.team], S = e.size, h = S / 2, x0 = e.x - h, y0 = e.y - h;
+  ctx.fillStyle = '#b8b5ac'; ctx.fillRect(x0 - 3, y0 - 3, S + 6, S + 6);                       // concrete pad
+  ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth = 1;
+  for (let k = x0 + 12; k < x0 + S; k += 18) { ctx.beginPath(); ctx.moveTo(k, y0 - 3); ctx.lineTo(k, y0 + S + 3); ctx.stroke(); }   // slab joints
+  block(x0 + 5, y0 + 5, S - 10, S - 16, '#eef1f5', '#c9ced6', 14);                             // the block: white roof, light grey front
+  const roofH = S - 30;
+  for (const yy of [y0 + 9, y0 + 5 + roofH - 6]) { ctx.fillStyle = c.color; ctx.fillRect(x0 + 5, yy, S - 10, 3); }   // blue roof stripes
+  ctx.fillStyle = 'rgba(0,0,0,0.08)'; for (let k = x0 + 14; k < x0 + S - 10; k += 10) ctx.fillRect(k, y0 + 13, 1, roofH - 14);   // roof panel seams
+  for (const ax of [x0 + 12, x0 + S - 26]) {                                                   // rooftop units with fans
+    ctx.fillStyle = '#9aa1ab'; ctx.fillRect(ax, y0 + 15, 14, 11); ctx.fillStyle = '#6b727c'; ctx.beginPath(); ctx.arc(ax + 7, y0 + 20.5, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#d7dbe1'; ctx.lineWidth = 1; const r = performance.now() / 120; ctx.beginPath(); ctx.moveTo(ax + 7 + Math.cos(r) * 3.5, y0 + 20.5 + Math.sin(r) * 3.5); ctx.lineTo(ax + 7 - Math.cos(r) * 3.5, y0 + 20.5 - Math.sin(r) * 3.5); ctx.stroke();
+  }
+  const wy = y0 + 5 + roofH + 3;                                                               // a row of windows in the front wall
+  ctx.fillStyle = '#9fd0ff'; for (let k = x0 + 10; k < x0 + S - 12; k += 9) if (Math.abs(k + 2.5 - e.x) > 12) ctx.fillRect(k, wy, 5, 4);
+  ctx.fillStyle = c.color; ctx.fillRect(x0 + 5, y0 + 5 + roofH + 10, S - 10, 3);               // blue band along the front
+  // entrance canopy with the chevrons
+  ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(e.x - 13, y0 + S - 22, 28, 14);
+  ctx.fillStyle = '#f7f9fc'; ctx.fillRect(e.x - 14, y0 + S - 24, 28, 13);
+  ctx.fillStyle = c.color; ctx.fillRect(e.x - 14, y0 + S - 13, 28, 2);
+  ctx.strokeStyle = c.color; ctx.lineWidth = 2.2; ctx.lineJoin = 'round';
+  for (let k = 0; k < 2; k++) { ctx.beginPath(); ctx.moveTo(e.x - 6, y0 + S - 16 + k * 4); ctx.lineTo(e.x, y0 + S - 21 + k * 4); ctx.lineTo(e.x + 6, y0 + S - 16 + k * 4); ctx.stroke(); }
+  frontApron(e, 26);
+  door(e, 16, 8);
+  ctx.fillStyle = '#f4f6f9'; ctx.strokeStyle = '#8d939c'; ctx.lineWidth = 1;                   // white bollards along the front, a gap for the door
+  for (let k = x0 + 4; k < x0 + S; k += 10) { if (Math.abs(k - e.x) < 16) continue; ctx.beginPath(); ctx.arc(k, y0 + S + 3, 2.4, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+  flag(x0 + S - 4, y0 + 4, e.team);
+  drawQueue(e);
+}
+
+// The Ashen's Barracks: a dirt camp inside a ring of sandbags - two rusty corrugated shacks, a black tarp with a red stripe
+// stretched between them, a fire burning in an oil drum, crates, and a red banner on a pole
+function drawBarracksAshen(e) {
+  if (!e.built) return drawConstruction(e);
+  const c = TEAMS[e.team], S = e.size, h = S / 2, x0 = e.x - h, y0 = e.y - h, t = performance.now() / 1000;
+  ctx.fillStyle = '#6b5a42'; ctx.fillRect(x0 - 3, y0 - 3, S + 6, S + 6);                       // trampled dirt
+  ctx.fillStyle = 'rgba(0,0,0,0.12)'; for (const [dx, dy, r] of [[14, 50, 6], [52, 18, 5], [40, 58, 4], [62, 44, 5]]) { ctx.beginPath(); ctx.arc(x0 + dx, y0 + dy, r, 0, Math.PI * 2); ctx.fill(); }
+  const shack = (x, y, w, hh) => {                                                             // a corrugated tin shack, rust patches
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(x + 4, y + 4, w, hh);
+    ctx.fillStyle = '#3b3b39'; ctx.fillRect(x, y, w, hh);
+    ctx.fillStyle = 'rgba(255,255,255,0.08)'; for (let k = x + 2; k < x + w; k += 4) ctx.fillRect(k, y, 1.5, hh);
+    ctx.fillStyle = 'rgba(140,70,30,0.7)'; ctx.fillRect(x + w * 0.55, y + 2, w * 0.3, hh * 0.35); ctx.fillRect(x + 3, y + hh * 0.6, w * 0.25, hh * 0.3);
+    ctx.fillStyle = '#222'; ctx.fillRect(x, y + hh - 4, w, 4);
+  };
+  shack(x0 + 4, y0 + 6, 26, 22); shack(x0 + S - 30, y0 + 6, 26, 22);
+  // the tarp between them: black with a red stripe, sagging
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(x0 + 32, y0 + 14, 14, 26);
+  ctx.fillStyle = '#161616'; ctx.beginPath(); ctx.moveTo(x0 + 28, y0 + 8); ctx.lineTo(x0 + S - 28, y0 + 8); ctx.lineTo(x0 + S - 30, y0 + 36); ctx.quadraticCurveTo(e.x, y0 + 42, x0 + 30, y0 + 36); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = c.color; ctx.fillRect(e.x - 2, y0 + 8, 4, 32);
+  // emblem on the tarp: a flame on a black disc
+  emblemPlate(e.x, y0 + 22, 8, e.team);
+  ctx.fillStyle = c.color; ctx.beginPath(); ctx.moveTo(e.x, y0 + 15); ctx.quadraticCurveTo(e.x + 6, y0 + 22, e.x + 2, y0 + 28); ctx.quadraticCurveTo(e.x, y0 + 25, e.x - 2, y0 + 28); ctx.quadraticCurveTo(e.x - 6, y0 + 22, e.x, y0 + 15); ctx.fill();
+  // crates and the oil-drum fire
+  for (const [dx, dy] of [[6, 36], [12, 42], [S - 16, 38]]) { ctx.fillStyle = '#6e5534'; ctx.fillRect(x0 + dx, y0 + dy, 9, 8); ctx.strokeStyle = '#3e2f1c'; ctx.lineWidth = 1; ctx.strokeRect(x0 + dx, y0 + dy, 9, 8); ctx.beginPath(); ctx.moveTo(x0 + dx, y0 + dy); ctx.lineTo(x0 + dx + 9, y0 + dy + 8); ctx.stroke(); }
+  const fx = x0 + S - 12, fy = y0 + S - 22;
+  ctx.fillStyle = '#2a2a2a'; ctx.beginPath(); ctx.arc(fx, fy, 4.5, 0, Math.PI * 2); ctx.fill();
+  for (let k = 0; k < 3; k++) { const f = Math.sin(t * 9 + k * 2) * 1.5; ctx.fillStyle = ['rgba(255,90,20,0.85)', 'rgba(255,170,40,0.85)', 'rgba(255,240,150,0.9)'][k]; ctx.beginPath(); ctx.arc(fx + f * 0.5, fy - 2 - k * 1.5, 4 - k * 1.1, 0, Math.PI * 2); ctx.fill(); }
+  // the sandbag ring, a gap for the door
+  ctx.fillStyle = '#7b7253'; ctx.strokeStyle = '#4a4430'; ctx.lineWidth = 1;
+  const bag = (x, y) => { ctx.beginPath(); ctx.ellipse(x, y, 4.2, 2.8, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); };
+  for (let k = x0; k <= x0 + S; k += 8.5) { bag(k, y0 - 1); if (Math.abs(k - e.x) > 14) bag(k, y0 + S + 3); }
+  for (let k = y0 + 7; k < y0 + S; k += 8.5) { bag(x0 - 1, k); bag(x0 + S + 1, k); }
+  frontApron(e, 22);
+  door(e, 14, 7);
+  // red banner on a pole (a ragged pennant)
+  const bx = x0 + 6, by = y0 + 4, wave = Math.sin(t * 3 + bx) * 1.6;
+  ctx.strokeStyle = '#2b2b2b'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx, by - 22); ctx.stroke();
+  ctx.fillStyle = c.color; ctx.beginPath(); ctx.moveTo(bx, by - 22); ctx.lineTo(bx + 14, by - 20 + wave); ctx.lineTo(bx + 9, by - 16 + wave); ctx.lineTo(bx + 14, by - 12 + wave); ctx.lineTo(bx, by - 13); ctx.fill();
+  ctx.fillStyle = '#111'; ctx.fillRect(bx + 2, by - 19, 5, 3);
+  drawQueue(e);
+}
+
+// The Legion's War Factory: a white steel hangar with a curved, skylit roof edged in blue, crane rails across it, a blue and
+// white chevron roll-up door, and the steel ramp
+function drawFactoryLegion(e) {
+  if (!e.built) return drawConstruction(e);
+  const c = TEAMS[e.team], S = e.size, h = S / 2, x0 = e.x - h, y0 = e.y - h;
+  ctx.fillStyle = '#b5b2a8'; ctx.fillRect(x0 - 3, y0 - 3, S + 6, S + 6);
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(x0 + 9, y0 + 10, S - 8, S - 12);
+  const g = ctx.createLinearGradient(x0 + 4, 0, x0 + S - 4, 0);                               // curved roof: shaded at the sides
+  g.addColorStop(0, '#b9c0c9'); g.addColorStop(0.3, '#f1f4f8'); g.addColorStop(0.7, '#f1f4f8'); g.addColorStop(1, '#a9b0ba');
+  ctx.fillStyle = g; ctx.fillRect(x0 + 4, y0 + 4, S - 8, S - 30);
+  ctx.fillStyle = 'rgba(0,0,0,0.07)'; for (let k = y0 + 10; k < y0 + S - 28; k += 7) ctx.fillRect(x0 + 4, k, S - 8, 1);   // roof ribs
+  ctx.fillStyle = '#a8d8ff'; for (const sx of [e.x - 18, e.x + 12]) ctx.fillRect(sx, y0 + 10, 6, S - 42);   // skylights
+  ctx.fillStyle = c.color; ctx.fillRect(x0 + 4, y0 + 4, 4, S - 30); ctx.fillRect(x0 + S - 8, y0 + 4, 4, S - 30); ctx.fillRect(x0 + 4, y0 + 4, S - 8, 3);   // blue edges
+  ctx.strokeStyle = 'rgba(60,70,85,0.55)'; ctx.lineWidth = 1.6;                                 // crane rails and a trolley
+  for (const ry of [y0 + 16, y0 + S - 36]) { ctx.beginPath(); ctx.moveTo(x0 + 6, ry); ctx.lineTo(x0 + S - 6, ry); ctx.stroke(); }
+  const tx = x0 + 20 + (Math.sin(performance.now() / 2500) * 0.5 + 0.5) * (S - 40);
+  ctx.fillStyle = '#5c6675'; ctx.fillRect(tx - 3, y0 + 14, 6, S - 48);
+  // the front wall: light steel with the emblem
+  ctx.fillStyle = '#c7ccd3'; ctx.fillRect(x0 + 4, y0 + S - 26, S - 8, 20);
+  ctx.fillStyle = c.color; ctx.fillRect(x0 + 4, y0 + S - 26, S - 8, 2);
+  const ex = x0 + 13, ey = y0 + S - 16;
+  emblemPlate(ex, ey, 7, e.team);
+  ctx.fillStyle = '#fff'; ctx.fillRect(ex - 5, ey - 1, 10, 3); ctx.beginPath(); ctx.arc(ex - 1, ey - 1.5, 2.5, Math.PI, 0); ctx.fill(); ctx.fillRect(ex, ey - 3, 6, 1.4);   // a little tank
+  // roll-up door with chevrons, open while a vehicle is being made
+  const dw = 44, dh = 20, dy = y0 + S - 6 - dh;
+  ctx.fillStyle = '#1e2228'; ctx.fillRect(e.x - dw / 2, dy, dw, dh);
+  const open = e.queue ? 0.35 + 0.65 * (e.trainT / (TRAIN_TIME[e.qTypes[0]] * slowOf(e))) : 0;
+  ctx.save(); ctx.beginPath(); ctx.rect(e.x - dw / 2, dy, dw, dh * (1 - open)); ctx.clip();
+  ctx.fillStyle = '#eef1f5'; ctx.fillRect(e.x - dw / 2, dy, dw, dh);
+  ctx.strokeStyle = c.color; ctx.lineWidth = 3; ctx.lineJoin = 'miter';
+  for (let k = -1; k < 3; k++) { ctx.beginPath(); ctx.moveTo(e.x - dw / 2, dy + 4 + k * 7 + 6); ctx.lineTo(e.x, dy + 4 + k * 7); ctx.lineTo(e.x + dw / 2, dy + 4 + k * 7 + 6); ctx.stroke(); }
+  ctx.restore();
+  ctx.fillStyle = c.dark; ctx.fillRect(e.x - dw / 2 - 3, dy - 3, dw + 6, 3);
+  factoryRamp(e, dw);
+  drawQueue(e);
+}
+
+// The Ashen's War Factory: a patched-together workshop - a black corrugated roof with rust and mismatched panels, red hazard
+// paint, a chimney puffing dark smoke, welding sparks at the open shutter, tyres and a scrap pile, and a plank ramp
+function drawFactoryAshen(e) {
+  if (!e.built) return drawConstruction(e);
+  const c = TEAMS[e.team], S = e.size, h = S / 2, x0 = e.x - h, y0 = e.y - h, t = performance.now() / 1000;
+  ctx.fillStyle = '#5f5141'; ctx.fillRect(x0 - 3, y0 - 3, S + 6, S + 6);                       // oily dirt
+  ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(x0 + 22, y0 + S - 4, 10, 4, 0, 0, Math.PI * 2); ctx.fill();   // an oil stain
+  block(x0 + 4, y0 + 6, S - 8, S - 12, '#2f2f2d', '#1c1c1b', 22);
+  // corrugations, then mismatched patches and rust
+  ctx.fillStyle = 'rgba(255,255,255,0.07)'; for (let k = x0 + 6; k < x0 + S - 6; k += 4) ctx.fillRect(k, y0 + 6, 1.5, S - 34);
+  for (const [dx, dy, w, hh, col] of [[10, 12, 22, 14, '#4a4440'], [S - 34, 26, 20, 12, '#3d3a2f'], [30, 34, 16, 10, '#463c34']]) { ctx.fillStyle = col; ctx.fillRect(x0 + dx, y0 + dy, w, hh); ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1; ctx.strokeRect(x0 + dx, y0 + dy, w, hh); }
+  ctx.fillStyle = 'rgba(150,70,25,0.65)'; for (const [dx, dy, r] of [[18, 40, 5], [S - 20, 14, 6], [50, 20, 4]]) { ctx.beginPath(); ctx.arc(x0 + dx, y0 + dy, r, 0, Math.PI * 2); ctx.fill(); }
+  ctx.fillStyle = c.color; ctx.fillRect(x0 + 4, y0 + 6, S - 8, 3);                              // red paint along the eaves
+  // chimney with dark smoke
+  const cx = x0 + S - 18, cy = y0 + 4;
+  ctx.fillStyle = '#3a3a3a'; ctx.fillRect(cx, cy, 8, 16);
+  for (let k = 0; k < 3; k++) { const ph = (t * 0.6 + k / 3) % 1; ctx.fillStyle = `rgba(30,30,30,${0.5 * (1 - ph)})`; ctx.beginPath(); ctx.arc(cx + 4 + ph * 10, cy - ph * 24, 4 + ph * 6, 0, Math.PI * 2); ctx.fill(); }
+  // emblem: a red wrench crossed with a flame, on black
+  const ex = x0 + 13, ey = y0 + S - 15;
+  emblemPlate(ex, ey, 8, e.team);
+  ctx.strokeStyle = c.color; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(ex - 4, ey + 4); ctx.lineTo(ex + 3, ey - 3); ctx.stroke();
+  ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(ex + 4, ey - 4, 2.2, 0.8, 5.5); ctx.stroke();
+  // the open shutter (hazard-striped frame), sparks from welding inside while it's making something
+  const dw = 44, dh = 20, dy = y0 + S - 6 - dh;
+  ctx.fillStyle = '#121212'; ctx.fillRect(e.x - dw / 2, dy, dw, dh);
+  const open = e.queue ? 0.35 + 0.65 * (e.trainT / (TRAIN_TIME[e.qTypes[0]] * slowOf(e))) : 0;
+  ctx.fillStyle = '#4b4741'; for (let k = 0; k < dh * (1 - open); k += 4) ctx.fillRect(e.x - dw / 2, dy + k, dw, 3);
+  for (let k = 0; k < dw + 6; k += 6) { ctx.fillStyle = (k / 6) % 2 ? '#111' : c.color; ctx.fillRect(e.x - dw / 2 - 3 + k, dy - 4, 6, 3); }
+  if (e.queue && Math.random() < 0.6) for (let k = 0; k < 3; k++) game.effects.push({ kind: 'spark', weld: true, x: e.x + (Math.random() - 0.5) * dw * 0.6, y: dy + dh * (1 - open) + 2, t: 0 });
+  // tyres and a scrap pile by the door
+  for (const [dx, dy] of [[S - 12, S - 14], [S - 6, S - 20], [S - 16, S - 22]]) { ctx.fillStyle = '#151515'; ctx.beginPath(); ctx.arc(x0 + dx, y0 + dy, 4.2, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#5f5141'; ctx.beginPath(); ctx.arc(x0 + dx, y0 + dy, 1.8, 0, Math.PI * 2); ctx.fill(); }
+  factoryRamp(e, dw, true);
   drawQueue(e);
 }
 
@@ -5447,7 +5607,7 @@ function drawRuin(e) {
   }
 }
 
-function drawBarracks(e) {
+function drawBarracksClassic(e) {
   if (!e.built) return drawConstruction(e);
   const c = TEAMS[e.team], h = e.size / 2, x0 = e.x - h, y0 = e.y - h;
   ctx.fillStyle = '#8f8a74'; ctx.fillRect(x0 - 3, y0 - 3, e.size + 6, e.size + 6);   // gravel yard
