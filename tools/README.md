@@ -38,6 +38,19 @@ Example: `python3 rec/record.py .. 8801 large hard mixed 60`
 - `test_extractor_crush.py` checks Extractors (and tanks) run over enemy infantry but not vehicles or their own side.
 - `test_rock_fire.py` checks direct fire can't pass through rock (lobbed grenades can).
 - `test_building_edges.py` checks an Extractor leaving its Refinery and a tank attacking past its own buildings don't snag on building edges.
+- **Factions (v5.73) and the test tools.** The game remembers the faction picked on the start screen in `localStorage['mini-rts-faction']` (`legion`, `ashen` or `random`). A hidden fourth value, `all`, switches factions off (everything for both sides, the old look): only the test tools use it. Older tests that need every unit for one side set it (`test_flame`, `test_turrets`, `test_reactor_satellite`, `test_ai_heli_giveup`, `test_heli`); a test that doesn't set anything plays as The Legion. `sim/run.py` sets the test player's faction from the plan (`"faction"`, default `legion`); `sim/make_plans.py` alternates it by game (ids end `-legion` / `-ashen`; with 5 games per strategy that's 3 Legion, 2 Ashen per strategy). `analyse_big.py` doesn't split by faction yet: the 27 Nov report did it with a short script on the ids. The test player (`sim/bot.js`) was written before factions and plays the Ashen with fewer tools.
+- Added 26-27 Nov (v5.70-v5.73), all `python3 tests/<name> <game folder> <port> [picture folder]`:
+  - `test_one_build.py`: one building goes up at a time (per HQ), the greyed buttons, walls still allowed, the computer too. `pic_one_build.py`.
+  - `test_reinforcements.py [map] [pictures]`: the boats with 5 Soldiers and a Buggy after the first HQ, the computer's at its base, none for a later HQ.
+  - `test_minimap_radar.py`: no minimap without a finished Radar (Satellite Radar counts), gone when it's lost.
+  - `test_sandbox.py`: the Sandbox switch (unlimited money, whole map, minimap), remembered, recorded in the report, off again.
+  - `test_factions.py`: both factions' buttons, colours, Satellite power (Napalm / Orbital Barrage), and 8 minutes of the computer as each faction making none of the other's things. `pic_factions.py` (picker and each side's units), `pic_faction_buildings.py` (Barracks and War Factories), `pic_faction_vehicles.py` (Light Tanks and Buggies), `pic_crests.py` (crests on the buttons, HQs, banners, results).
+  - `test_bike.py`: the Ashen Rocket Bike (buttons, two rockets, duels, speed, forests, no anti-air, the computer building them).
+  - `test_barrage.py`: the Legion's Orbital Barrage (button, timer, damage, never your own side, the computer firing it).
+  - `test_bulwark.py`: the Legion's Bulwark (loading 5 of 6, Unload, machine gun, crushing, bailing out, the computer building one).
+  - `pic_mrl.py <out folder>`: the Rocket Launcher close up and mid-salvo. `pic_patrol.py <map> <out.png>`: the computer's Buggy loop.
+  - `dbg_ore_map.py <map> [size] [number] [out.png]`: a map's ore fields with straight and walking distance from each HQ. `dbg_wallplans.py <map> [size] [number] [out.png]`: where the computer plans its walls and whether they seal its base. `pic_ai_base.py <map> <size> <number> <minutes> <out.png> [difficulty] [off]`: the computer's base after N minutes (tight gaps between its buildings, buildings outside its walls; `off` = build anywhere, as before v5.73).
+  - Known: `test_flame.py`'s "Normal builds a Flame Tank" check fails (since about v5.70, not looked into). Behaviour tests use `handleTap(x, y)` with map coordinates.
 - Added 22-26 Nov (v5.64-v5.69), all `python3 tests/<name> <game folder> <port>`:
   - `test_turrets.py`: turrets built by Engineers (unlocks, the 300 keep-out, damage, Engineers not used up, the computer's turrets).
   - `test_settler.py`: Settlers ($3,000 at the War Factory, need a Nuclear Reactor and a Satellite Radar), second HQs, the +25% speed per extra HQ, the computer buying one for far ore.
