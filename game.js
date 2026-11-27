@@ -3492,10 +3492,10 @@ function drawFires() {
 // ---------- Napalm Strike (v5.67) ----------
 // With a Satellite Radar you can call a Napalm Strike once every 5 minutes (the first as soon as the Radar is up): a plane
 // comes in from your side and lays a 300-long strip of fire on ground you can see, centred where you tapped. The fire burns
-// for 6 s: deadly to infantry (70 a second), it hurts vehicles a little (12) and buildings a bit (15). It never hurts your
+// for 6 s: deadly to infantry (70 a second), it hurts vehicles a little (12) and buildings a bit (20, was 15). It never hurts your
 // own side, and aircraft fly over it. The computer (Hard) calls it on your bunched-up units.
 const NAPALM_EVERY = 300, NAPALM_LEN = 300, NAPALM_HALF = 26, NAPALM_DELAY = 1.6, NAPALM_BURN = 6, NAPALM_FLIGHT = 0.5;
-const NAPALM_DPS = { infantry: 70, vehicle: 12, building: 15 };
+const NAPALM_DPS = { infantry: 70, vehicle: 12, building: 20 };   // (buildings 15 until v5.74: your call, slightly more)
 const hasSatellite = team => game.ents.some(b => b.team === team && b.type === 'satellite' && b.built && b.hp > 0);
 const strikeKind = team => allowed(team, 'napalm') ? 'napalm' : 'barrage';   // the Satellite Radar's power: Napalm (the Ashen) or the Orbital Barrage (the Legion), v5.74
 const hasNapalm = team => hasSatellite(team);   // (either power; see strikeKind)
