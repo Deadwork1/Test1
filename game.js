@@ -1456,7 +1456,7 @@ function canPlace(team, type, x, y) {
   if (!unlocked(team, type)) return false;
   if (!inBuildArea(team, x, y, type === 'sam' ? WALL_REACH : 0) || !siteIsFree(x, y, size)) return false;
   if (team === 1 && diff().walls && hqOf(1)) {   // the computer keeps its planned wall lines and gates clear
-    if (!game.ai.wallPlans) { const pl = findEntrances(1).map(planGapWall).filter(Boolean); game.ai.wallPlans = pl.length ? pl : [aiWallPlan(hqOf(1))]; game.ai.gateTried = []; }
+    if (!game.ai.wallPlans) { game.ai.wallPlans = aiWallPlans(hqOf(1)); game.ai.gateTried = []; }
     if (game.ai.wallPlans.some(pl => [...pl.tiles, pl.gate].some(t => Math.abs(t.x - x) < size / 2 + 22 && Math.abs(t.y - y) < size / 2 + 22))) return false;
   }
   for (const b of game.ents) {   // never sit on the doorstep of a building that makes units
@@ -2625,6 +2625,55 @@ function separate() {
 }
 
 // ---------- Computer opponent ----------
+// Inside its walls (v5.73, your call): once the computer has planned its walls, its base buildings go on the home side of
+// them, so the walls stay round the edge of the base instead of ending up in the middle of it. "Inside" = the ground you
+// can walk to from its first HQ without crossing a planned wall or gate (within 1,600). Not when the walls don't seal
+// anything off (then everything near is inside), and only if there's room: after 70 tries it may still build outside.
+// the ground you can walk to from (x, y) without crossing these walls (within 1,600): leaked = it got out (reached the edge
+// of that area, or near the enemy HQ), so the walls don't close the base off
+function floodInside(plans, hq) {
+  const block = new Set(), tileOf = (x, y) => Math.floor(y / TC) * TCOLS + Math.floor(x / TC);
+  for (const pl of plans) {
+    for (const t of pl.tiles) block.add(tileOf(t.x, t.y));
+    for (let k = -1; k <= 1; k++) block.add(tileOf(pl.gate.x + (pl.gate.vertical ? 0 : k * TC), pl.gate.y + (pl.gate.vertical ? k * TC : 0)));
+  }
+  const foe = hqOf(0) || START[0];
+  const set = new Set(), start = tileOf(hq.x, hq.y), q = [start]; set.add(start);
+  const sc = start % TCOLS, sr = Math.floor(start / TCOLS), lim = Math.ceil(1600 / TC);
+  let leaked = false;
+  while (q.length) {
+    const i = q.pop(), c = i % TCOLS, r = Math.floor(i / TCOLS);
+    if (Math.abs(c - sc) >= lim || Math.abs(r - sr) >= lim || Math.hypot(c * TC - foe.x, r * TC - foe.y) < 300) leaked = true;
+    for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nc = c + dc, nr = r + dr, ni = nr * TCOLS + nc;
+      if (nc < 0 || nr < 0 || nc >= TCOLS || nr >= TROWS || set.has(ni) || block.has(ni) || Math.abs(nc - sc) > lim || Math.abs(nr - sr) > lim) continue;
+      if (!walkable(terrain[ni], false)) continue;
+      set.add(ni); q.push(ni);
+    }
+  }
+  return { set, leaked };
+}
+// The computer's wall plans (Normal and Hard): one across each gap into its base. Since v5.73 (your call) only if together
+// they really close the base off; if the base is open anyway (open ground round the side, or no gaps at all), walls and a
+// gate would just stand in the middle of it, so it builds none (its turrets still guard the entrances).
+function aiWallPlans(hq) {
+  const pl = findEntrances(1).map(planGapWall).filter(Boolean);
+  const plans = pl.length ? pl : [aiWallPlan(hq)];
+  return floodInside(plans, hq).leaked ? [] : plans;
+}
+function aiInside() {
+  const ai = game.ai, plans = ai.wallPlans, hq = hqOf(1);
+  if (!plans || !plans.length || !hq) return null;
+  if (ai.inside && ai.inside.n === plans.length && ai.inside.hq === hq.id) return ai.inside.set;
+  const set = floodInside(plans, hq).set;
+  ai.inside = { n: plans.length, hq: hq.id, set };
+  return set;
+}
+function insideWalls(x, y, size) {
+  const set = aiInside(); if (!set) return true;
+  const h = size / 2;
+  return [[0, 0], [-h, -h], [h, -h], [-h, h], [h, h]].every(([dx, dy]) => set.has(Math.floor((y + dy) / TC) * TCOLS + Math.floor((x + dx) / TC)));
+}
 function aiPlace(hq, type) {
   if (game.credits[1] < COST[type]) return false;
   const bases = buildAreaSources(1);
@@ -2632,7 +2681,9 @@ function aiPlace(hq, type) {
     const src = tries < 30 ? hq : bases[Math.floor(Math.random() * bases.length)].b;
     const toward = Math.atan2(H / 2 - src.y, W / 2 - src.x);
     const a = toward + (Math.random() - 0.5) * (tries < 60 ? 2.6 : 6.2), d = src.size / 2 + 60 + Math.random() * 200;
-    if (placeBuilding(1, type, src.x + Math.cos(a) * d, src.y + Math.sin(a) * d)) return true;
+    const x = src.x + Math.cos(a) * d, y = src.y + Math.sin(a) * d;
+    if (tries < 70 && !insideWalls(x, y, STATS[type].size)) continue;   // inside its walls first (v5.73)
+    if (placeBuilding(1, type, x, y)) return true;
   }
   game.ai.cantPlace = game.ai.cantPlace || {};
   game.ai.cantPlace[type] = game.time;   // no room right now: don't keep saving for it
@@ -2973,7 +3024,7 @@ function runAI(dt) {
   // wall line + gate across the approach, a few pieces at a time
   if (D.walls && sent >= 1 && game.credits[1] >= 200) {
     // every way into the base gets its own wall and gate (the main entrance first)
-    if (!ai.wallPlans) { const pl = findEntrances(1).map(planGapWall).filter(Boolean); ai.wallPlans = pl.length ? pl : [aiWallPlan(hq)]; ai.gateTried = []; }
+    if (!ai.wallPlans) { ai.wallPlans = aiWallPlans(hq); ai.gateTried = []; }
     let n = 0;
     for (let i = 0; i < ai.wallPlans.length; i++) {
       const plan = ai.wallPlans[i];
