@@ -370,6 +370,11 @@ const ctx = canvas.getContext('2d');
 const scr = { w: 0, h: 0, dpr: 1 };
 const cam = { x: START[0].x, y: START[0].y, zoom: 1 };
 const MM = { w: 168, h: 105, x: 0, y: 0 };   // minimap rectangle (screen px)
+// The minimap needs a Radar (v5.71, your call): no minimap and no Map button until you have a finished Radar
+// (a Satellite Radar, or a captured ruined Radar repaired to half, counts too); lose it and the minimap goes again.
+const hasMinimap = () => !!game && (hasBuilt(0, 'radar') || hasBuilt(0, 'satellite'));
+const minimapOn = () => !MM.hidden && hasMinimap();
+let mmHad = null;   // did you have the minimap last time the HUD was drawn (for the message when it comes or goes)
 
 function resize() {
   scr.dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -1078,6 +1083,7 @@ mmBg.getContext('2d').drawImage(bg, 0, 0, mmBg.width, mmBg.height);
 let game;
 
 function newGame() {
+  mmHad = null;   // (no "Radar lost" message just because the last game had one)
   optsKnown = null; optsCheckAt = 0;
   if (burnt && burnt.length) {   // forests burnt in the last game grow back for the next one (v5.69)
     const b = bg.getContext('2d');
@@ -4117,7 +4123,7 @@ function draw() {
     ctx.strokeRect(b.x1, b.y1, b.x2 - b.x1, b.y2 - b.y1);
   }
 
-  if (!MM.hidden) drawMinimap();
+  if (minimapOn()) drawMinimap();
 }
 
 function drawPlacement() {
@@ -5964,7 +5970,7 @@ function drawNameTag(e) {
 // ---------- Input: drag to scroll, pinch to zoom, tap to select / command ----------
 const input = { pointers: new Map(), mode: null, sx: 0, sy: 0, camX: 0, camY: 0, pinch: null, box: null, boxMode: false };
 
-const inMinimap = (x, y) => !MM.hidden && x >= MM.x && x <= MM.x + MM.w && y >= MM.y && y <= MM.y + MM.h;
+const inMinimap = (x, y) => minimapOn() && x >= MM.x && x <= MM.x + MM.w && y >= MM.y && y <= MM.y + MM.h;
 function minimapJump(x, y) {
   cam.x = (x - MM.x) / MM.w * W; cam.y = (y - MM.y) / MM.h * HT; clampCam();
 }
@@ -6479,6 +6485,8 @@ function updateHUD() {
   if (ui.clock.textContent !== clock) ui.clock.textContent = clock;
   ui.box.classList.toggle('on', input.boxMode);
   ui.map.classList.toggle('on', !MM.hidden);
+  const mmNow = hasMinimap(); show(ui.map, mmNow);   // (needs a Radar, v5.71)
+  if (mmNow !== mmHad) { if (mmHad !== null) flash = { text: mmNow ? 'Minimap online (Radar)' : 'Radar lost: no minimap', t: performance.now() }; mmHad = mmNow; }
 
   const sel = [...game.selected].map(byId).filter(Boolean);
   const one = t => sel.find(e => e.type === t);
