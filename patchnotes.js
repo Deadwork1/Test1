@@ -2,6 +2,14 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.71', date: '27 Nov 2026', title: 'Reinforcements and radar maps',
+    changes: [
+      'Reinforcements: once your first Headquarters is up, a landing craft brings 5 Soldiers, and a second one a Scout Buggy a few seconds later. They come up the beach and gather just south of your HQ. Send the Buggy out to find ore: your free Extractor heads for ore as soon as anyone has seen it.',
+      'The computer gets the same 6 units at its base. An HQ from a later Settler brings no reinforcements.',
+      'The minimap needs a Radar: there is no minimap or Map button until you have a finished Radar (a Satellite Radar, or a captured Radar repaired to half, counts too). Lose it and the minimap goes again.',
+    ],
+  },
+  {
     version: '5.70', date: '26 Nov 2026', title: 'One building at a time',
     changes: [
       'Only one building can go up at a time: you can\'t start a new building until the one under construction is finished. While one is going up, the HQ\'s build buttons grey out and show how far along it is.',
