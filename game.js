@@ -311,7 +311,26 @@ const HAS_DOOR = t => !!PRODUCES[t] || t === 'refinery';   // buildings whose fr
 const REQUIRES = { factory: ['barracks', 'refinery'], tech: ['factory'], grenadier: ['power'], rocket: ['power'], sniper: ['power'], mg: ['barracks'], cannon: ['factory'], missile: ['radar', 'factory'], laser: ['reactor'], heavy: ['reactor'], reactor: ['tech'], satellite: ['reactor'], settler: ['reactor', 'satellite'],   /* (Settlers need both since v5.67) */ artillery: ['power'], radar: ['power'], medbay: ['barracks', 'power'], helipad: ['factory'], sam: ['radar'], extractor: ['refinery'], light: ['power'], gate: ['power'], flamer: ['power'], flametank: ['tech'], mrl: ['tech'] };   // (v5.69: Extractors need a Refinery standing, Light Tanks and Gates a Power Plant)   // (SAM Sites need a Radar since v5.67; a Power Plant before)
 const hasBuilt = (team, type) => game.ents.some(b => b.team === team && b.type === type && b.built && ruinWorks(b));   // (a captured ruin counts once it's repaired to half)
 const missingFor = (team, type) => (REQUIRES[type] || []).filter(t => !hasBuilt(team, t));
-const unlocked = (team, type) => missingFor(team, type).length === 0;
+// ---------- Factions (v5.74, your design) ----------
+// Two sides: The Legion (armour and air; blue and white) and The Ashen (guerrillas and fire; red and black). Each has things only
+// it can build or train; everything else is shared. You pick yours on the start screen (or Random); the computer is always the other.
+// 'napalm' stands for the Napalm Strike (from the Satellite Radar, which both have). Campaign missions can read these lists too.
+const FACTIONS = {
+  legion: { name: 'The Legion', only: ['heavy', 'heli', 'helipad', 'grenadier', 'mrl', 'missile', 'mg'],
+            colors: { color: '#2f6fe0', dark: '#1b3c80', light: '#f2f6fc' } },
+  ashen:  { name: 'The Ashen', only: ['flamer', 'flametank', 'napalm', 'sniper', 'rocket', 'cannon', 'laser', 'sam'],
+            colors: { color: '#d62828', dark: '#141414', light: '#f08080' } },
+};
+const otherFaction = f => f === 'legion' ? 'ashen' : 'legion';
+let factionPick = 'legion';   // what the start screen is set to: 'legion', 'ashen' or 'random'
+try { const f = localStorage.getItem('mini-rts-faction'); if (f === 'legion' || f === 'ashen' || f === 'random' || f === 'all') factionPick = f; } catch (err) {}   // ('all' = no factions, everything for both: only the test tools set it)
+const rollFactions = () => { if (factionPick === 'all') return [null, null]; const mine = factionPick === 'random' ? (Math.random() < 0.5 ? 'legion' : 'ashen') : factionPick; return [mine, otherFaction(mine)]; };
+const factionOf = team => (game && game.factions && game.factions[team]) || null;
+// may this side build or train this at all? (no for the other faction's own things)
+const allowed = (team, type) => { const f = factionOf(team); return !f || !FACTIONS[otherFaction(f)].only.includes(type); };
+// each side wears its faction's colours (you and the computer are always different factions)
+function applyFactionColours() { for (const t of [0, 1]) { const f = factionOf(t); if (f) Object.assign(TEAMS[t], FACTIONS[f].colors); } }
+const unlocked = (team, type) => allowed(team, type) && missingFor(team, type).length === 0;
 const TRAIN_TIME = { soldier: 4, buggy: 6, extractor: 6, grenadier: 4.5, engineer: 5, rocket: 5, sniper: 6, light: 10, heavy: 16, artillery: 12, heli: 15, settler: 40, flamer: 5, flametank: 12, mrl: 14 };   // seconds to make each unit
 const isCombat = e => e.type === 'civilian' || e.type === 'soldier' || e.type === 'buggy' || e.type === 'grenadier' || e.type === 'rocket' || e.type === 'sniper' || e.type === 'light' || e.type === 'heavy' || e.type === 'artillery' || e.type === 'heli' || e.type === 'flamer' || e.type === 'flametank' || e.type === 'mrl';
 const isTank = e => e.type === 'light' || e.type === 'heavy' || e.type === 'flametank';
@@ -1088,7 +1107,8 @@ mmBg.getContext('2d').drawImage(bg, 0, 0, mmBg.width, mmBg.height);
 let game;
 
 function newGame() {
-  mmHad = null;   // (no "Radar lost" message just because the last game had one)
+  mmHad = null;
+  setTimeout(applyFactionColours, 0);   // (once the new game object exists)   // (no "Radar lost" message just because the last game had one)
   optsKnown = null; optsCheckAt = 0;
   if (burnt && burnt.length) {   // forests burnt in the last game grow back for the next one (v5.69)
     const b = bg.getContext('2d');
@@ -1097,6 +1117,7 @@ function newGame() {
   }   // (no "New construction options" for what a fresh game starts with)
   game = {
     ents: [], ore: [], nextId: 1, time: 0, grenades: [], rockets: [], strikes: [], napalmAt: [null, null], fires: {},
+    factions: rollFactions(),   // [yours, the computer's] (v5.74)
     lost: [[], []],          // ids of each side's buildings that enemy engineers have taken (to win back)
     stats: [0, 1].map(() => ({ units: 0, buildings: 0, walls: 0, kills: 0, destroyed: 0, unitsLost: 0, buildingsLost: 0, earned: 0, spent: 0, captured: 0 })),
     credits: [START_CREDITS, START_CREDITS],
@@ -1454,10 +1475,11 @@ function inBuildArea(team, x, y, extra = 0) {
 // The computer leaves a lane at least AI_GAP wide between a new building and any other (v5.73, your call), so tanks and
 // infantry can get between them (a vehicle's route keeps 20 from a building on each side, on a 25 grid). Walls, gates and
 // turrets don't count.
-const AI_GAP = 70;
+const AI_GAP = 70, AI_GAP_TIGHT = 40;   // (the tighter lane only when nothing else fits, still room for infantry and most vehicles)
+let aiGapNow = AI_GAP;
 function aiRoomAround(x, y, size) {
   return !game.ents.some(b => b.hp > 0 && isBuilding(b) && !isWallType(b.type) && !isTurretType(b.type) &&
-    Math.abs(b.x - x) < b.size / 2 + size / 2 + AI_GAP && Math.abs(b.y - y) < b.size / 2 + size / 2 + AI_GAP);
+    Math.abs(b.x - x) < b.size / 2 + size / 2 + aiGapNow && Math.abs(b.y - y) < b.size / 2 + size / 2 + aiGapNow);
 }
 function canPlace(team, type, x, y) {
   const size = STATS[type].size;
@@ -2695,6 +2717,16 @@ function aiPlace(hq, type) {
     if (tries < most - 20 && !insideWalls(x, y, STATS[type].size)) continue;   // inside its walls first (v5.73)
     if (placeBuilding(1, type, x, y)) return true;
   }
+  // no room with a full lane round it: one more go with a tighter lane before it gives up for a while (v5.73)
+  aiGapNow = AI_GAP_TIGHT;
+  try {
+    for (let tries = 0; tries < 60; tries++) {
+      const src = tries < 20 ? hq : bases[Math.floor(Math.random() * bases.length)].b, a = Math.random() * 6.3, d = src.size / 2 + 60 + Math.random() * 200;
+      const x = src.x + Math.cos(a) * d, y = src.y + Math.sin(a) * d;
+      if (tries < 45 && !insideWalls(x, y, STATS[type].size)) continue;
+      if (placeBuilding(1, type, x, y)) return true;
+    }
+  } finally { aiGapNow = AI_GAP; }
   game.ai.cantPlace = game.ai.cantPlace || {};
   game.ai.cantPlace[type] = game.time;   // no room right now: don't keep saving for it
   return false;
@@ -2994,7 +3026,7 @@ function runAI(dt) {
   const entranceDefs = defs.filter(e => isTurretType(e.type) ? e.entrance : e.turretAt.entrance).length;
   const wantTowers = sent === 0 ? (D.towers && barracks.some(b => b.built) && extractors.length >= 3 && game.time > 150 ? 1 : 0) : sent === 1 ? Math.min(1, D.towers) : D.towers;   // first tower early, at the choke point
   const extraDefs = game.time > 300 ? (D.turrets || 0) : 0, entranceNext = entranceDefs < wantTowers;
-  const nextKind = aiTurretKind(D, defs), turretNeed = defs.length < wantTowers + extraDefs;
+  const nextKind = aiTurretKind(D, defs), turretNeed = defs.length < wantTowers + extraDefs && unlocked(1, nextKind);   // (none it can't build yet, v5.74)
   // Hard puts down a second refinery straight away (after a minute); everyone builds the rest once its economy and first wave are going
   const reqRefineries = !D.factory ? D.refineries : extractors.length >= 3 && sent >= 1 ? D.refineries : D.earlyRefinery && game.time > 60 ? 2 : 1;   // (Easy has no War Factory to buy Extractors at, so it builds its Refineries for their free ones, v5.55)
   // the build phase lasts until this stage's extras are built (or 90s, so it never stalls)
@@ -3425,7 +3457,8 @@ function drawFires() {
 const NAPALM_EVERY = 300, NAPALM_LEN = 300, NAPALM_HALF = 26, NAPALM_DELAY = 1.6, NAPALM_BURN = 6, NAPALM_FLIGHT = 0.5;
 const NAPALM_DPS = { infantry: 70, vehicle: 12, building: 15 };
 const hasSatellite = team => game.ents.some(b => b.team === team && b.type === 'satellite' && b.built && b.hp > 0);
-const napalmReady = team => hasSatellite(team) && (game.napalmAt[team] === null || game.time >= game.napalmAt[team]);
+const hasNapalm = team => hasSatellite(team) && allowed(team, 'napalm');   // (the Ashen's, since v5.74)
+const napalmReady = team => hasNapalm(team) && (game.napalmAt[team] === null || game.time >= game.napalmAt[team]);
 const napalmWait = team => game.napalmAt[team] === null ? 0 : Math.max(0, game.napalmAt[team] - game.time);
 function napalmLine(team, x, y) {   // the strip: along the plane's path, which comes from the caller's HQ toward the target
   const from = hqOf(team) || { x: START[team].x, y: START[team].y };
@@ -4040,7 +4073,7 @@ function aiTurretKind(D, defs) {
   if (D.heavyTanks && unlocked(1, 'laser') && game.credits[1] >= COST.laser + 300 && have('laser') < 1) return 'laser';
   if (ai.seenAir && unlocked(1, 'missile') && have('missile') < 1) return 'missile';
   if (unlocked(1, 'cannon') && seen.vehicles * 2 >= seen.infantry && have('cannon') <= have('mg')) return 'cannon';
-  return unlocked(1, 'mg') ? 'mg' : 'mg';
+  return allowed(1, 'mg') ? 'mg' : 'cannon';   // (the Ashen have no Machine Gun Turret, v5.74)
 }
 
 // ---------- Drawing ----------
@@ -6531,6 +6564,16 @@ for (const b of document.querySelectorAll('#diffRow button')) {
   });
 }
 showDifficulty();
+function showFaction() {
+  for (const b of document.querySelectorAll('#factionRow button')) b.classList.toggle('on', b.dataset.f === factionPick);
+  $('factionInfo').textContent = {
+    legion: 'The Legion: armour and air. Heavy Tanks, helicopters, Grenadiers, Rocket Launchers, Machine Gun and Missile Turrets. You face The Ashen.',
+    ashen: 'The Ashen: guerrillas and fire. Flamethrowers, Flame Tanks, Snipers, Rocket Soldiers, Napalm, Cannon and Laser Turrets, SAM Sites. You face The Legion.',
+    random: 'Random: you get The Legion or The Ashen; the enemy is the other.',
+  }[factionPick];
+}
+for (const b of document.querySelectorAll('#factionRow button')) b.addEventListener('click', () => { factionPick = b.dataset.f; try { localStorage.setItem('mini-rts-faction', factionPick); } catch (err) {} showFaction(); });
+showFaction();
 function showSandbox() {
   $('sandboxBtn').classList.toggle('on', sandbox);
   $('sandboxBtn').textContent = 'Sandbox: ' + (sandbox ? 'on' : 'off');
@@ -6542,6 +6585,7 @@ showSandbox();
 ui.ovBtn.addEventListener('click', () => {
   if (game.over) newGame();
   game.sandbox = sandbox;   // (the switch as it is when you press Start, v5.72)
+  if (game.time < 1) { game.factions = rollFactions(); applyFactionColours(); }   // (the faction picker as it is when you press Start, v5.74)
   if (!sandbox && game.time < 1) game.credits[0] = Math.min(game.credits[0], START_CREDITS);
   updateFog();
   $('ovReport').style.display = 'none';
@@ -6603,8 +6647,8 @@ function updateHUD() {
   show(ui.sam, !!hq && !placing && unlocked(0, 'sam'));   // hidden until you have what it needs (v5.53)
   show(ui.reactor, !!hq && !placing && unlocked(0, 'reactor'));   // (v5.67, needs a Tech Centre)
   show(ui.satellite, !!hq && !placing && unlocked(0, 'satellite'));   // (v5.67, needs a Nuclear Reactor)
-  show(ui.napalm, hasSatellite(0) && !placing);
-  if (hasSatellite(0)) { const w = Math.ceil(napalmWait(0)), lbl = w > 0 ? `Napalm ${Math.floor(w / 60)}:${String(w % 60).padStart(2, '0')}` : 'Napalm Strike'; if (ui.napalm.textContent !== lbl) ui.napalm.textContent = lbl; ui.napalm.disabled = w > 0; }
+  show(ui.napalm, hasNapalm(0) && !placing);
+  if (hasNapalm(0)) { const w = Math.ceil(napalmWait(0)), lbl = w > 0 ? `Napalm ${Math.floor(w / 60)}:${String(w % 60).padStart(2, '0')}` : 'Napalm Strike'; if (ui.napalm.textContent !== lbl) ui.napalm.textContent = lbl; ui.napalm.disabled = w > 0; }
   show(ui.heliHome, sel.some(e => e.air && e.team === 0 && !e.landed) && !placing);
   show(ui.wall, !!hq && !placing);
   show(ui.gate, !!hq && !placing && unlocked(0, 'gate'));   // (needs a Power Plant, v5.69)
@@ -6658,7 +6702,7 @@ function updateHUD() {
   if (producer) {
     for (const btn of produceBox.children) {
       const unit = btn.dataset.unit;
-      const miss = missingFor(0, unit);
+      const miss = unlocked(0, unit) ? [] : ['locked'];   // (the other faction's units too, v5.74)
       const docked = unit === 'heli' && padHeli(producer);
       const vis = miss.length ? 'none' : '';   // locked units stay hidden too (v5.53)
       if (btn.style.display !== vis) btn.style.display = vis;
@@ -6750,7 +6794,7 @@ function reportHits(team) {
 function buildReport() {
   return {
     game: 'Mini RTS', version: (typeof PATCH_NOTES !== 'undefined' && PATCH_NOTES[0].version) || '?', saved: new Date().toISOString(),
-    map: mapChoice === 'random' ? `random-${randomSize} #${mapNumber}` : mapChoice, difficulty: difficulty, sandbox: !!game.sandbox, secondsPlayed: Math.round(game.time), result: game.over || 'in progress',
+    map: mapChoice === 'random' ? `random-${randomSize} #${mapNumber}` : mapChoice, difficulty: difficulty, factions: { you: factionOf(0), enemy: factionOf(1) }, sandbox: !!game.sandbox, secondsPlayed: Math.round(game.time), result: game.over || 'in progress',
     stats: { you: game.stats[0], enemy: game.stats[1] },
     made: { you: game.track.made[0], enemy: game.track.made[1] }, lost: { you: game.track.lost[0], enemy: game.track.lost[1] },
     byUnit: { you: reportHits(0), enemy: reportHits(1) },

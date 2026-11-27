@@ -22,7 +22,7 @@ SETUP = """(()=>{ window.realAI=runAI; runAI=()=>{}; for(const t of [0,1]) deplo
 with sync_playwright() as p:
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--no-sandbox'])
     pg = b.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)))
-    pg.goto(f'http://127.0.0.1:{sys.argv[2]}/index.html'); pg.evaluate("localStorage.setItem('mini-rts-map','large'); localStorage.setItem('mini-rts-difficulty','normal')")
+    pg.goto(f'http://127.0.0.1:{sys.argv[2]}/index.html'); pg.evaluate("localStorage.setItem('mini-rts-faction','all'); localStorage.setItem('mini-rts-map','large'); localStorage.setItem('mini-rts-difficulty','normal')")
     pg.goto(f'http://127.0.0.1:{sys.argv[2]}/index.html'); pg.wait_for_timeout(1500); pg.click('#ovBtn'); pg.evaluate(SETUP)
     # unlocks and prices
     r = json.loads(pg.evaluate("""(()=>{ const bar=put('barracks',-190,30), ref=put('refinery',-170,-140), f=put('factory',200,40);

@@ -13,7 +13,7 @@ with sync_playwright() as p:
        try:
         pg = b.new_page(viewport={'width': 400, 'height': 300}); errs = []
         pg.on('pageerror', lambda e: errs.append(str(e)))
-        pg.goto(f'http://127.0.0.1:{port}/index.html'); pg.evaluate(f"localStorage.setItem('mini-rts-map','{g['map']}'); localStorage.setItem('mini-rts-difficulty','{g['diff']}')" + (f"; localStorage.setItem('mini-rts-rsize','{g.get('rsize','large')}'); localStorage.setItem('mini-rts-seed','{g.get('seed',1)}')" if g['map'] == 'random' else ''))   # random maps: plan gives rsize and seed
+        pg.goto(f'http://127.0.0.1:{port}/index.html'); pg.evaluate(f"localStorage.setItem('mini-rts-map','{g['map']}'); localStorage.setItem('mini-rts-difficulty','{g['diff']}'); localStorage.setItem('mini-rts-faction','{g.get('faction','legion')}'); localStorage.removeItem('mini-rts-sandbox')" + (f"; localStorage.setItem('mini-rts-rsize','{g.get('rsize','large')}'); localStorage.setItem('mini-rts-seed','{g.get('seed',1)}')" if g['map'] == 'random' else ''))   # random maps: plan gives rsize and seed
         pg.goto(f'http://127.0.0.1:{port}/index.html'); pg.wait_for_timeout(3000); pg.click('#ovBtn')
         if g.get('tweak'): pg.evaluate(g['tweak'])   # optional JS run before the game, e.g. to switch a feature off for an A/B test
         pg.evaluate(bot)

@@ -13,6 +13,6 @@ tw = pre + open(os.path.join(os.path.dirname(__file__), 'tweak_highground.js')).
 os.makedirs(out, exist_ok=True)
 for m in maps:
     for d in diffs:
-        plan = [{"id": f"{m}-{d}-{s}-{k}", "map": m, "diff": d, "strat": s, "mins": 40, "tweak": tw} for k in range(n) for s in ['infantry', 'tanks', 'buggy', 'mixed', 'turtle']]
+        plan = [{"id": f"{m}-{d}-{s}-{k}-{['legion', 'ashen'][k % 2]}", "map": m, "diff": d, "strat": s, "mins": 40, "tweak": tw, "faction": ["legion", "ashen"][k % 2]} for k in range(n) for s in ['infantry', 'tanks', 'buggy', 'mixed', 'turtle']]
         json.dump(plan, open(f'{out}/plan_{m}_{d}.json', 'w'))
         print(f'{out}/plan_{m}_{d}.json', len(plan), 'games')

@@ -72,7 +72,7 @@ with sync_playwright() as p:
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--no-sandbox'])
     for m in (sys.argv[3] if len(sys.argv) > 3 else 'large').split(','):
         pg = b.new_page(); errs=[]; pg.on('pageerror', lambda e: errs.append(str(e)))
-        pg.goto(f'http://127.0.0.1:{sys.argv[2]}/index.html'); pg.evaluate(f"localStorage.setItem('mini-rts-map','{m}')"); pg.reload()
+        pg.goto(f'http://127.0.0.1:{sys.argv[2]}/index.html'); pg.evaluate(f"localStorage.setItem('mini-rts-faction','all'); localStorage.setItem('mini-rts-map','{m}')"); pg.reload()
         pg.wait_for_timeout(3000); pg.click('#ovBtn')
         print(m, json.dumps(pg.evaluate(JS), indent=1), errs[:2], flush=True)
         pg.close()

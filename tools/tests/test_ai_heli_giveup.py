@@ -28,7 +28,7 @@ with sync_playwright() as p:
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--no-sandbox'])
     for diffname, pads in [('hard', 4), ('normal', 2)]:
         pg = b.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)))
-        pg.goto(f'http://127.0.0.1:{sys.argv[2]}/index.html'); pg.evaluate(f"localStorage.setItem('mini-rts-map','huge'); localStorage.setItem('mini-rts-difficulty','{diffname}')")
+        pg.goto(f'http://127.0.0.1:{sys.argv[2]}/index.html'); pg.evaluate(f"localStorage.setItem('mini-rts-faction','all'); localStorage.setItem('mini-rts-map','huge'); localStorage.setItem('mini-rts-difficulty','{diffname}')")
         pg.goto(f'http://127.0.0.1:{sys.argv[2]}/index.html'); pg.wait_for_timeout(1500); pg.click('#ovBtn')
         pg.evaluate("runAI=()=>{}"); pg.evaluate(SETUP)
         r = json.loads(pg.evaluate("""(()=>{ const out={};

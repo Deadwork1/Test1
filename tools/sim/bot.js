@@ -31,7 +31,8 @@ function put(type) {
 // and builds one there - a Machine Gun first, then a Cannon (once it has a War Factory), and so on alternately
 const myTurrets = () => game.ents.filter(e => e.team === 0 && (isTurretType(e.type) || (e.type === 'engineer' && e.order && e.order.type === 'buildTurret')));
 function putTurretAtEntrance() {
-  const n = myTurrets().length, kind = n % 2 && unlocked(0, 'cannon') ? 'cannon' : 'mg';
+  const n = myTurrets().length, kind = unlocked(0, 'cannon') && (n % 2 || !allowed(0, 'mg')) ? 'cannon' : 'mg';   // (the Ashen have no Machine Gun Turret, v5.74)
+  if (!unlocked(0, kind)) return true;   // none it can build yet (the Ashen before a War Factory): skip this one
   if (game.credits[0] < COST[kind] + 50) return false;
   const en = game.ents.find(e => e.team === 0 && e.type === 'engineer' && !e.retake && (!e.order || e.order.type === 'move' || e.order.type === 'repair'));   // (a repairer can be spared)
   if (!en) { const b = game.ents.find(b => b.team === 0 && b.type === 'barracks' && b.built && !b.qTypes.includes('engineer')); if (b && game.credits[0] >= COST.engineer + 50) window.produce(b, 'engineer'); return false; }

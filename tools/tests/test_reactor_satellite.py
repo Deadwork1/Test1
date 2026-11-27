@@ -15,7 +15,7 @@ def check(cond, msg):
     print(('  ok   ' if cond else '  FAIL ') + msg); ok = ok and cond
 def page(b, d):
     pg = b.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)))
-    pg.goto(f'http://127.0.0.1:{sys.argv[2]}/index.html'); pg.evaluate(f"localStorage.setItem('mini-rts-map','large'); localStorage.setItem('mini-rts-difficulty','{d}')")
+    pg.goto(f'http://127.0.0.1:{sys.argv[2]}/index.html'); pg.evaluate(f"localStorage.setItem('mini-rts-faction','all'); localStorage.setItem('mini-rts-map','large'); localStorage.setItem('mini-rts-difficulty','{d}')")
     pg.goto(f'http://127.0.0.1:{sys.argv[2]}/index.html'); pg.wait_for_timeout(1500); pg.click('#ovBtn')
     pg.evaluate("""(()=>{ window.realAI=runAI; runAI=()=>{}; for(const t of [0,1]) deploy(game.ents.find(e=>e.team===t&&e.type==='settler')); window.U=n=>{for(let i=0;i<n;i++) update(0.05)}; U(5);
       window.hq=hqOf(0); window.mk=(t,team,x,y)=>{const e=spawn(t,team,x,y); e.built=true; e.progress=1; e.hp=e.maxHp; return e;};
