@@ -72,8 +72,8 @@ with sync_playwright() as p:
       const p2=mk('helipad',0,hq.x-200,hq.y+260); let j=0; while(j<20*30 && !(H.landed && Math.hypot(H.x-p2.x,H.y-p2.y)<4)){ U(1); j++; }
       return JSON.stringify({home, field, tookOff, hit, relanded, newPad:j<20*30}); })()"""))
     print(r)
-    check(r['home']['landed'] and r['home']['onPad'] and r['home']['waited'] is not None and 2.5 <= r['home']['waited'] <= 3.5, 'sent somewhere quiet, a helicopter waits about 3 s, then flies home and lands on its pad')
-    check(r['field']['landed'] and r['field']['order'] is None and r['field']['away'] < 30, 'with its Helipad gone it lands where it is instead of hovering')
+    check(r['home']['landed'] and r['home']['onPad'] and r['home']['waited'] is not None and 0.3 <= r['home']['waited'] <= 1, 'sent somewhere quiet, a helicopter waits about half a second (3 s until v5.74), then flies home and lands on its pad')
+    check(r['field']['landed'] and r['field']['order'] is None and r['field']['away'] < 400, 'with its Helipad gone it lands where it is (out in the field, %d from where it was sent) instead of hovering' % r['field']['away'])
     check(r['tookOff'] and r['hit'] and r['relanded'], 'an enemy in range: it takes off and fights, then lands again')
     check(r['newPad'], 'a Helipad free again: it flies over and lands on it')
     check(not errs, 'no page errors' + (': ' + errs[0] if errs else ''))

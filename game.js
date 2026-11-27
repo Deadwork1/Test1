@@ -2519,7 +2519,7 @@ function heliFire(e, t) {
   if (isCombat(t) && !t.order && !t.landed && canHit(t, e)) t.order = { type: 'attack', target: e.id };
 }
 const goHome = e => { e.order = padOf(e) ? { type: 'return' } : null; };
-const HELI_IDLE = 3;   // seconds a helicopter waits with nothing to shoot before it goes home (or, with no Helipad, lands where it is), v5.65
+const HELI_IDLE = 0.5;   // (3 until v5.74: your call, land sooner) seconds a helicopter waits with nothing to shoot before it goes home (or, with no Helipad, lands where it is), v5.65
 function updateHeli(e, dt) {
   const s = STATS[e.type];
   e.cooldown -= dt;
