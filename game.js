@@ -5251,18 +5251,35 @@ function drawFactoryLegion(e) {
 function drawFactoryAshen(e) {
   if (!e.built) return drawConstruction(e);
   const c = TEAMS[e.team], S = e.size, h = S / 2, x0 = e.x - h, y0 = e.y - h, t = performance.now() / 1000;
-  ctx.fillStyle = '#5f5141'; ctx.fillRect(x0 - 3, y0 - 3, S + 6, S + 6);                       // oily dirt
-  ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.ellipse(x0 + 22, y0 + S - 4, 10, 4, 0, 0, Math.PI * 2); ctx.fill();   // an oil stain
-  block(x0 + 4, y0 + 6, S - 8, S - 12, '#2f2f2d', '#1c1c1b', 22);
-  // corrugations, then mismatched patches and rust
-  ctx.fillStyle = 'rgba(255,255,255,0.07)'; for (let k = x0 + 6; k < x0 + S - 6; k += 4) ctx.fillRect(k, y0 + 6, 1.5, S - 34);
-  for (const [dx, dy, w, hh, col] of [[10, 12, 22, 14, '#4a4440'], [S - 34, 26, 20, 12, '#3d3a2f'], [30, 34, 16, 10, '#463c34']]) { ctx.fillStyle = col; ctx.fillRect(x0 + dx, y0 + dy, w, hh); ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1; ctx.strokeRect(x0 + dx, y0 + dy, w, hh); }
-  ctx.fillStyle = 'rgba(150,70,25,0.65)'; for (const [dx, dy, r] of [[18, 40, 5], [S - 20, 14, 6], [50, 20, 4]]) { ctx.beginPath(); ctx.arc(x0 + dx, y0 + dy, r, 0, Math.PI * 2); ctx.fill(); }
-  ctx.fillStyle = c.color; ctx.fillRect(x0 + 4, y0 + 6, S - 8, 3);                              // red paint along the eaves
-  // chimney with dark smoke
-  const cx = x0 + S - 18, cy = y0 + 4;
-  ctx.fillStyle = '#3a3a3a'; ctx.fillRect(cx, cy, 8, 16);
-  for (let k = 0; k < 3; k++) { const ph = (t * 0.6 + k / 3) % 1; ctx.fillStyle = `rgba(30,30,30,${0.5 * (1 - ph)})`; ctx.beginPath(); ctx.arc(cx + 4 + ph * 10, cy - ph * 24, 4 + ph * 6, 0, Math.PI * 2); ctx.fill(); }
+  ctx.fillStyle = '#8a7a62'; ctx.fillRect(x0 - 3, y0 - 3, S + 6, S + 6);                       // a pale scrap yard, so the dark hall stands out
+  ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.beginPath(); ctx.ellipse(x0 + 22, y0 + S - 4, 10, 4, 0, 0, Math.PI * 2); ctx.fill();   // an oil stain
+  block(x0 + 4, y0 + 6, S - 8, S - 12, '#262624', '#151514', 22);
+  const roofB = y0 + S - 28;                                                                   // the roof runs from y0+6 to here
+  // corrugations and rust
+  ctx.fillStyle = 'rgba(255,255,255,0.06)'; for (let k = x0 + 6; k < x0 + S - 6; k += 4) ctx.fillRect(k, y0 + 6, 1.5, roofB - y0 - 6);
+  ctx.fillStyle = 'rgba(150,70,25,0.6)'; for (const [dx, dy, r] of [[14, 44, 4], [S - 16, 16, 5]]) { ctx.beginPath(); ctx.arc(x0 + dx, y0 + dy, r, 0, Math.PI * 2); ctx.fill(); }
+  // a big red flame painted across the roof
+  const fx = e.x - 4, fy = y0 + 34;
+  ctx.fillStyle = c.color; ctx.beginPath();
+  ctx.moveTo(fx, fy - 24); ctx.quadraticCurveTo(fx + 20, fy - 6, fx + 12, fy + 14); ctx.quadraticCurveTo(fx + 6, fy + 4, fx + 2, fy + 12);
+  ctx.quadraticCurveTo(fx - 2, fy + 2, fx - 8, fy + 14); ctx.quadraticCurveTo(fx - 18, fy - 2, fx - 6, fy - 12); ctx.quadraticCurveTo(fx - 4, fy - 4, fx - 1, fy - 6); ctx.quadraticCurveTo(fx - 4, fy - 14, fx, fy - 24); ctx.fill();
+  ctx.fillStyle = '#111'; ctx.beginPath(); ctx.moveTo(fx + 1, fy - 4); ctx.quadraticCurveTo(fx + 8, fy + 4, fx + 4, fy + 11); ctx.quadraticCurveTo(fx + 1, fy + 6, fx - 3, fy + 11); ctx.quadraticCurveTo(fx - 7, fy + 4, fx + 1, fy - 4); ctx.fill();
+  // glowing furnace vents along the roof, pulsing (brighter while it builds)
+  const glow = 0.55 + 0.25 * Math.sin(t * 4) + (e.queue ? 0.2 : 0);
+  for (const vx of [x0 + 10, x0 + S - 24]) for (let k = 0; k < 3; k++) {
+    const vy = y0 + 14 + k * 10;
+    ctx.fillStyle = '#0d0d0d'; ctx.fillRect(vx, vy, 14, 5);
+    ctx.fillStyle = `rgba(255,${120 + k * 30},30,${glow})`; ctx.fillRect(vx + 1, vy + 1, 12, 3);
+  }
+  // red and black hazard stripes round the roof edge
+  for (let k = 0; k < S - 8; k += 6) { ctx.fillStyle = (k / 6) % 2 ? '#111' : c.color; ctx.fillRect(x0 + 4 + k, y0 + 6, 6, 3); ctx.fillRect(x0 + 4 + k, roofB - 3, 6, 3); }
+  for (let k = 0; k < roofB - y0 - 6; k += 6) { ctx.fillStyle = (k / 6) % 2 ? '#111' : c.color; ctx.fillRect(x0 + 4, y0 + 6 + k, 3, 6); ctx.fillRect(x0 + S - 7, y0 + 6 + k, 3, 6); }
+  // a tall flare stack at the back corner, burning at the top
+  const sx = x0 + S - 12, sy = y0 + 2;
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(sx + 3, sy + 3, 6, 18);
+  ctx.fillStyle = '#3a3a3a'; ctx.fillRect(sx, sy - 6, 6, 24); ctx.fillStyle = c.color; ctx.fillRect(sx, sy + 2, 6, 2); ctx.fillRect(sx, sy + 8, 6, 2);
+  for (let k = 0; k < 3; k++) { const f = Math.sin(t * 11 + k * 1.7) * 1.4; ctx.fillStyle = ['rgba(255,80,20,0.85)', 'rgba(255,160,40,0.9)', 'rgba(255,240,170,0.95)'][k]; ctx.beginPath(); ctx.ellipse(sx + 3 + f * 0.4, sy - 9 - k * 2.2, 4.5 - k * 1.2, 6 - k * 1.5, 0, 0, Math.PI * 2); ctx.fill(); }
+  for (let k = 0; k < 2; k++) { const ph = (t * 0.5 + k / 2) % 1; ctx.fillStyle = `rgba(25,25,25,${0.45 * (1 - ph)})`; ctx.beginPath(); ctx.arc(sx + 3 + ph * 12, sy - 16 - ph * 22, 3 + ph * 6, 0, Math.PI * 2); ctx.fill(); }
   // emblem: a red wrench crossed with a flame, on black
   const ex = x0 + 13, ey = y0 + S - 15;
   emblemPlate(ex, ey, 8, e.team);
