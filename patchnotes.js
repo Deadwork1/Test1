@@ -2,6 +2,14 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.72', date: '27 Nov 2026', title: 'Sandbox, faster missiles',
+    changes: [
+      'New: Sandbox. Switch it on at the start screen for unlimited money and the whole map in view (no fog, and the minimap from the start). The enemy plays as usual at the difficulty you pick.',
+      'The Rocket Launcher now fires 2 fast missiles every 2 seconds (it was 6 slow rockets every 8 seconds). They reach the target in about half a second and land closer together; each does a little less damage, so its damage overall is about the same. It has a new look: two launch rails, each carrying a big missile.',
+      'The computer\'s scouting Buggy no longer drives into the bases on its loop round the map.',
+    ],
+  },
+  {
     version: '5.71', date: '27 Nov 2026', title: 'Reinforcements and radar maps',
     changes: [
       'Reinforcements: once your first Headquarters is up, a landing craft brings 5 Soldiers, and a second one a Scout Buggy a few seconds later. They come up the beach and gather just south of your HQ. Send the Buggy out to find ore: your free Extractor heads for ore as soon as anyone has seen it.',
