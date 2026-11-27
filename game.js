@@ -1420,6 +1420,8 @@ function deploy(settler) {
   if (!siteIsFree(settler.x, settler.y, STATS.hq.size)) return false;
   settler.hp = 0; settler.deployed = true;
   const hq = spawn('hq', settler.team, settler.x, settler.y);
+  game.startDeployed = game.startDeployed || [false, false];
+  if (!game.startDeployed[settler.team]) { game.startDeployed[settler.team] = true; scheduleReinforcements(settler.team); }   // first HQ: reinforcements on the way (v5.71)
   if (game.time > 0.1) { hq.unfold = 0; hq.unfoldFrom = settler.facing || 0; }   // the truck turns and the HQ unfolds out of it (v5.59; not when the tools deploy at the very start)
   if (game.selected.delete(settler.id) && settler.team === 0) game.selected.add(hq.id);
   return true;
@@ -1784,6 +1786,87 @@ function updateLanding(dt) {
   }
 }
 
+// ---------- Reinforcements (v5.71, your idea) ----------
+// Once your first HQ is up, two more landing craft bring help: 5 Soldiers, then a Scout Buggy a couple of seconds later
+// (a quick scout to find ore). They sail in, drop their ramps, the troops come up the beach and gather just south of
+// your HQ, and the boats leave. The computer gets the same troops at the same moments, at its HQ (it has no landing).
+const REINFORCEMENTS = [
+  { at: 1.5, units: ['soldier', 'soldier', 'soldier', 'soldier', 'soldier'], dx: -70 },
+  { at: 4, units: ['buggy'], dx: 70 },
+];
+const DECK = { soldier: [[-9, -30], [9, -30], [-9, -12], [9, -12], [0, 6]], buggy: [[0, -14]] };   // where each one rides on the deck
+function scheduleReinforcements(team) {
+  game.reinf = game.reinf || [];
+  for (const r of REINFORCEMENTS) game.reinf.push({ team, at: game.time + r.at, units: r.units, dx: r.dx });
+}
+// a beach spot near your start where troops can come ashore (not the river's mouth, not rock)
+function landingX(dx) {
+  for (const d of [dx, dx * 0.5, 0, -dx * 0.5]) {
+    const x = Math.max(60, Math.min(W - 60, START[0].x + d));
+    let ok = true;
+    for (let y = H - 20; y > H - 140 && ok; y -= 12) { const t = terrainAt(x, y); if (t === T.WATER || t === T.ROCK || t === T.CLIFF) ok = false; }
+    if (ok) return x;
+  }
+  return START[0].x;
+}
+function sendReinforcement(r) {
+  const hq = hqOf(r.team);
+  if (!hq) return;
+  if (r.team !== 0) {   // the computer: they turn up beside its HQ
+    const toward = Math.atan2(H / 2 - hq.y, W / 2 - hq.x);
+    r.units.forEach((t, i) => {
+      for (let k = 0; k < 40; k++) {
+        const a = toward + (i - (r.units.length - 1) / 2) * 0.35 + (k ? (Math.random() - 0.5) * 2 : 0), d = hq.size / 2 + 40 + (k ? Math.random() * 80 : 0);
+        const x = hq.x + Math.cos(a) * d, y = hq.y + Math.sin(a) * d;
+        if (terrainAt(x, y) === T.GRASS && !game.ents.some(b => isBuilding(b) && Math.abs(b.x - x) < b.size / 2 + 12 && Math.abs(b.y - y) < b.size / 2 + 12)) { spawn(t, r.team, x, y); break; }
+      }
+    });
+    return;
+  }
+  const x = landingX(r.dx), stopY = coastY(x) + 20, y = HT + 90, cargo = [];
+  const slots = {};
+  for (const t of r.units) {
+    const k = slots[t] = (slots[t] || 0), off = (DECK[t] || DECK.soldier)[k % (DECK[t] || DECK.soldier).length]; slots[t]++;
+    const u = spawn(t, 0, x + off[0] * BOAT_K, y + off[1] * BOAT_K);
+    u.boarded = true; u.onBoat = true; u.facing = -Math.PI / 2; u.offX = off[0]; u.offY = off[1];
+    cargo.push(u.id);
+  }
+  game.boats = game.boats || [];
+  game.boats.push({ x, y, stopY, phase: 'sail', t: 0, ramp: 0, cargo });
+}
+function updateBoat(B, dt) {
+  const cargo = B.cargo.map(byId).filter(u => u && u.hp > 0);
+  if (B.phase === 'sail') {
+    B.y = Math.max(B.stopY, B.y - BOAT_SPEED * dt);
+    for (const u of cargo) if (u.boarded) { u.x = B.x + u.offX * BOAT_K; u.y = B.y + u.offY * BOAT_K; }
+    if (B.y <= B.stopY) { B.phase = 'ramp'; B.t = 0; }
+  } else if (B.phase === 'ramp') {
+    B.t += dt; B.ramp = Math.min(1, B.t / BOAT_RAMP);
+    if (B.ramp >= 1) { for (const u of cargo) if (u.boarded) { u.boarded = false; u.onBoat = false; u.landing = true; } B.phase = 'unload'; }
+  } else if (B.phase === 'unload') {
+    const hq = hqOf(0), base = hq || START[0];
+    for (const u of cargo) {
+      if (!u.landing) continue;
+      if (moveToward(u, B.x + u.offX * 1.6, H - 26 + u.offY * 0.6, dt)) {   // off the ramp and up the beach, then to just south of your HQ
+        u.landing = false; u.facing = -Math.PI / 2;
+        if (!u.order) u.order = { type: 'move', x: base.x + u.offX * 1.4 + (B.x < base.x ? -30 : 30), y: base.y + (hq ? hq.size / 2 : 0) + 60 + u.offY * 0.8 };
+      }
+    }
+    if (!cargo.some(u => u.landing)) { B.phase = 'leave'; B.t = 0; }
+  } else {
+    B.t += dt; B.ramp = Math.max(0, 1 - B.t / 0.5);
+    if (B.t > 0.6) B.y += BOAT_SPEED * 0.8 * Math.min(1, (B.t - 0.6) / 1.2) * dt;
+    if (B.y > HT + 110) B.gone = true;
+  }
+}
+function updateReinforcements(dt) {
+  if (game.reinf && game.reinf.length) {
+    const due = game.reinf.filter(r => game.time >= r.at);
+    if (due.length) { game.reinf = game.reinf.filter(r => game.time < r.at); due.forEach(sendReinforcement); }
+  }
+  if (game.boats && game.boats.length) { for (const B of game.boats) updateBoat(B, dt); game.boats = game.boats.filter(B => !B.gone); }
+}
+
 // ---------- Update ----------
 function update(dt) {
   if (game.over || game.paused) return;
@@ -1793,6 +1876,7 @@ function update(dt) {
   game.credits[0] += INCOME * dt;
   game.credits[1] += INCOME * dt;
   updateLanding(dt);
+  updateReinforcements(dt);
   for (const e of game.ents) if (e.unfold !== undefined && e.unfold < 1) e.unfold = Math.min(1, e.unfold + dt / HQ_UNFOLD);
   if (bldDirty) rebuildBuildingGrid();
 
@@ -3898,8 +3982,9 @@ function draw() {
   const sel = game.selected;
   const ents = game.ents.filter(canSee).sort((a, b) => (isBuilding(b) - isBuilding(a)) || (!!a.air - !!b.air) || a.y - b.y);   // buildings, then ground units, then aircraft on top
   if (game.landing) drawBoat(game.landing);
+  for (const B of game.boats || []) drawBoat(B);   // reinforcements (v5.71)
   for (const e of ents) {
-    if (e.boarded) continue;   // drawn on its boat
+    if (e.boarded && !e.onBoat) continue;   // drawn on its boat (troops riding a reinforcement boat are drawn as usual, on its deck)
     if (sel.has(e.id)) drawSelection(e);
     if (e.type === 'hq') drawHQ(e);
     else if (e.type === 'barracks') drawBarracks(e);
