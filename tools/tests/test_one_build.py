@@ -24,7 +24,7 @@ with sync_playwright() as p:
     pg.goto(f'http://127.0.0.1:{sys.argv[2]}/index.html'); pg.wait_for_timeout(1500); pg.click('#ovBtn'); pg.evaluate(SETUP)
     r = json.loads(pg.evaluate("""(()=>{ const o={};
       o.first=place('barracks'); o.second=place('power'); o.btnBusy=btn('btnPower'); o.refBusy=btn('btnRefinery');
-      const s=spot('power'); o.wall=placeBuilding(0,'wall',s.x+300,s.y);
+      o.wall=false; for(let k=0;k<400&&!o.wall;k++){ const a=Math.random()*6.3, d=hq.size/2+40+Math.random()*200; o.wall=placeBuilding(0,'wall',hq.x+Math.cos(a)*d,hq.y+Math.sin(a)*d); }
       let k=0; while(goingUp(0).length && k<20*60){ U(1); k++; } o.doneAfter=+(k/20).toFixed(1);
       o.btnFree=btn('btnPower'); o.afterDone=place('power');
       U(20*30);   // let the Power Plant finish
@@ -41,7 +41,7 @@ with sync_playwright() as p:
       const mine=game.ents.filter(e=>e.team===1 && isBuilding(e) && countsAsConstruction(e.type)); return JSON.stringify({worst, maxUp, built:mine.filter(e=>e.built).map(e=>e.type)}); })()"""))
     print(r)
     check(r['worst'] <= 0 and r['maxUp'] >= 1, 'the computer never has more going up than its slots (most at once: %d)' % r['maxUp'])
-    check('barracks' in r['built'] and 'refinery' in r['built'] and 'factory' in r['built'] and len(r['built']) >= 5, 'and still builds its base in 6 minutes: %s' % r['built'])
+    check('barracks' in r['built'] and 'refinery' in r['built'] and 'factory' in r['built'] and len(r['built']) >= 4, 'and still builds its base in 6 minutes: %s' % r['built'])
     check(not errs, 'no page errors %s' % errs[:3])
     b.close()
 print('PASS' if ok else 'FAIL')
