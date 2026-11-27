@@ -33,7 +33,7 @@ with sync_playwright() as p:
           const hqBtns=['Helipad','Sam','Reactor','Satellite','Radar','Tech'].filter(n=>{ const el=document.getElementById('btn'+n); return el && el.style.display!=='none'; });
           const en=spawn('engineer',0,hq.x,hq.y+150); game.selected=new Set([en.id]); updateHUD();
           const turrets=TURRET_TYPES.filter(k=>ui[k].style.display!=='none');
-          return JSON.stringify({factions:game.factions, colour:TEAMS[0].color, enemyColour:TEAMS[1].color, barracks:btns(bar), factory:btns(f), hqBtns, turrets, napalm:hasNapalm(0), napalmBtn:(()=>{ game.selected=new Set(); updateHUD(); return ui.napalm.style.display!=='none'; })(),
+          return JSON.stringify({factions:game.factions, colour:TEAMS[0].color, enemyColour:TEAMS[1].color, barracks:btns(bar), factory:btns(f), hqBtns, turrets, napalm:strikeKind(0)==='napalm', napalmBtn:(()=>{ game.selected=new Set(); updateHUD(); return ui.napalm.style.display!=='none'; })(),
             canTrainOther: ['rocket','sniper','flamer','grenadier','heavy','mrl','flametank','heli'].filter(u=>!allowed(0,u)) }); })()"""))
         print(r)
         if pics:
@@ -46,7 +46,7 @@ with sync_playwright() as p:
         check(not (shown & set(other)), 'none of the other side\'s units or turrets on your buttons (barracks %s, factory %s, turrets %s)' % (r['barracks'], r['factory'], r['turrets']))
         check(all(u in shown for u in own if u not in ('heli', 'helipad', 'sam')), 'all of your own units and turrets are there')
         check(('Helipad' in r['hqBtns']) == (mine == 'legion') and ('Sam' in r['hqBtns']) == (mine == 'ashen') and 'Reactor' in r['hqBtns'] and 'Satellite' in r['hqBtns'], 'HQ: Helipad only for the Legion, SAM Site only for the Ashen, Reactor and Satellite for both: %s' % r['hqBtns'])
-        check(r['napalm'] == (mine == 'ashen') and r['napalmBtn'] == (mine == 'ashen'), 'Napalm only for the Ashen (%s)' % r['napalm'])
+        check(r['napalm'] == (mine == 'ashen') and r['napalmBtn'], 'the Satellite power: Napalm for the Ashen, the Orbital Barrage for the Legion (napalm: %s)' % r['napalm'])
         # the computer, 8 minutes of Hard as the other faction
         m = json.loads(pg.evaluate("""(()=>{ runAI=realAI; const h=hqOf(0); h.hp=h.maxHp=1e9; let k=0; while(k<20*480){ U(1); k++; if(game.over) break; }
           const made=game.track.made[1], blds=[...new Set(game.ents.filter(e=>e.team===1&&isBuilding(e)).map(e=>e.type))];

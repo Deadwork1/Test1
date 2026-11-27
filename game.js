@@ -317,7 +317,7 @@ const missingFor = (team, type) => (REQUIRES[type] || []).filter(t => !hasBuilt(
 // it can build or train; everything else is shared. You pick yours on the start screen (or Random); the computer is always the other.
 // 'napalm' stands for the Napalm Strike (from the Satellite Radar, which both have). Campaign missions can read these lists too.
 const FACTIONS = {
-  legion: { name: 'The Legion', only: ['heavy', 'heli', 'helipad', 'grenadier', 'mrl', 'missile', 'mg'],
+  legion: { name: 'The Legion', only: ['heavy', 'heli', 'helipad', 'grenadier', 'mrl', 'missile', 'mg', 'barrage'],   // ('barrage' = the Orbital Barrage)
             colors: { color: '#2f6fe0', dark: '#1b3c80', light: '#f2f6fc' } },
   ashen:  { name: 'The Ashen', only: ['flamer', 'flametank', 'napalm', 'sniper', 'bike', 'cannon', 'laser', 'sam'],   // (Rocket Soldiers shared since v5.74's second step; the Rocket Bike is the Ashen's)
             colors: { color: '#d62828', dark: '#141414', light: '#f08080' } },
@@ -2019,7 +2019,7 @@ function update(dt) {
       if (o.team === g.team || o.hp <= 0 || o.air) continue;   // (they burst on the ground: aircraft are out of reach)
       const d = edgeDist(g.x, g.y, o);
       const vehicle = isUnit(o) && !isInfantry(o);
-      const mult = isBuilding(o) ? (g.vsBuilding || 1) : vehicle ? (g.vsVehicle || STATS.grenadier.vsVehicle) : 1;
+      const mult = isBuilding(o) ? (g.vsBuilding || 1) : vehicle ? (g.vsVehicle || STATS.grenadier.vsVehicle) : (g.vsInfantry || 1);
       if (d <= g.r) { hurt(o, g.dmg * (1 - 0.5 * d / g.r) * mult, g.srcType, g.team); if (g.src && isUnit(o)) { o.hitBy = g.src; o.hitAt = game.time; } }
     }
     game.effects.push({ kind: 'blast', x: g.x, y: g.y, r: g.r, t: 0, big: !!g.shell });
@@ -2048,7 +2048,7 @@ function update(dt) {
   }
   game.rockets = game.rockets.filter(r => !r.done);
   for (const fx of game.effects) fx.t += dt;
-  game.effects = game.effects.filter(fx => fx.t < (fx.kind === 'shot' ? 0.08 : fx.kind === 'text' ? 1.2 : fx.kind === 'spark' ? 0.3 : fx.kind === 'blast' ? 0.45 : fx.kind === 'beam' ? 0.35 : fx.kind === 'flame' ? 0.3 : 0.6));
+  game.effects = game.effects.filter(fx => fx.t < (fx.kind === 'shot' ? 0.08 : fx.kind === 'text' ? 1.2 : fx.kind === 'spark' ? 0.3 : fx.kind === 'blast' ? 0.45 : fx.kind === 'beam' ? 0.35 : fx.kind === 'flame' ? 0.3 : fx.kind === 'lock' ? BARRAGE_DELAY + BARRAGE_SHELLS * BARRAGE_GAP + 0.4 : 0.6));
 
   defendBuildings();
   runAI(dt);
@@ -3497,7 +3497,8 @@ function drawFires() {
 const NAPALM_EVERY = 300, NAPALM_LEN = 300, NAPALM_HALF = 26, NAPALM_DELAY = 1.6, NAPALM_BURN = 6, NAPALM_FLIGHT = 0.5;
 const NAPALM_DPS = { infantry: 70, vehicle: 12, building: 15 };
 const hasSatellite = team => game.ents.some(b => b.team === team && b.type === 'satellite' && b.built && b.hp > 0);
-const hasNapalm = team => hasSatellite(team) && allowed(team, 'napalm');   // (the Ashen's, since v5.74)
+const strikeKind = team => allowed(team, 'napalm') ? 'napalm' : 'barrage';   // the Satellite Radar's power: Napalm (the Ashen) or the Orbital Barrage (the Legion), v5.74
+const hasNapalm = team => hasSatellite(team);   // (either power; see strikeKind)
 const napalmReady = team => hasNapalm(team) && (game.napalmAt[team] === null || game.time >= game.napalmAt[team]);
 const napalmWait = team => game.napalmAt[team] === null ? 0 : Math.max(0, game.napalmAt[team] - game.time);
 function napalmLine(team, x, y) {   // the strip: along the plane's path, which comes from the caller's HQ toward the target
@@ -3507,6 +3508,7 @@ function napalmLine(team, x, y) {   // the strip: along the plane's path, which 
 }
 function callNapalm(team, x, y) {
   if (!napalmReady(team) || !visibleAt(x, y, team)) return false;
+  if (strikeKind(team) === 'barrage') return callBarrage(team, x, y);
   game.strikes.push({ team, ...napalmLine(team, x, y), t: 0 });
   game.napalmAt[team] = game.time + NAPALM_EVERY;
   if (team === 1 && visibleAt(x, y, 0)) game.effects.push({ kind: 'text', x, y: y - 30, text: 'Napalm incoming!', t: 0, color: '#ff8a50' });
@@ -3573,10 +3575,39 @@ function drawNapalm() {
     }
   }
 }
+// ---------- Orbital Barrage (v5.74, the Legion's power from the Satellite Radar, your pick) ----------
+// Every 5 minutes (sharing the Napalm timer): a blue lock-on marker, then 1.6 s later 10 heavy shells streak down at random
+// spots inside a circle 120 across where you tapped, 0.18 s apart. Each: 65 damage (110 at first: it flattened a Refinery), splash 30; 1.6x buildings, 1.3x vehicles,
+// 0.6x infantry; never your own side; aircraft untouched. Strong against bases and tank groups.
+const BARRAGE_R = 120, BARRAGE_SHELLS = 10, BARRAGE_DELAY = 1.6, BARRAGE_GAP = 0.18;
+function callBarrage(team, x, y) {
+  for (let k = 0; k < BARRAGE_SHELLS; k++) {
+    const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * BARRAGE_R, gx = x + Math.cos(a) * r, gy = y + Math.sin(a) * r;
+    game.grenades.push({ x0: gx + 40, y0: gy - 320, x: gx, y: gy, t: -(BARRAGE_DELAY + k * BARRAGE_GAP), dur: 0.45, arc: 1, team, dmg: 65, r: 30,
+                         vsBuilding: 1.6, vsVehicle: 1.3, vsInfantry: 0.6, shell: true, orbital: true, srcType: 'barrage' });
+  }
+  game.napalmAt[team] = game.time + NAPALM_EVERY;
+  game.effects.push({ kind: 'lock', x, y, t: 0, team });
+  if (team === 1 && visibleAt(x, y, 0)) game.effects.push({ kind: 'text', x, y: y - 30, text: 'Orbital Barrage incoming!', t: 0, color: '#8cc4ff' });
+  return true;
+}
+// the computer (the Legion, Hard) aims it at a cluster of your buildings and vehicles it can see or knows of
+function aiBarrage() {
+  const targets = game.ents.filter(u => u.team === 0 && u.hp > 0 && !u.air && (isBuilding(u) ? !isWallType(u.type) && game.ai.known.has(u.id) : visibleAt(u.x, u.y, 1) && !hiddenFrom(u, 1)));
+  let best = null, bs = 0;
+  for (const c of targets) {
+    if (!visibleAt(c.x, c.y, 1) && !hasSatellite(1)) continue;
+    let sc = 0; for (const u of targets) if (Math.hypot(u.x - c.x, u.y - c.y) < BARRAGE_R + 20) sc += isBuilding(u) ? 1.5 : isInfantry(u) ? 0.4 : 1;
+    if (sc > bs && visibleAt(c.x, c.y, 1)) { bs = sc; best = c; }
+  }
+  if (best && bs >= 4) callNapalm(1, best.x, best.y);
+}
+
 // The computer (Hard) calls its Napalm Strike on a bunch of your units: the spot where the most of them (infantry count
 // full, vehicles a third) stand within reach of one strip, if that's at least 5.
 function aiNapalm() {
   if (!napalmReady(1)) return;
+  if (strikeKind(1) === 'barrage') return aiBarrage();   // (the Legion's power instead, v5.74)
   const yours = game.ents.filter(u => u.team === 0 && isUnit(u) && !u.air && u.hp > 0 && visibleAt(u.x, u.y, 1) && !hiddenFrom(u, 1));
   let best = null, bs = 0;
   for (const c of yours) {
@@ -4212,6 +4243,14 @@ function draw() {
       ctx.beginPath(); ctx.arc(fx.x, fx.y, fx.r * (0.35 + 0.65 * k), 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = `rgba(80,70,60,${0.6 * (1 - k)})`; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(fx.x, fx.y, fx.r * (0.5 + 0.6 * k), 0, Math.PI * 2); ctx.stroke();
+    } else if (fx.kind === 'lock') {   // the Orbital Barrage locking on: a blue ring closing in, cross hairs, the target circle (v5.74)
+      if (fx.team === 1 && !visibleAt(fx.x, fx.y)) { /* (you only see its marker if you can see the spot) */ } else {
+        const k = Math.min(1, fx.t / BARRAGE_DELAY), pulse = 0.5 + 0.5 * Math.sin(fx.t * 14);
+        ctx.strokeStyle = `rgba(120,190,255,${0.35 + 0.3 * pulse})`; ctx.lineWidth = 2; ctx.setLineDash([10, 7]);
+        ctx.beginPath(); ctx.arc(fx.x, fx.y, BARRAGE_R, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+        ctx.strokeStyle = 'rgba(160,215,255,0.9)'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(fx.x, fx.y, BARRAGE_R * (1.6 - k) * 0.6 + 8, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(fx.x - 16, fx.y); ctx.lineTo(fx.x + 16, fx.y); ctx.moveTo(fx.x, fx.y - 16); ctx.lineTo(fx.x, fx.y + 16); ctx.stroke();
+      }
     } else if (fx.kind === 'spark') {   // engineer repairing
       const k = fx.t / 0.3;
       ctx.fillStyle = fx.weld ? `rgba(255,190,90,${1 - k})` : `rgba(150,255,170,${1 - k})`;   // (orange: welding in an Ashen War Factory, v5.74)
@@ -4235,6 +4274,13 @@ function draw() {
     if (g.t < 0) continue;   // (a Rocket Launcher's rocket still waiting its turn in the salvo)
     const arc = g.arc || (g.rocket ? 60 : g.shell ? 90 : 28), k = g.t / g.dur, gx = g.x0 + (g.x - g.x0) * k, gy = g.y0 + (g.y - g.y0) * k, x = gx, y = gy - Math.sin(k * Math.PI) * arc;
     if (!visibleAt(gx, gy)) continue;
+    if (g.orbital) {   // an Orbital Barrage shell streaking down (v5.74)
+      const tx = x - (g.x0 - g.x) * 0.12, ty = y - (g.y0 - g.y) * 0.12;
+      ctx.strokeStyle = 'rgba(170,215,255,0.55)'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(x, y); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo((tx + x) / 2, (ty + y) / 2); ctx.lineTo(x, y); ctx.stroke(); ctx.lineCap = 'butt';
+      ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.arc(g.x, g.y, 3 + 5 * k, 0, Math.PI * 2); ctx.fill();   // its shadow growing where it'll land
+      continue;
+    }
     if (g.rocket) {   // the Rocket Launcher's missile (v5.72): a long white body, red nose, four fins, and a long hot exhaust flame for its speed
       const k2 = Math.min(1, k + 0.04), nx = g.x0 + (g.x - g.x0) * k2, ny = g.y0 + (g.y - g.y0) * k2 - Math.sin(k2 * Math.PI) * arc, a = Math.atan2(ny - y, nx - x);
       ctx.save(); ctx.translate(x, y); ctx.rotate(a);
@@ -4280,6 +4326,15 @@ function draw() {
 }
 
 function drawPlacement() {
+  if (game.placing.strike && strikeKind(0) === 'barrage') {   // the Orbital Barrage: the circle the shells will fall in (v5.74)
+    const g = game.placing.ghost; if (!g) return;
+    const ok = visibleAt(g.x, g.y, 0);
+    ctx.fillStyle = ok ? 'rgba(120,190,255,0.18)' : 'rgba(255,60,60,0.18)'; ctx.beginPath(); ctx.arc(g.x, g.y, BARRAGE_R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = ok ? '#9cd0ff' : '#ff6b6b'; ctx.lineWidth = 2; ctx.setLineDash([8, 6]); ctx.beginPath(); ctx.arc(g.x, g.y, BARRAGE_R, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText(ok ? 'Tap again to call the Orbital Barrage' : "You can't see there", g.x, g.y - BARRAGE_R - 10);
+    return;
+  }
   if (game.placing.strike) {   // the Napalm Strike: where the strip of fire will go
     const g = game.placing.ghost; if (!g) return;
     const l = napalmLine(0, g.x, g.y), ok = visibleAt(g.x, g.y, 0);
@@ -6607,8 +6662,8 @@ function tryPlace() {
   if (p && p.type === 'wall') return confirmWall();
   if (p && p.strike) {   // the Napalm Strike: called on the marked spot
     if (!p.ghost) return;
-    if (callNapalm(0, p.ghost.x, p.ghost.y)) { game.placing = null; game.effects.push({ kind: 'marker', x: p.ghost.x, y: p.ghost.y, t: 0, color: '#ff8a50' }); }
-    else flash = { text: napalmReady(0) ? "You can't see there" : 'Napalm Strike not ready', t: performance.now() };
+    if (callNapalm(0, p.ghost.x, p.ghost.y)) { game.placing = null; if (strikeKind(0) !== 'barrage') game.effects.push({ kind: 'marker', x: p.ghost.x, y: p.ghost.y, t: 0, color: '#ff8a50' }); }
+    else flash = { text: napalmReady(0) ? "You can't see there" : (strikeKind(0) === 'barrage' ? 'Orbital Barrage' : 'Napalm Strike') + ' not ready', t: performance.now() };
     return;
   }
   if (p && p.turret) {
@@ -6795,7 +6850,7 @@ ui.helipad.addEventListener('click', () => startPlacing('helipad'));
 ui.sam.addEventListener('click', () => startPlacing('sam'));
 ui.reactor.addEventListener('click', () => startPlacing('reactor'));
 ui.satellite.addEventListener('click', () => startPlacing('satellite'));
-ui.napalm.addEventListener('click', () => { if (napalmReady(0)) { game.placing = { type: 'napalm', strike: true, ghost: null }; flash = { text: 'Napalm Strike: tap ground you can see, then tap again to call it in', t: performance.now() }; } });
+ui.napalm.addEventListener('click', () => { if (napalmReady(0)) { game.placing = { type: 'napalm', strike: true, ghost: null }; flash = { text: (strikeKind(0) === 'barrage' ? 'Orbital Barrage' : 'Napalm Strike') + ': tap ground you can see, then tap again to call it in', t: performance.now() }; } });
 ui.heliHome.addEventListener('click', () => { for (const h of selectedOfType('heli')) h.order = padOf(h) ? { type: 'return' } : h.order; });
 ui.factory.addEventListener('click', () => startPlacing('factory'));
 ui.tech.addEventListener('click', () => startPlacing('tech'));
@@ -6957,7 +7012,7 @@ function showFaction() {
   for (const b of document.querySelectorAll('#factionRow button')) if (!b.dataset.done) { b.dataset.done = 1; if (CRESTS[b.dataset.f]) b.innerHTML = crestSVG(b.dataset.f, 26) + ' ' + b.textContent; }
   for (const b of document.querySelectorAll('#factionRow button')) b.classList.toggle('on', b.dataset.f === factionPick);
   $('factionInfo').textContent = {
-    legion: 'The Legion: armour and air. Heavy Tanks, helicopters, Grenadiers, Rocket Launchers, Machine Gun and Missile Turrets. You face The Ashen.',
+    legion: 'The Legion: armour and air. Heavy Tanks, helicopters, Grenadiers, Rocket Launchers, the Orbital Barrage, Machine Gun and Missile Turrets. You face The Ashen.',
     ashen: 'The Ashen: guerrillas and fire. Flamethrowers, Flame Tanks, Rocket Bikes, Snipers, Napalm, Cannon and Laser Turrets, SAM Sites. You face The Legion.',
     random: 'Random: you get The Legion or The Ashen; the enemy is the other.',
   }[factionPick];
@@ -7038,7 +7093,7 @@ function updateHUD() {
   show(ui.reactor, !!hq && !placing && unlocked(0, 'reactor'));   // (v5.67, needs a Tech Centre)
   show(ui.satellite, !!hq && !placing && unlocked(0, 'satellite'));   // (v5.67, needs a Nuclear Reactor)
   show(ui.napalm, hasNapalm(0) && !placing);
-  if (hasNapalm(0)) { const w = Math.ceil(napalmWait(0)), lbl = w > 0 ? `Napalm ${Math.floor(w / 60)}:${String(w % 60).padStart(2, '0')}` : 'Napalm Strike'; if (ui.napalm.textContent !== lbl) ui.napalm.textContent = lbl; ui.napalm.disabled = w > 0; }
+  if (hasNapalm(0)) { const w = Math.ceil(napalmWait(0)), bar = strikeKind(0) === 'barrage', lbl = w > 0 ? `${bar ? 'Barrage' : 'Napalm'} ${Math.floor(w / 60)}:${String(w % 60).padStart(2, '0')}` : bar ? 'Orbital Barrage' : 'Napalm Strike'; if (ui.napalm.textContent !== lbl) ui.napalm.textContent = lbl; ui.napalm.disabled = w > 0; }
   show(ui.heliHome, sel.some(e => e.air && e.team === 0 && !e.landed) && !placing);
   show(ui.wall, !!hq && !placing);
   show(ui.gate, !!hq && !placing && unlocked(0, 'gate'));   // (needs a Power Plant, v5.69)
@@ -7106,7 +7161,7 @@ function updateHUD() {
   if (flash && performance.now() - flash.t < 2500) text = flash.text;
   else if (game.paused) text = 'Paused';
   else if (placing && placing.type === 'wall') text = !placing.anchor ? 'Tap where the wall starts' : placing.end ? 'Tap the end again to build (or Build wall)' : 'Tap where the wall ends (or tap the start again for one piece)';
-  else if (placing && placing.strike) text = placing.ghost ? 'Tap the strip again (or Call strike) to send the plane' : 'Napalm Strike: tap ground you can see';
+  else if (placing && placing.strike) text = strikeKind(0) === 'barrage' ? (placing.ghost ? 'Tap the circle again (or Call strike) to fire the Barrage' : 'Orbital Barrage: tap ground you can see') : placing.ghost ? 'Tap the strip again (or Call strike) to send the plane' : 'Napalm Strike: tap ground you can see';
   else if (placing) text = placing.ghost ? 'Tap the square again (or Place here) to build' : `Tap inside the green area to place your ${NAMES[placing.type].toLowerCase()}`;
   else if (settler) text = 'Settler — move somewhere open, then Deploy';
   else if (hq) text = extraHqs(0) ? `Headquarters — ${extraHqs(0) + 1} HQs: +${Math.round(HQ_BONUS * extraHqs(0) * 100)}% build speed` : 'Headquarters';
