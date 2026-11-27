@@ -35,7 +35,7 @@ with sync_playwright() as p:
         btn[f] = pg.evaluate("""(()=>{ const f=put('factory',220,60); put('power',-300,120); put('refinery',-170,-140); game.selected=new Set([f.id]); updateHUD(); return [...document.querySelectorAll('#produceBtns button')].filter(b=>b.style.display!=='none').map(b=>b.textContent); })()""")
         pg.close()
     print(btn)
-    check('Bulwark $650' in btn['legion'] and not any('Bulwark' in t for t in btn['ashen']), 'the Bulwark ($650) is at the Legion War Factory only')
+    check('Bulwark $750' in btn['legion'] and not any('Bulwark' in t for t in btn['ashen']), 'the Bulwark ($750) is at the Legion War Factory only')
     pg, errs = page(b, 'legion')
     r = json.loads(pg.evaluate("""(()=>{ sight(); const s=open(140); const bw=spawn('bulwark',0,s.x,s.y); const sol=[]; for(let i=0;i<6;i++) sol.push(spawn('soldier',0,s.x-110+(i%3)*18,s.y+60+Math.floor(i/3)*18));
       cam.x=s.x; cam.y=s.y; setZoom(1); clampCam(); U(2);
