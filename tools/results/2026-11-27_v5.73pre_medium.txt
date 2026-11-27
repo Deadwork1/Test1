@@ -1,0 +1,66 @@
+Medium test, test-branch build 1831de3 (live v5.72 plus the v5.73 wall fix and building lanes), 27 Nov 2026: 100 games, 25 per mode (Large/Huge x Normal/Hard), scripted test player (5 strategies), 40-minute cap.
+Since the v5.70 Medium test (2026-11-26_v5.70_medium.txt): v5.71 reinforcements by boat (both sides) and minimap needs a Radar; v5.72 Rocket Launcher 2 missiles every 2 s, scouting loop skips bases, Sandbox (off in tests); then walls only where they seal the base, buildings inside walls, 70 lanes between the computer's buildings.
+Computer wins, v5.70 -> this build: Large Normal 44% -> 72%, Large Hard 68% -> 80%, Huge Normal 12% -> 40%, Huge Hard 64% -> 80% (each good to about +/-10 points).
+
+games 100  errors 0
+
+== Results (player = scripted test player, ai = computer)
+  large normal n= 25  computer wins  72%  player  28%  timeout   0%  median length 8.7 min
+  large hard   n= 25  computer wins  80%  player  20%  timeout   0%  median length 8.0 min
+  huge  normal n= 25  computer wins  40%  player  60%  timeout   0%  median length 12.9 min
+  huge  hard   n= 25  computer wins  80%  player  20%  timeout   0%  median length 9.4 min
+
+== Computer win rate by player strategy (all maps)
+  buggy     n= 20  computer  60%  player  40%  timeout   0%
+  infantry  n= 20  computer  65%  player  35%  timeout   0%
+  mixed     n= 20  computer  60%  player  40%  timeout   0%
+  tanks     n= 20  computer  70%  player  30%  timeout   0%
+  turtle    n= 20  computer  85%  player  15%  timeout   0%
+
+== Units: value killed per $1 spent (both sides), and split by side
+  [ALL]
+    sniper     made   739  died   389  spent $ 184,750  killed $ 270,700  value per $1: 1.47
+    rocket     made  1110  died   853  spent $ 222,000  killed $ 250,810  value per $1: 1.13
+    soldier    made 11550  died 10800  spent $1,155,000  killed $1,169,810  value per $1: 1.01
+    light      made   487  died   176  spent $ 340,900  killed $ 257,590  value per $1: 0.76
+    grenadier  made  1064  died   804  spent $ 170,240  killed $ 114,040  value per $1: 0.67
+    buggy      made   600  died   614  spent $ 240,000  killed $ 140,680  value per $1: 0.59
+    artillery  made   130  died    56  spent $  65,000  killed $  30,530  value per $1: 0.47
+    heavy      made    22  died     6  spent $  22,000  killed $   7,640  value per $1: 0.35
+    engineer   made  1580  died   467  spent $ 316,000  killed $       0  value per $1: 0.00
+  [LARGE]
+    sniper     made   345  died   159  spent $  86,250  killed $ 116,160  value per $1: 1.35
+    rocket     made   446  died   328  spent $  89,200  killed $ 118,170  value per $1: 1.32
+    soldier    made  5215  died  5036  spent $ 521,500  killed $ 547,690  value per $1: 1.05
+    light      made   208  died    87  spent $ 145,600  killed $ 122,220  value per $1: 0.84
+    heavy      made     4  died     1  spent $   4,000  killed $   3,000  value per $1: 0.75
+    grenadier  made   499  died   373  spent $  79,840  killed $  57,120  value per $1: 0.72
+    buggy      made   275  died   296  spent $ 110,000  killed $  65,100  value per $1: 0.59
+    artillery  made    65  died    26  spent $  32,500  killed $  14,140  value per $1: 0.44
+    engineer   made   748  died   234  spent $ 149,600  killed $       0  value per $1: 0.00
+  [HUGE]
+    sniper     made   394  died   230  spent $  98,500  killed $ 154,540  value per $1: 1.57
+    rocket     made   664  died   525  spent $ 132,800  killed $ 132,640  value per $1: 1.00
+    soldier    made  6335  died  5764  spent $ 633,500  killed $ 622,120  value per $1: 0.98
+    light      made   279  died    89  spent $ 195,300  killed $ 135,370  value per $1: 0.69
+    grenadier  made   565  died   431  spent $  90,400  killed $  56,920  value per $1: 0.63
+    buggy      made   325  died   318  spent $ 130,000  killed $  75,580  value per $1: 0.58
+    artillery  made    65  died    30  spent $  32,500  killed $  16,390  value per $1: 0.50
+    heavy      made    18  died     5  spent $  18,000  killed $   4,640  value per $1: 0.26
+    engineer   made   832  died   233  spent $ 166,400  killed $       0  value per $1: 0.00
+
+== High ground (fighting units, per side) [low ground, high ground]
+  large player   fighting-minutes low      833 high      3 (0% on high ground) | shots/min low 63.8 high 58.8 | damage taken/min low 381.7 high 201.0 | deaths per fighting-minute low 6.131 high 3.354
+  large computer fighting-minutes low      642 high     10 (2% on high ground) | shots/min low 51.0 high 28.9 | damage taken/min low 260.4 high 99.3 | deaths per fighting-minute low 3.191 high 1.541
+  huge  player   fighting-minutes low     1203 high      7 (1% on high ground) | shots/min low 63.2 high 24.2 | damage taken/min low 311.4 high 53.6 | deaths per fighting-minute low 4.946 high 0.705
+  huge  computer fighting-minutes low      631 high     13 (2% on high ground) | shots/min low 50.0 high 22.4 | damage taken/min low 302.8 high 40.3 | deaths per fighting-minute low 3.754 high 0.757
+
+== Games where one side spent more unit-time on high ground: who won? (decided games only)
+  large side with more high-ground time won 80% of 49 games
+  huge  side with more high-ground time won 82% of 49 games
+
+== Other
+  large normal stuck/game 0.0  captures player 89 computer 104  derrick-min player 9.4 computer 2.7 per game  | computer Medbay built in 20/25 (median 4.6 min), units sent to heal 56, HP healed 2918  | AI waves 1.6  AI cash avg 270
+  large hard   stuck/game 0.0  captures player 87 computer 135  derrick-min player 8.3 computer 3.3 per game  | computer Medbay built in 24/25 (median 4.3 min), units sent to heal 29, HP healed 1597  | AI waves 1.8  AI cash avg 300
+  huge  normal stuck/game 0.0  captures player 109 computer 158  derrick-min player 14.1 computer 3.6 per game  | computer Medbay built in 20/25 (median 5.1 min), units sent to heal 56, HP healed 2426  | AI waves 1.6  AI cash avg 267
+  huge  hard   stuck/game 0.5  captures player 99 computer 130  derrick-min player 8.2 computer 4.5 per game  | computer Medbay built in 22/25 (median 4.8 min), units sent to heal 33, HP healed 2110  | AI waves 2.0  AI cash avg 312
