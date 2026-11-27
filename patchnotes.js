@@ -2,6 +2,14 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.74', date: '27 Nov 2026', title: 'Faster Bulwark, heavier tanks',
+    changes: [
+      'The Bulwark is faster than a Light Tank now (speed 85, was 62) and costs $700 (was $650).',
+      'The Light Tank costs $850 (was $700) and the Heavy Tank $1,100 (was $1,000).',
+      'Heavy Tanks crush enemy Buggies and Rocket Bikes they drive over, as well as infantry.',
+    ],
+  },
+  {
     version: '5.73', date: '27 Nov 2026', title: 'Two factions',
     changes: [
       'Two factions. Pick yours on the start screen: The Legion (armour and air, blue and white) or The Ashen (guerrillas and fire, red and black), or Random. The enemy is always the other one.',
