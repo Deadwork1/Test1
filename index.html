@@ -62,6 +62,12 @@
     text-shadow: 0 0 8px rgba(80,255,120,.8), 0 0 2px #000, 0 2px 3px #000; padding: 6px 16px; border-radius: 8px;
     background: rgba(6,20,8,.55); border: 1px solid rgba(120,255,140,.35); }
   #newOpts.on { animation: newOpts 2.2s steps(1, end) forwards; }
+  /* "Reinforcements have arrived" (v5.76): the same flicker, in amber, a little lower, when a boat or a Skylift brings troops in */
+  #reinf { position: fixed; left: 50%; top: 30%; transform: translateX(-50%); pointer-events: none; z-index: 30; opacity: 0;
+    font: 800 clamp(13px, 4.6vw, 22px) system-ui, sans-serif; letter-spacing: .06em; text-transform: uppercase; color: #ffd27a; white-space: nowrap;
+    text-shadow: 0 0 8px rgba(255,190,80,.8), 0 0 2px #000, 0 2px 3px #000; padding: 6px 16px; border-radius: 8px;
+    background: rgba(24,16,4,.55); border: 1px solid rgba(255,200,110,.35); }
+  #reinf.on { animation: newOpts 2.6s steps(1, end) forwards; }
   @keyframes newOpts { 0% { opacity: 1 } 12% { opacity: .15 } 20% { opacity: 1 } 32% { opacity: .15 } 40% { opacity: 1 } 52% { opacity: .2 } 60% { opacity: 1 } 88% { opacity: 1 } 94% { opacity: .3 } 100% { opacity: 0 } }
   #factionRow button { display: inline-flex; align-items: center; gap: 6px; }
   .crest { vertical-align: middle; flex: none; }
@@ -107,6 +113,7 @@
 <div id="sellBox"><button id="btnSell" class="ghost">Sell</button></div>
 
 <div id="newOpts">New construction options</div>
+<div id="reinf">Reinforcements have arrived</div>
 <div id="panel" class="bar">
   <span id="info" class="chip">Tap your settler to begin</span>
   <button id="btnDeploy">Deploy HQ</button>

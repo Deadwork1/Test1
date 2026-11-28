@@ -34,6 +34,8 @@ with sync_playwright() as p:
     last = r[-1]; hq = json.loads(pg.evaluate("JSON.stringify({x:hqOf(0).x,y:hqOf(0).y, d:mine(0).map(e=>Math.round(Math.hypot(e.x-hqOf(0).x,e.y-hqOf(0).y)))})"))
     check(any('(boat)' in u for u in r[0]['you']) and r[0]['boats'], 'the first boat sails in with Soldiers on board: %s' % r[0]['you'])
     check(sorted(t.split('(')[0] for t in last['you']) == ['buggy'] + ['soldier'] * 5 and not last['boats'], 'you end up with 5 Soldiers and a Buggy, boats gone: %s' % last['you'])
+    shown = pg.evaluate('game.reinfShown || 0')
+    check(shown == 2, '"Reinforcements have arrived" shows as each boat lowers its ramp (%d times)' % shown)
     check(all(d < 260 for d in hq['d']), 'they gather by your HQ (distances %s)' % hq['d'])
     check(sorted(last['them']) == ['buggy'] + ['soldier'] * 5, 'the computer gets the same: %s' % last['them'])
     # a later HQ (from a bought Settler) brings no more

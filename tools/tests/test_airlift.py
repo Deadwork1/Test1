@@ -20,7 +20,7 @@ with sync_playwright() as p:
     url = f'http://127.0.0.1:{sys.argv[2]}/index.html'
     pg.goto(url); pg.evaluate("localStorage.setItem('mini-rts-faction','legion'); localStorage.setItem('mini-rts-map','large'); localStorage.removeItem('mini-rts-sandbox')")
     pg.goto(url); pg.wait_for_timeout(1500); pg.click('#ovBtn')
-    r = json.loads(pg.evaluate("""(()=>{ window.realAI=runAI; runAI=()=>{}; for(const t of [0,1]) deploy(game.ents.find(e=>e.team===t&&e.type==='settler')); const U=n=>{for(let i=0;i<n;i++) update(0.05)}; U(5);
+    r = json.loads(pg.evaluate("""(()=>{ window.realAI=runAI; runAI=()=>{}; updateReinforcements=()=>{}; for(const t of [0,1]) deploy(game.ents.find(e=>e.team===t&&e.type==='settler')); const U=n=>{for(let i=0;i<n;i++) update(0.05)}; U(5);
       const sight=()=>{ for(const f of fog){ f.vis.fill(1); f.exp.fill(1); } }; sight(); const hq=hqOf(0); hq.hp=hq.maxHp=1e9; hqOf(1).hp=hqOf(1).maxHp=1e9; game.credits[0]=1e5;
       const out={};
       // not on any build list, for either faction
@@ -50,9 +50,10 @@ with sync_playwright() as p:
       const a2=spawn('airlift',0,hq.x,hq.y+100); a2.landed=false; a2.alt=1; out.canHit={soldier:canHit(spawn('soldier',1,0,0),a2), rocket:canHit(spawn('rocket',1,0,0),a2)};
       a2.hp=0; U(1); const lost1=game.stats[0].unitsLost;
       // a mission's airlift: 5 troops flown in from the edge, dropped, then it leaves the map
-      const from={x:20,y:hq.y-100}, to={x:hq.x+300,y:hq.y+150}; const m=airlift(0,['soldier','soldier','rocket','grenadier','engineer'],from,to);
+      const from={x:20,y:hq.y-100}, to={x:hq.x+300,y:hq.y+150}; const shown0=game.reinfShown||0; const m=airlift(0,['soldier','soldier','rocket','grenadier','engineer'],from,to);
       const before=game.ents.filter(e=>e.team===0&&isInfantry(e)).length; k=0; let dropped=null;
       while(k<20*60 && game.ents.includes(m)){ U(1); k++; if(dropped===null && m.cargo.length===0) dropped=+(k/20).toFixed(1); }
+      out.reinf={mission:(game.reinfShown||0)-shown0, ownUnloads:shown0};
       out.mission={dropped, gone:!game.ents.includes(m), added:game.ents.filter(e=>e.team===0&&isInfantry(e)).length-before, notLost:game.stats[0].unitsLost-lost1, secs:+(k/20).toFixed(1)};
       // the computer's helicopter logic leaves it alone
       const a3=spawn('airlift',1,hqOf(1).x,hqOf(1).y+150); a3.landed=true; a3.alt=0; runAI=window.realAI||runAI; U(40); out.aiLeftAlone=!a3.order;
@@ -69,6 +70,7 @@ with sync_playwright() as p:
     check(not r['canHit']['soldier'] and r['canHit']['rocket'], 'only anti-air can hit it (Soldier %s, Rocket Soldier %s)' % (r['canHit']['soldier'], r['canHit']['rocket']))
     m = r['mission']
     check(m['dropped'] is not None and m['added'] == 5 and m['gone'] and m['notLost'] == 0, 'a mission airlift flies 5 troops in, drops them (%s s) and leaves the map (%s s) without counting as lost' % (m['dropped'], m['secs']))
+    check(r['reinf']['mission'] == 1 and r['reinf']['ownUnloads'] == 0, '"Reinforcements have arrived" shows when a mission Skylift drops its troops, not when you unload one yourself (%s)' % r['reinf'])
     check(r['aiLeftAlone'], "the computer's helicopter orders leave a Skylift alone")
     if pics:
         pg.evaluate("""(()=>{ const hq=hqOf(0); for(const f of fog){f.vis.fill(1);f.exp.fill(1);}

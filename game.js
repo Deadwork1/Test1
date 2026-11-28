@@ -1928,7 +1928,7 @@ function updateBoat(B, dt) {
     if (B.y <= B.stopY) { B.phase = 'ramp'; B.t = 0; }
   } else if (B.phase === 'ramp') {
     B.t += dt; B.ramp = Math.min(1, B.t / BOAT_RAMP);
-    if (B.ramp >= 1) { for (const u of cargo) if (u.boarded) { u.boarded = false; u.onBoat = false; u.landing = true; } B.phase = 'unload'; }
+    if (B.ramp >= 1) { for (const u of cargo) if (u.boarded) { u.boarded = false; u.onBoat = false; u.landing = true; } B.phase = 'unload'; if (cargo.length) reinforcementsArrived(); }
   } else if (B.phase === 'unload') {
     const hq = hqOf(0), base = hq || START[0];
     for (const u of cargo) {
@@ -2705,7 +2705,7 @@ function updateAirlift(e, dt) {
   if (e.landed && Math.hypot(e.x - o.lz.x, e.y - o.lz.y) > 3) { e.landed = false; }
   if (e.landed) {   // down at the spot
     if (e.alt > 0.05) return;
-    if (o.unload) { unloadCarrier(e); }
+    if (o.unload) { const n = unloadCarrier(e); if (n && o.reinf && e.team === 0) reinforcementsArrived(); }
     if (o.then) { e.order = o.then; e.order.lz = null; return; }
     e.order = null; return;
   }
@@ -2727,7 +2727,7 @@ function airliftDown(e) {   // shot down: a crash, and everyone aboard dies
 function airlift(team, units, from, to, opts = {}) {
   const a = spawn('airlift', team, from.x, from.y); a.landed = false; a.alt = 1; a.facing = Math.atan2(to.y - from.y, to.x - from.x);
   a.cargo = units.slice(0, BULWARK_CAP).map(u => { const p = typeof u === 'string' ? spawn(u, team, from.x, from.y) : u; game.ents = game.ents.filter(q => q !== p); p.order = null; p.gone = false; game.selected.delete(p.id); return p; });
-  a.order = { type: 'move', x: to.x, y: to.y, unload: true, started: true, then: opts.stay ? null : { type: 'leave', x: (opts.leaveTo || from).x, y: (opts.leaveTo || from).y } };
+  a.order = { type: 'move', x: to.x, y: to.y, unload: true, reinf: true, started: true, then: opts.stay ? null : { type: 'leave', x: (opts.leaveTo || from).x, y: (opts.leaveTo || from).y } };
   return a;
 }
 
@@ -7336,6 +7336,13 @@ function checkNewOptions() {
     const el = $('newOpts'); el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');   // (restart the flicker)
   }
   optsKnown = now;
+}
+// "Reinforcements have arrived" (v5.76, your call): flickers when a reinforcement boat lowers its ramp or a mission's Skylift
+// lets its troops out (yours only; not when you unload a Skylift yourself)
+function reinforcementsArrived() {
+  game.reinfShown = (game.reinfShown || 0) + 1;
+  const el = typeof document !== 'undefined' && document.getElementById('reinf'); if (!el) return;
+  el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');
 }
 const PRODUCES_ANY = t => Object.values(PRODUCES).some(l => l.includes(t));
 function updateHUD() {
