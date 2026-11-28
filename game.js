@@ -282,6 +282,7 @@ const STATS = {
   sniper:    { hp: 45,  speed: 56, r: 9,  sight: 220, range: 160, dmg: 75, cooldown: 2.7, vsVehicle: 0.15, vsBuilding: 0.1, reveal: 0.5 },   // (speed 46 until v5.62; 56 since, swapped with the Rocket Soldier) // one-shots infantry from far away; useless vs vehicles
   rocket:    { hp: 55,  speed: 58, r: 9,  sight: 170, range: 130, dmg: 40, cooldown: 2.5, rocket: true, vsVehicle: 2, vsHeavy: 2, vsBuilding: 2, vsInfantry: 0.4, vsAir: 1 },   // (vsAir 1.5 until v5.65: 8 rockets bring down a helicopter, was 5)   // (speed 45 until v5.62; 58 since, swapped with the Sniper) // (vsHeavy 1.5 until v5.50: Heavy Tanks were too hard to stop)   // (and the only soldier that can hit aircraft)
   // attack helicopter: flies over everything, fires 8 missiles (6 of 35 until v5.49.2), then goes home to its Helipad to reload (about 10 s) and patch up
+  airlift:   { hp: 400, speed: 100, r: 21, sight: 200, air: true, carry: 5 },   // Skylift (v5.76, your design): a twin-rotor transport for 5 infantry, unarmed; nobody's (missions only, not on any build list)
   heli:      { hp: 300, speed: 112, r: 14, sight: 220, range: 140, dmg: 45, cooldown: 1.0, air: true, ammo: 8, reload: 10, repair: 3, vsVehicle: 1.5, vsBuilding: 1, vsInfantry: 0.5 },   // (speed 90 until v5.62, +25%) // anti-vehicle: double vs vehicles & buildings, weak vs infantry
   grenadier: { hp: 55,  speed: 60, r: 9,  sight: 170, range: 95,  dmg: 16, cooldown: 2.0, splash: 38, flight: 0.55, vsVehicle: 0.5 },   // (speed 48 until v5.62, +25%) // lobbed grenades: area damage, half vs vehicles
   engineer:  { hp: 20,  speed: 60, r: 9,  sight: 150, repair: 30 },   // (speed 48 until v5.62: every unit +25%)
@@ -405,7 +406,7 @@ const extraHqs = team => Math.max(0, game.ents.filter(b => b.team === team && b.
 const powerBoost = team => Math.min(BOOST_MAX, plantBoost(team) + HQ_BONUS * extraHqs(team));
 // how many times longer than normal this side takes to build things (difficulty slow-down ÷ power boost)
 const slowOf = e => (e.team === 1 ? diff().slow : 1) / powerBoost(e.team);
-const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', rocket: 'Rocket Soldier', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', mg: 'Machine Gun Turret', cannon: 'Cannon Turret', missile: 'Missile Turret', laser: 'Laser Turret', power: 'Power Plant', radar: 'Radar', medbay: 'Medbay', wall: 'Wall', gate: 'Gate', derrick: 'Oil Derrick', house: 'House', civilian: 'Civilian', helipad: 'Helipad', heli: 'Attack Helicopter', sam: 'SAM Site', reactor: 'Nuclear Reactor', satellite: 'Satellite Radar', flamer: 'Flamethrower', flametank: 'Flame Tank', mrl: 'Rocket Launcher', bike: 'Rocket Bike', bulwark: 'Bulwark', stalker: 'Stalker', veil: 'Veil' };
+const NAMES = { settler: 'Settler', soldier: 'Soldier', extractor: 'Extractor', hq: 'Headquarters', barracks: 'Barracks', refinery: 'Refinery', factory: 'War Factory', buggy: 'Scout Buggy', grenadier: 'Grenadier', engineer: 'Engineer', rocket: 'Rocket Soldier', sniper: 'Sniper', light: 'Light Tank', heavy: 'Heavy Tank', artillery: 'Artillery', tech: 'Tech Centre', mg: 'Machine Gun Turret', cannon: 'Cannon Turret', missile: 'Missile Turret', laser: 'Laser Turret', power: 'Power Plant', radar: 'Radar', medbay: 'Medbay', wall: 'Wall', gate: 'Gate', derrick: 'Oil Derrick', house: 'House', civilian: 'Civilian', helipad: 'Helipad', heli: 'Attack Helicopter', sam: 'SAM Site', reactor: 'Nuclear Reactor', satellite: 'Satellite Radar', flamer: 'Flamethrower', flametank: 'Flame Tank', mrl: 'Rocket Launcher', bike: 'Rocket Bike', bulwark: 'Bulwark', stalker: 'Stalker', veil: 'Veil', airlift: 'Skylift' };
 
 const TEAMS = [
   { name: 'You',   color: '#3b82f6', dark: '#1d3f8f', light: '#93c5fd' },
@@ -1969,6 +1970,7 @@ function update(dt) {
   for (const e of game.ents) {
     if (e.boarded || e.landing) continue;   // your Settler on its boat, or driving off the ramp (the landing moves it)
     if (e.type === 'settler') { if (e.order && navigate(e, e.order.x, e.order.y, dt)) e.order = null; }
+    else if (e.type === 'airlift') updateAirlift(e, dt);
     else if (e.air) updateHeli(e, dt);
     else if (isCombat(e)) updateSoldier(e, dt);
     else if (e.type === 'engineer') updateEngineer(e, dt);
@@ -2017,6 +2019,7 @@ function update(dt) {
     }
   }
   for (const e of blasts) fuelBlast(e);
+  for (const e of game.ents) if (e.hp <= 0 && e.type === 'airlift') airliftDown(e);   // (a Skylift shot down: everyone aboard dies, v5.76)
   const bailOut = game.ents.filter(e => e.hp <= 0 && e.cargo && e.cargo.length);   // (a destroyed Bulwark: its passengers jump out, v5.74)
   game.ents = game.ents.filter(e => e.hp > 0);
   for (const c of bailOut) unloadCarrier(c, true);
@@ -2220,6 +2223,7 @@ function boardStep(e) {
   const c = byId(o.board);
   if (!c || c.hp <= 0 || c.team !== e.team || (c.cargo || []).length >= BULWARK_CAP) { e.order = null; return true; }
   o.x = c.x; o.y = c.y;   // (follow it if it moves)
+  if (c.type === 'airlift' && (!c.landed || c.alt > 0.2)) return false;   // (a Skylift only takes them on once it's down)
   if (Math.hypot(c.x - e.x, c.y - e.y) < c.r + e.r + 12) { e.aboard = c.id; e.order = null; return true; }
   return false;
 }
@@ -2664,6 +2668,67 @@ function updateHeli(e, dt) {
     return;
   }
   e.order = null;
+}
+
+// The Skylift (v5.76, your design): a twin-rotor transport helicopter, nobody's faction (missions only). Lands to take on up
+// to 5 infantry (select them and tap it), flies straight to where it's sent over anything, lands on the nearest clear ground,
+// and lets them out with Unload (pressed in the air, it lands where it is first). Unarmed; shot down, everyone aboard dies.
+// Missions use airlift(team, units, from, to): it comes in from 'from', drops them at 'to' and (unless told to stay) flies off.
+const AIRLIFT_LZ = 26;   // the clear ground it needs to set down
+function landingOk(x, y) {
+  if (x < 20 || y < 20 || x > W - 20 || y > HT - 20) return false;
+  for (const [dx, dy] of [[0, 0], [-16, 0], [16, 0], [0, -12], [0, 12]]) { const t = terrainAt(x + dx, y + dy); if (t !== T.GRASS && t !== T.BRIDGE) return false; }
+  return !game.ents.some(b => isBuilding(b) && b.hp > 0 && edgeDist(x, y, b) < AIRLIFT_LZ);
+}
+function landingNear(x, y) {   // the nearest spot it can set down, spiralling out (null if none close)
+  if (landingOk(x, y)) return { x, y };
+  for (let r = 16; r <= 240; r += 16) for (let k = 0; k < 16; k++) { const a = k * Math.PI / 8, px = x + Math.cos(a) * r, py = y + Math.sin(a) * r; if (landingOk(px, py)) return { x: px, y: py }; }
+  return null;
+}
+function airliftUnloadOrder(e) { const lz = landingNear(e.x, e.y); e.order = lz ? { type: 'move', x: lz.x, y: lz.y, unload: true } : e.order; }
+function updateAirlift(e, dt) {
+  e.alt += ((e.landed ? 0 : 1) - e.alt) * Math.min(1, dt * 2.2);
+  for (const h of game.ents) if (h !== e && h.air && h.hp > 0 && !h.landed && !e.landed) { const dx = e.x - h.x, dy = e.y - h.y, d = Math.hypot(dx, dy); if (d < 34 && d > 0.01) { e.x += dx / d * 20 * dt; e.y += dy / d * 20 * dt; } }
+  const o = e.order;
+  if (!o || o.type !== 'leave') { e.x = Math.min(W - 10, Math.max(10, e.x)); e.y = Math.min(H - 10, Math.max(10, e.y)); }   // (only a mission's Skylift flies off the edge)
+  if (!o) {
+    if (!e.landed) { const lz = landingNear(e.x, e.y); if (lz) e.order = { type: 'move', x: lz.x, y: lz.y }; }   // never hovers with nothing to do
+    return;
+  }
+  if (o.type === 'attack') { const t = byId(o.target); e.order = t ? { type: 'move', x: t.x, y: t.y } : null; return; }   // (unarmed: tapping an enemy just flies it there)
+  if (o.type === 'leave') {   // a mission's Skylift flying off the map once it's done
+    e.landed = false; if (e.alt < 0.6) return;
+    if (flyToward(e, o.x, o.y, dt)) { e.hp = 0; e.sold = true; e.deployed = true; e.cargo = []; }   // (gone off the edge: not a loss)
+    return;
+  }
+  if (!o.lz) { o.lz = landingNear(o.x, o.y) || { x: o.x, y: o.y, hover: true }; }
+  if (e.landed && Math.hypot(e.x - o.lz.x, e.y - o.lz.y) > 3) { e.landed = false; }
+  if (e.landed) {   // down at the spot
+    if (e.alt > 0.05) return;
+    if (o.unload) { unloadCarrier(e); }
+    if (o.then) { e.order = o.then; e.order.lz = null; return; }
+    e.order = null; return;
+  }
+  if (e.alt < 0.6 && !o.started) return;   // lifting off
+  o.started = true;
+  if (flyToward(e, o.lz.x, o.lz.y, dt)) {
+    if (o.lz.hover) { e.order = null; return; }   // nowhere to set down there: it'll look for the nearest spot
+    e.landed = true; if (o.face !== undefined) e.facing = o.face;
+  }
+}
+function airliftDown(e) {   // shot down: a crash, and everyone aboard dies
+  const n = (e.cargo || []).length;
+  for (const p of e.cargo || []) { if (game.stats[p.team]) { game.stats[p.team].unitsLost++; if (game.stats[1 - p.team]) game.stats[1 - p.team].kills++; } if (game.track && game.track.lost[p.team]) game.track.lost[p.team][p.type] = (game.track.lost[p.team][p.type] || 0) + 1; }
+  e.cargo = [];
+  if (!e.sold) { game.effects.push({ kind: 'blast', x: e.x, y: e.y, r: 34, t: 0, big: true }); if (n && (e.team === 0 || visibleAt(e.x, e.y))) game.effects.push({ kind: 'text', x: e.x, y: e.y - 30, text: `Skylift down: ${n} lost`, t: 0, color: '#ff9a7a' }); }
+}
+// For missions: bring infantry in by Skylift. units: types ('soldier') or existing units; from / to: {x, y}. Returns the Skylift.
+// opts.stay: it stays where it lands (yours to fly) instead of leaving; opts.leaveTo: where it flies off to (default: back to 'from').
+function airlift(team, units, from, to, opts = {}) {
+  const a = spawn('airlift', team, from.x, from.y); a.landed = false; a.alt = 1; a.facing = Math.atan2(to.y - from.y, to.x - from.x);
+  a.cargo = units.slice(0, BULWARK_CAP).map(u => { const p = typeof u === 'string' ? spawn(u, team, from.x, from.y) : u; game.ents = game.ents.filter(q => q !== p); p.order = null; p.gone = false; game.selected.delete(p.id); return p; });
+  a.order = { type: 'move', x: to.x, y: to.y, unload: true, started: true, then: opts.stay ? null : { type: 'leave', x: (opts.leaveTo || from).x, y: (opts.leaveTo || from).y } };
+  return a;
 }
 
 // a new unit rolls out of the building's door
@@ -4150,7 +4215,7 @@ const heliDamage = () => ((game.track && game.track.hits[1].heli) || { damageVal
 const aiHeliPads = D => !D.helis ? 0 : game.ai.heliMode === 'wave' ? D.helis * 2 : D.helis;   // (after giving up on raids: its usual pads, for defence)
 function aiHelis(D) {
   if (!D.helis) return;
-  const ai = game.ai, mine = game.ents.filter(h => h.team === 1 && h.air && h.hp > 0);
+  const ai = game.ai, mine = game.ents.filter(h => h.team === 1 && h.air && h.type !== 'airlift' && h.hp > 0);
   ai.heliMode = ai.heliMode || 'raid'; ai.heliCheap = ai.heliCheap || 0;
   // which of its helicopters have died since it last looked, and how much they had done since the one before
   const ids = new Set(mine.map(h => h.id)), dmg = heliDamage();
@@ -4290,6 +4355,7 @@ function draw() {
     else if (e.type === 'derrick') drawDerrick(e);
     else if (e.type === 'house') drawHouse(e);
     else if (e.type === 'helipad') drawHelipad(e);
+    else if (e.type === 'airlift') drawAirlift(e);
     else if (e.air) drawHeli(e);
     else drawSoldier(e);
     if (e.ruin && !ruinWorks(e)) drawRuin(e);
@@ -4648,7 +4714,7 @@ function drawHealth(e) {
   const w = isBuilding(e) ? halfX(e) * 2 : e.r * 2.6;
   const top = isBuilding(e) ? e.y - halfY(e) - 10 : e.y - e.r - 9 - (e.air ? e.alt * HELI_LIFT : 0);
   const k = Math.max(0, e.hp / e.maxHp);
-  if (e.air && e.team === 0) for (let i = 0; i < STATS.heli.ammo; i++) { ctx.fillStyle = i < e.ammo ? '#ffd86b' : 'rgba(0,0,0,0.5)'; ctx.fillRect(e.x - w / 2 + i * (w / STATS.heli.ammo), top + 5, w / STATS.heli.ammo - 1, 3); }   // missiles left
+  if (e.air && e.team === 0 && e.type !== 'airlift') for (let i = 0; i < STATS.heli.ammo; i++) { ctx.fillStyle = i < e.ammo ? '#ffd86b' : 'rgba(0,0,0,0.5)'; ctx.fillRect(e.x - w / 2 + i * (w / STATS.heli.ammo), top + 5, w / STATS.heli.ammo - 1, 3); }   // missiles left
   ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(e.x - w / 2 - 1, top - 1, w + 2, 6);
   ctx.fillStyle = k > 0.5 ? '#4ade80' : k > 0.25 ? '#facc15' : '#ef4444';
   ctx.fillRect(e.x - w / 2, top, w * k, 4);
@@ -5896,6 +5962,37 @@ function drawHeli(e) {
   ctx.fillStyle = '#222'; ctx.beginPath(); ctx.arc(0, 0, 2.2, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 }
+// The Skylift (v5.76): a long twin-rotor transport seen from above, nose along +x: rotors at both ends, a stripe in its
+// side's colour, a row of windows (lit green for each soldier aboard) and the rear loading ramp, open while it's down
+function drawAirlift(e) {
+  const c = TEAMS[e.team], t = performance.now() / 1000, alt = e.alt || 0, lift = alt * HELI_LIFT, flying = alt > 0.1;
+  ctx.fillStyle = `rgba(0,0,0,${0.38 - alt * 0.14})`;
+  ctx.save(); ctx.translate(e.x + 2 + alt * 9, e.y + 3 + alt * 5); ctx.rotate(e.facing); ctx.scale(1.2, 1.2);
+  ctx.beginPath(); ctx.roundRect(-24, -6.5, 48, 13, 6); ctx.fill(); ctx.restore();
+  ctx.save(); ctx.translate(e.x, e.y - lift); ctx.rotate(e.facing);
+  const sc = 1.2 * (1 + alt * 0.08); ctx.scale(sc, sc);
+  const ramp = e.landed && alt < 0.1 ? 1 : 0;
+  if (ramp) { ctx.fillStyle = '#3a4430'; ctx.beginPath(); ctx.moveTo(-23, -5); ctx.lineTo(-31, -5.5); ctx.lineTo(-31, 5.5); ctx.lineTo(-23, 5); ctx.fill();   // the rear ramp, down
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 0.8; for (let x = -30; x < -23; x += 2) { ctx.beginPath(); ctx.moveTo(x, -5); ctx.lineTo(x, 5); ctx.stroke(); } }
+  for (const sg of [-1, 1]) { ctx.fillStyle = '#2b3324'; ctx.beginPath(); ctx.roundRect(-14, sg * 7.5 - 2.5, 16, 5, 2.5); ctx.fill(); }   // side fuel sponsons
+  ctx.fillStyle = '#4c5a3c'; ctx.beginPath(); ctx.roundRect(-24, -6, 48, 12, 5.5); ctx.fill();                                   // fuselage
+  ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(-22, -5, 44, 3);
+  ctx.fillStyle = c.color; ctx.fillRect(-22, 3, 40, 2.2); ctx.fillStyle = c.dark; ctx.fillRect(-22, -5.2, 40, 1.4);              // its side's stripe
+  ctx.fillStyle = '#3b4630'; ctx.beginPath(); ctx.roundRect(-26, -4, 10, 8, 2); ctx.fill();                                        // rear rotor pylon
+  ctx.fillStyle = '#3b4630'; ctx.beginPath(); ctx.roundRect(11, -4.5, 9, 9, 2); ctx.fill();                                        // front rotor head
+  const n = (e.cargo || []).length;
+  for (let i = 0; i < 5; i++) { ctx.fillStyle = i < n ? '#8fe08f' : '#1f2a1a'; ctx.fillRect(-13 + i * 4.6, -2, 2.6, 2.6); }          // windows: green for each aboard
+  ctx.fillStyle = '#9fd6ff'; ctx.beginPath(); ctx.moveTo(19, -4.5); ctx.lineTo(25, -2.5); ctx.lineTo(25, 2.5); ctx.lineTo(19, 4.5); ctx.closePath(); ctx.fill();   // cockpit
+  ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.fillRect(20.5, -3, 2.5, 1.2);
+  const spin = t * (flying ? 30 : e.order ? 6 : 0.5);   // two big rotors, turning opposite ways
+  for (const [rx, dir] of [[15, 1], [-21, -1]]) {
+    if (flying) { ctx.fillStyle = 'rgba(30,30,30,0.15)'; ctx.beginPath(); ctx.arc(rx, 0, 19, 0, Math.PI * 2); ctx.fill(); }
+    ctx.strokeStyle = flying ? 'rgba(25,25,25,0.5)' : 'rgba(25,25,25,0.9)'; ctx.lineWidth = 2;
+    for (let k = 0; k < 3; k++) { const a = dir * spin + k * Math.PI * 2 / 3 + (dir < 0 ? 0.5 : 0); ctx.beginPath(); ctx.moveTo(rx, 0); ctx.lineTo(rx + Math.cos(a) * 19, Math.sin(a) * 19); ctx.stroke(); }
+    ctx.fillStyle = '#222'; ctx.beginPath(); ctx.arc(rx, 0, 2.3, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
 // Helipad: a concrete pad with the big H, landing lights in your colour and a small control hut
 function drawHelipad(e) {
   if (!e.built) return drawConstruction(e);
@@ -6872,7 +6969,7 @@ function handleTap(x, y) {
   const myUnits = [...game.selected].map(byId).filter(e => e && e.team === 0 && isUnit(e));
 
   const engineers = myUnits.filter(e => e.type === 'engineer');
-  const helis = myUnits.filter(e => e.air);
+  const helis = myUnits.filter(e => e.air && e.type !== 'airlift');
   if (hit && hit.team === 0 && hit.type === 'helipad' && helis.length) {   // helicopters selected + your Helipad tapped = fly home to land
     for (const h of helis) { const own = byId(h.pad); if (!padOk(own, 0) && hit.built && !padHeli(hit)) h.pad = hit.id; h.order = { type: 'return' }; }
     game.effects.push({ kind: 'marker', x: hit.x, y: hit.y, t: 0, color: '#7dff7d' });
@@ -6887,10 +6984,10 @@ function handleTap(x, y) {
     }
     // infantry selected + your Bulwark tapped = climb in (v5.74)
     const riders = myUnits.filter(u => isInfantry(u));
-    if (hit.type === 'bulwark' && riders.length) {
+    if ((hit.type === 'bulwark' || hit.type === 'airlift') && riders.length) {
       const room = BULWARK_CAP - (hit.cargo || []).length;
       riders.slice(0, Math.max(0, room)).forEach(u => { u.order = { type: 'move', x: hit.x, y: hit.y, board: hit.id, given: game.time }; });
-      if (room <= 0) flash = { text: 'That Bulwark is full (5)', t: performance.now() };
+      if (room <= 0) flash = { text: `That ${NAMES[hit.type]} is full (5)`, t: performance.now() };
       game.effects.push({ kind: 'marker', x: hit.x, y: hit.y, t: 0, color: '#7dff7d' });
       return;
     }
@@ -7055,7 +7152,7 @@ produceBox.addEventListener('click', ev => {
   if (!btn) return;
   for (const b of [...game.selected].map(byId)) if (b && b.team === 0 && PRODUCES[b.type] && PRODUCES[b.type].includes(btn.dataset.unit)) produce(b, btn.dataset.unit);
 });
-ui.unload.addEventListener('click', () => { for (const c of [...game.selected].map(byId)) if (c && c.type === 'bulwark' && c.team === 0) unloadCarrier(c); });
+ui.unload.addEventListener('click', () => { for (const c of [...game.selected].map(byId)) if (c && c.team === 0) { if (c.type === 'bulwark') unloadCarrier(c); else if (c.type === 'airlift' && (c.cargo || []).length) airliftUnloadOrder(c); } });
 ui.harvest.addEventListener('click', () => {
   let any = false;
   for (const e of selectedOfType('extractor')) any = autoHarvest(e) || any;
@@ -7273,12 +7370,12 @@ function updateHUD() {
   show(ui.satellite, !!hq && !placing && unlocked(0, 'satellite'));   // (v5.67, needs a Nuclear Reactor)
   show(ui.napalm, hasNapalm(0) && !placing);
   if (hasNapalm(0)) { const w = Math.ceil(napalmWait(0)), bar = strikeKind(0) === 'barrage', lbl = w > 0 ? `${bar ? 'Barrage' : 'Napalm'} ${Math.floor(w / 60)}:${String(w % 60).padStart(2, '0')}` : bar ? 'Orbital Barrage' : 'Napalm Strike'; if (ui.napalm.textContent !== lbl) ui.napalm.textContent = lbl; ui.napalm.disabled = w > 0; }
-  show(ui.heliHome, sel.some(e => e.air && e.team === 0 && !e.landed) && !placing);
+  show(ui.heliHome, sel.some(e => e.air && e.type !== 'airlift' && e.team === 0 && !e.landed) && !placing);
   show(ui.wall, !!hq && !placing);
   show(ui.gate, !!hq && !placing && unlocked(0, 'gate'));   // (needs a Power Plant, v5.69)
   syncProduceButtons(producer && !placing ? producer.type : null);
   show(ui.harvest, extractors.length > 0 && !placing);
-  const carriers = sel.filter(e => e.type === 'bulwark' && e.team === 0), riding = carriers.reduce((n, c) => n + (c.cargo || []).length, 0);
+  const carriers = sel.filter(e => (e.type === 'bulwark' || e.type === 'airlift') && e.team === 0), riding = carriers.reduce((n, c) => n + (c.cargo || []).length, 0);
   show(ui.unload, riding > 0 && !placing); if (riding) { const lbl = `Unload (${riding})`; if (ui.unload.textContent !== lbl) ui.unload.textContent = lbl; }
   const engSel = sel.some(e => e.type === 'engineer' && e.team === 0);
   for (const k of TURRET_TYPES) { show(ui[k], engSel && !placing && unlocked(0, k)); ui[k].disabled = game.credits[0] < COST[k]; }   // an Engineer's turret buttons, each hidden until you have what it needs
@@ -7367,6 +7464,7 @@ function updateHUD() {
   else if (sel.length === 1 && isTurretType(sel[0].type)) text = !sel[0].built ? `${NAMES[sel[0].type]}: ${Math.floor(sel[0].progress * 100)}% built` : NAMES[sel[0].type] + ' — ' + TURRET_INFO[sel[0].type];
   else if (sel.length === 1 && sel[0].type === 'sam') text = sel[0].built ? 'SAM Site — waits underground and comes up to shoot down enemy aircraft in range (nothing else)' : `SAM Site: ${Math.floor(sel[0].progress * 100)}% built`;
   else if (sel.length === 1 && sel[0].type === 'helipad' && sel[0].built && padHeli(sel[0])) { const h = padHeli(sel[0]); text = `Helipad — its helicopter is ${h.landed ? 'docked here (' + h.ammo + '/' + STATS.heli.ammo + ' missiles)' : 'out flying'}`; }
+  else if (sel.length === 1 && sel[0].type === 'airlift') { const a = sel[0], n = (a.cargo || []).length, o = a.order; text = `Skylift: ${n}/${BULWARK_CAP} aboard — ` + (o && o.unload ? 'landing to let them out' : o ? 'flying' : a.landed ? (n ? 'landed. Unload to let them out, or tap ground to fly there' : 'landed. Select infantry and tap it to load them') : 'landing'); }
   else if (sel.length === 1 && sel[0].air) {
     const h = sel[0], o = h.order;
     text = `Attack Helicopter: ${h.ammo}/${STATS.heli.ammo} missiles — ` + (h.landed && !padOf(h) ? 'landed: no Helipad to go home to, build one to reload' : h.landed ? (h.ammo < STATS.heli.ammo ? 'reloading on its pad' : 'docked. Tap an enemy to attack, or ground to fly there')
@@ -7380,7 +7478,7 @@ function updateHUD() {
   } else if (sel.length) {
     const counts = {};
     for (const e of sel) counts[e.type] = (counts[e.type] || 0) + 1;
-    const plural = { soldier: 'soldiers', buggy: 'buggies', extractor: 'extractors', grenadier: 'grenadiers', rocket: 'rocket soldiers', sniper: 'snipers', light: 'light tanks', heavy: 'heavy tanks', artillery: 'artillery', flamer: 'flamethrowers', flametank: 'flame tanks', mrl: 'rocket launchers', engineer: 'engineers', settler: 'settlers', civilian: 'civilians', heli: 'helicopters', bike: 'rocket bikes', bulwark: 'bulwarks', stalker: 'stalkers', veil: 'veils' };
+    const plural = { soldier: 'soldiers', buggy: 'buggies', extractor: 'extractors', grenadier: 'grenadiers', rocket: 'rocket soldiers', sniper: 'snipers', light: 'light tanks', heavy: 'heavy tanks', artillery: 'artillery', flamer: 'flamethrowers', flametank: 'flame tanks', mrl: 'rocket launchers', engineer: 'engineers', settler: 'settlers', civilian: 'civilians', heli: 'helicopters', bike: 'rocket bikes', bulwark: 'bulwarks', stalker: 'stalkers', veil: 'veils', airlift: 'skylifts' };
     const parts = Object.entries(counts).map(([t, n]) => `${n} ${n > 1 ? plural[t] || t + 's' : (SHORT[t] || NAMES[t]).toLowerCase()}`);
     text = parts.join(', ') + (sel.some(e => e.team === 0 && STATS[e.type] && STATS[e.type].flame) ? ' — tap to move, or tap trees to burn them' : ' — tap to move');
   } else text = hqOf(0) ? 'Drag to scroll, pinch to zoom' : game.landing && game.landing.phase !== 'leave' ? 'Your Settler is coming ashore…' : 'Tap your settler to begin';
