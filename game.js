@@ -1982,6 +1982,7 @@ function update(dt) {
   updateNapalm(dt);
   updateFires(dt);
 
+  const blasts = [];   // fire units whose fuel goes up this tick (v5.75)
   for (const e of game.ents) {
     if (e.team === NEUTRAL) { e.hp = e.maxHp * (e.ruin ? RUIN_HP : 1); continue; }   // neutral buildings can't be hurt (ruins stay as battered as they are)
     if (e.type === 'derrick' && e.hp <= 0) {
@@ -2002,6 +2003,7 @@ function update(dt) {
       continue;
     }
     if (e.hp <= 0) {
+      if (FUEL_BLAST[e.type] && !e.deployed && !e.gone && Math.random() < FUEL_BLAST[e.type].chance) blasts.push(e);   // (a fire unit's fuel may go up, v5.75)
       if (!e.deployed && !e.sold && (e.team === 0 || e.team === 1) && !isWallType(e.type)) {
         const mine = game.stats[e.team], theirs = game.stats[1 - e.team];
         if (isBuilding(e)) { mine.buildingsLost++; theirs.destroyed++; } else { mine.unitsLost++; theirs.kills++; }
@@ -2014,6 +2016,7 @@ function update(dt) {
       if (!e.deployed) game.effects.push({ kind: 'boom', x: e.x, y: e.y, t: 0, big: e.type !== 'soldier' && e.type !== 'buggy' && e.type !== 'bike' });
     }
   }
+  for (const e of blasts) fuelBlast(e);
   const bailOut = game.ents.filter(e => e.hp <= 0 && e.cargo && e.cargo.length);   // (a destroyed Bulwark: its passengers jump out, v5.74)
   game.ents = game.ents.filter(e => e.hp > 0);
   for (const c of bailOut) unloadCarrier(c, true);
@@ -2026,11 +2029,12 @@ function update(dt) {
     if (g.t < g.dur) continue;
     g.done = true;
     for (const o of game.ents) {
-      if (o.team === g.team || o.hp <= 0 || o.air) continue;   // (they burst on the ground: aircraft are out of reach)
+      const own = o.team === g.team;   // (v5.75, your call: your own units in the blast take a quarter; your buildings nothing)
+      if ((own && !isUnit(o)) || o.hp <= 0 || o.air || o.boarded) continue;   // (they burst on the ground: aircraft are out of reach)
       const d = edgeDist(g.x, g.y, o);
       const vehicle = isUnit(o) && !isInfantry(o);
       const mult = isBuilding(o) ? (g.vsBuilding || 1) : vehicle ? (g.vsVehicle || STATS.grenadier.vsVehicle) : (g.vsInfantry || 1);
-      if (d <= g.r) { hurt(o, g.dmg * (1 - 0.5 * d / g.r) * mult, g.srcType, g.team); if (g.src && isUnit(o)) { o.hitBy = g.src; o.hitAt = game.time; } }
+      if (d <= g.r) { hurt(o, g.dmg * (1 - 0.5 * d / g.r) * mult * (own ? FRIENDLY_SPLASH : 1), g.srcType, g.team); if (g.src && isUnit(o) && !own) { o.hitBy = g.src; o.hitAt = game.time; } }
     }
     game.effects.push({ kind: 'blast', x: g.x, y: g.y, r: g.r, t: 0, big: !!g.shell });
   }
@@ -2047,11 +2051,15 @@ function update(dt) {
       if (t && t.hp > 0 && d <= step + 30) {
         const S = STATS[r.srcType] || STATS.rocket;
         if (r.src && isUnit(t)) { t.hitBy = r.src; t.hitAt = game.time; }
-        const mult = r.srcType === 'sam' ? 1
-          : r.srcType === 'missile' ? (t.air ? S.vsAir : isInfantry(t) ? S.vsInfantry : isBuilding(t) ? S.vsBuilding : S.vsVehicle)   // Missile Turret: anything, aircraft best
-          : r.srcType === 'heli' ? (isInfantry(t) ? S.vsInfantry : isBuilding(t) ? S.vsBuilding : S.vsVehicle)   // helicopter missiles: made for tanks and buildings
-          : (t.air ? S.vsAir : isInfantry(t) ? S.vsInfantry : isBuilding(t) ? S.vsBuilding : t.type === 'heavy' ? S.vsHeavy : S.vsVehicle);   // the heavy tank's thick armour shrugs off some of it
-        hurt(t, r.dmg * mult * (r.srcType === 'rocket' ? uphill(r.fromX, r.fromY, t) : 1), r.srcType, r.team);
+        hurt(t, r.dmg * rocketMult(r.srcType, t) * (r.srcType === 'rocket' ? uphill(r.fromX, r.fromY, t) : 1), r.srcType, r.team);
+      }
+      if (r.srcType !== 'sam' && !(t && t.air)) {   // the blast (v5.75, your call): anyone else close to where it hits, enemies in full, your own a quarter
+        for (const o of game.ents) {
+          if (o === t || !isUnit(o) || o.air || o.boarded || o.hp <= 0 || o.team === NEUTRAL && o.type !== 'civilian') continue;
+          const dd = Math.max(0, Math.hypot(o.x - r.tx, o.y - r.ty) - (o.r || 0) * 0.5 - (t && isUnit(t) ? t.r || 0 : 0));   // (from the edge of what it hit, so units right beside a vehicle are caught)
+          if (dd > ROCKET_BLAST) continue;
+          hurt(o, r.dmg * rocketMult(r.srcType, o) * (1 - 0.5 * dd / ROCKET_BLAST) * (o.team === r.team ? FRIENDLY_SPLASH : 1), r.srcType, r.team);
+        }
       }
       game.effects.push({ kind: 'blast', x: r.tx, y: r.ty, r: 16, t: 0 });
     } else { r.x += dx / d * step; r.y += dy / d * step; }
@@ -2375,7 +2383,7 @@ function updateSoldier(e, dt) {   // soldiers and buggies
           hurt(t, s.dmg * (isInfantry(t) ? 1 : isBuilding(t) ? (s.vsBuilding || 1) : (s.vsVehicle || 1)) * armour(e.type, t) * uphill(e.x, e.y, t) * (e.type === 'stalker' && terrainAt(e.x, e.y) === T.FOREST ? 1.5 : 1), e.type, e.team);
           if (s.tank) {   // shell burst: also nicks enemy infantry right next to the target (quarter damage)
             game.effects.push({ kind: 'blast', x: t.x, y: t.y, r: e.type === 'heavy' ? 18 : 13, t: 0 });
-            for (const o of game.ents) if (o !== t && o.team !== e.team && isInfantry(o) && Math.hypot(o.x - t.x, o.y - t.y) < 22) hurt(o, s.dmg * 0.25 * armour(e.type, o) * uphill(e.x, e.y, o), e.type, e.team);
+            for (const o of game.ents) if (o !== t && isInfantry(o) && o.hp > 0 && Math.hypot(o.x - t.x, o.y - t.y) < 22) hurt(o, s.dmg * 0.25 * armour(e.type, o) * uphill(e.x, e.y, o) * (o.team === e.team ? FRIENDLY_SPLASH : 1), e.type, e.team);   // (your own infantry too, a quarter of it, v5.75)
           }
           game.effects.push({ kind: 'shot', heavy: e.type === 'sniper' || !!s.tank, x: e.x, y: e.y, x2: t.x + (Math.random() - .5) * 8,
                               y2: t.y + (Math.random() - .5) * 8, team: e.team, t: 0 });
@@ -3501,6 +3509,30 @@ function igniteAt(x, y, team, step = 0) {
   if (terrain[i] !== T.FOREST || game.fires[i]) return false;
   game.fires[i] = { t: 0, team, step, spread: false };
   return true;
+}
+// Friendly fire (v5.75, your design): blasts hurt your own units a little - shells and grenades (Grenadiers, Artillery, the
+// Rocket Launcher, the Orbital Barrage), every rocket's small blast, and tank shell splash all do a quarter to your own side.
+const FRIENDLY_SPLASH = 0.25, ROCKET_BLAST = 18;
+function rocketMult(srcType, t) {   // how hard a rocket of this kind hits this target
+  const S = STATS[srcType] || STATS.rocket;
+  return srcType === 'sam' ? 1
+    : srcType === 'missile' ? (t.air ? S.vsAir : isInfantry(t) ? S.vsInfantry : isBuilding(t) ? S.vsBuilding : S.vsVehicle)   // Missile Turret: anything, aircraft best
+    : srcType === 'heli' ? (isInfantry(t) ? S.vsInfantry : isBuilding(t) ? S.vsBuilding : S.vsVehicle)   // helicopter missiles: made for tanks and buildings
+    : (t.air ? S.vsAir : isInfantry(t) ? S.vsInfantry : isBuilding(t) ? S.vsBuilding : t.type === 'heavy' ? S.vsHeavy : S.vsVehicle) || 1;   // the heavy tank's thick armour shrugs off some of it
+}
+// Fuel explosions (v5.75, your design): a Flamethrower (35% of the time) or a Flame Tank (60%) that's destroyed can go up,
+// hurting everyone around it, friend and foe: full damage at the middle, nothing at the edge. It sets trees alight.
+const FUEL_BLAST = { flamer: { chance: 0.35, dmg: 60, r: 50 }, flametank: { chance: 0.6, dmg: 150, r: 90 } };
+function fuelBlast(e) {
+  const b = FUEL_BLAST[e.type];
+  for (const o of game.ents) {
+    if (o === e || o.hp <= 0 || o.air || o.boarded || (o.team === NEUTRAL && o.type !== 'civilian')) continue;
+    const d = Math.max(0, Math.hypot(o.x - e.x, o.y - e.y) - (isBuilding(o) ? o.size / 2 : (o.r || 0) * 0.5));
+    if (d < b.r) hurt(o, b.dmg * (1 - d / b.r) * (isBuilding(o) ? 0.5 : 1), 'fuel', e.team);
+  }
+  game.effects.push({ kind: 'blast', x: e.x, y: e.y, r: b.r * 0.7, t: 0, big: true }, { kind: 'boom', x: e.x, y: e.y, t: 0, big: true });
+  for (let dx = -b.r * 0.6; dx <= b.r * 0.6; dx += TC) for (let dy = -b.r * 0.6; dy <= b.r * 0.6; dy += TC) igniteAt(e.x + dx, e.y + dy, e.team);
+  if (e.team === 0 || visibleAt(e.x, e.y)) game.effects.push({ kind: 'text', x: e.x, y: e.y - 26, text: 'Fuel blast!', t: 0, color: '#ffb070' });
 }
 function updateFires(dt) {
   for (const k in game.fires) {

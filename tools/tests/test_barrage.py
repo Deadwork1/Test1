@@ -30,21 +30,21 @@ with sync_playwright() as p:
     pg, errs = page(b, 'legion')
     r = json.loads(pg.evaluate("""(()=>{ mk('satellite',0,hq.x-300,hq.y-60); sight(); U(2); updateHUD();
       const label=ui.napalm.textContent, kind=strikeKind(0), ashenKind=strikeKind(1);
-      const s=open(130); const ref=mk('refinery',1,s.x,s.y); const tank=spawn('light',1,s.x+55,s.y+45); tank.passive=true; tank.cooldown=1e9; const sol=[]; for(let i=0;i<4;i++){ const q=spawn('soldier',1,s.x-60+i*14,s.y+60); q.passive=true; q.cooldown=1e9; sol.push(q); }
+      const s=open(130); const ref=mk('refinery',1,s.x,s.y); const tanks=[[55,45],[-60,25],[-35,-55]].map(([dx,dy])=>{ const t=spawn('light',1,s.x+dx,s.y+dy); t.passive=true; t.cooldown=1e9; return t; }); const sol=[]; for(let i=0;i<4;i++){ const q=spawn('soldier',1,s.x-60+i*14,s.y+60); q.passive=true; q.cooldown=1e9; sol.push(q); }
       const mine=spawn('soldier',0,s.x+20,s.y-55); mine.passive=true;
       window.S=s; const called=callNapalm(0,s.x,s.y); const again=callNapalm(0,s.x,s.y);
-      let k=0, firstHit=null; const hp0=ref.hp; while(k<20*4){ for(const u of [tank,mine,...sol]) { u.order=null; if(u.team===1) u.cooldown=1e9; } sight(); U(1); k++; if(firstHit===null&&ref.hp<hp0) firstHit=k/20; }
-      return JSON.stringify({label, kind, ashenKind, called, again, firstHit, ref:Math.round(100-ref.hp/ref.maxHp*100), tank:Math.round(100-Math.max(0,tank.hp)/tank.maxHp*100), soldiersDead:sol.filter(q=>q.hp<=0).length, mineHurt:mine.hp<mine.maxHp, hits0:JSON.stringify(game.track.hits[0]), hits1:JSON.stringify(game.track.hits[1]), mineHp:Math.round(mine.hp), wait:Math.round(napalmWait(0))}); })()"""))
+      let k=0, firstHit=null; const hp0=ref.hp; while(k<20*4){ for(const u of [...tanks,mine,...sol]) { u.order=null; if(u.team===1) u.cooldown=1e9; } sight(); U(1); k++; if(firstHit===null&&ref.hp<hp0) firstHit=k/20; }
+      return JSON.stringify({label, kind, ashenKind, called, again, firstHit, ref:Math.round(100-ref.hp/ref.maxHp*100), tank:Math.max(...tanks.map(tank=>Math.round(100-Math.max(0,tank.hp)/tank.maxHp*100))), soldiersDead:sol.filter(q=>q.hp<=0).length, mineHurt:mine.hp<mine.maxHp, hits0:JSON.stringify(game.track.hits[0]), hits1:JSON.stringify(game.track.hits[1]), mineHp:Math.round(mine.hp), wait:Math.round(napalmWait(0))}); })()"""))
     print(r)
     check(r['kind'] == 'barrage' and r['ashenKind'] == 'napalm' and r['label'] == 'Orbital Barrage', 'the Legion gets the Orbital Barrage button, the Ashen keep Napalm')
     check(r['called'] and not r['again'] and 280 <= r['wait'] <= 300, 'it fires, and the next one waits 5 minutes (%d s)' % r['wait'])
     check(r['firstHit'] is not None and 1.5 <= r['firstHit'] <= 3.5, 'the shells start landing about 1.6 s after the lock-on (%s s)' % r['firstHit'])
     check(25 <= r['ref'], 'it badly damages a Refinery in the circle (%d%% of its health)' % r['ref'])
-    check(r['tank'] >= 10, 'and hurts a tank in it (%d%%)' % r['tank'])
+    check(r['tank'] >= 10, 'and hurts the tanks in it (worst hit lost %d%%; 3 tanks, as the shells scatter)' % r['tank'])
     
     own = json.loads(pg.evaluate("""(()=>{ game.napalmAt[0]=null; const s=open(130); const us=[]; for(let i=0;i<6;i++){ const u=spawn(i%2?'light':'soldier',0,s.x-50+i*20,s.y+(i%3)*20); u.passive=true; us.push(u); }
-      callNapalm(0,s.x,s.y); for(let k=0;k<20*5;k++){ for(const u of us) u.order=null; U(1); } return JSON.stringify({hurt: us.filter(u=>u.hp<u.maxHp).length}); })()"""))
-    check(own['hurt'] == 0, 'it never hurts your own units, even standing right in it (%d of 6 hurt)' % own['hurt'])
+      callNapalm(0,s.x,s.y); for(let k=0;k<20*5;k++){ for(const u of us) u.order=null; U(1); } return JSON.stringify({hurt: us.filter(u=>u.hp<u.maxHp).length, dead: us.filter(u=>u.hp<=0).length, worst: Math.round(Math.max(...us.map(u=>100-Math.max(0,u.hp)/u.maxHp*100)))}); })()"""))
+    check(own['dead'] == 0 and own['worst'] <= 60, 'your own units standing in it only take a quarter (since v5.75): %d of 6 hurt, none killed, worst lost %d%%' % (own['hurt'], own['worst']))
     if pics:
         pg.evaluate("""(()=>{ game.napalmAt[0]=null; const s=open(130); const ref=mk('barracks',1,s.x,s.y); for(let i=0;i<3;i++){ const t=spawn('light',1,s.x-50+i*45,s.y+60); t.passive=true; }
           callNapalm(0,s.x,s.y); for(let i=0;i<46;i++){ sight(); U(1); } cam.x=s.x; cam.y=s.y+10; setZoom(1.6); clampCam(); game.paused=true; game.selected=new Set(); })()""")
