@@ -4687,7 +4687,7 @@ function drawBoat(L) {
   const s = byId(L.sid); if (s && s.boarded) drawSettler(s);   // its cargo, riding on the deck
 }
 // The Settler (v5.59): a big mobile-HQ truck, seen from above, nose along +x: a cab in your colour, six big wheels,
-// and the folded Headquarters on its back (panel seams, the star emblem, a folded radar dish, hazard stripes on the tail)
+// and the folded Headquarters on its back (panel seams, its faction's crest, a folded radar dish, hazard stripes on the tail)
 function drawSettler(e) { ctx.save(); ctx.translate(e.x, e.y); drawTruck(e.team, e.facing); ctx.restore(); }
 function drawTruck(team, facing) {   // drawn at the current origin
   const c = TEAMS[team];
@@ -4703,10 +4703,14 @@ function drawTruck(team, facing) {   // drawn at the current origin
   ctx.fillStyle = c.color; ctx.fillRect(-25, -15, 34, 3); ctx.fillRect(-25, 12, 34, 3);
   ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 1;
   for (let x = -17; x <= 1; x += 6) { ctx.beginPath(); ctx.moveTo(x, -12); ctx.lineTo(x, 12); ctx.stroke(); }   // folding panel seams
-  ctx.fillStyle = c.dark; ctx.beginPath(); ctx.arc(-5, 0, 7.5, 0, Math.PI * 2); ctx.fill();         // the star emblem, as on the HQ
-  ctx.fillStyle = '#f2efe6'; ctx.beginPath();
-  for (let k = 0; k < 10; k++) { const r = k % 2 ? 2.4 : 5.6, a = -Math.PI / 2 + k * Math.PI / 5; ctx.lineTo(-5 + Math.cos(a) * r, Math.sin(a) * r); }
-  ctx.closePath(); ctx.fill();
+  const fac = factionOf(team);
+  if (fac && CRESTS[fac]) { ctx.save(); ctx.translate(-5, 0); ctx.rotate(Math.PI / 2); drawCrest(fac, 0, 0, 19); ctx.restore(); }   // its faction's crest, as on the HQ (v5.76, your call; it was a star)
+  else {
+    ctx.fillStyle = c.dark; ctx.beginPath(); ctx.arc(-5, 0, 7.5, 0, Math.PI * 2); ctx.fill();         // the star emblem (no factions: test tools only)
+    ctx.fillStyle = '#f2efe6'; ctx.beginPath();
+    for (let k = 0; k < 10; k++) { const r = k % 2 ? 2.4 : 5.6, a = -Math.PI / 2 + k * Math.PI / 5; ctx.lineTo(-5 + Math.cos(a) * r, Math.sin(a) * r); }
+    ctx.closePath(); ctx.fill();
+  }
   ctx.fillStyle = '#d9d9d0'; ctx.beginPath(); ctx.arc(-18, -5, 5, Math.PI * 0.5, Math.PI * 1.5); ctx.fill();   // folded radar dish
   ctx.strokeStyle = '#6b6b63'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(-18, -5); ctx.lineTo(-13, -5); ctx.stroke();
   ctx.strokeStyle = '#555'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(-20, 8); ctx.lineTo(6, 8); ctx.stroke();   // aerial, laid flat
