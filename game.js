@@ -3513,6 +3513,8 @@ function igniteAt(x, y, team, step = 0) {
 // Friendly fire (v5.75, your design): blasts hurt your own units a little - shells and grenades (Grenadiers, Artillery, the
 // Rocket Launcher, the Orbital Barrage), every rocket's small blast, and tank shell splash all do a quarter to your own side.
 const FRIENDLY_SPLASH = 0.25, ROCKET_BLAST = 18;
+const FRIENDLY_FLAME_VEHICLE = 0.1;   // your own vehicles in your own fire or Napalm take even less: a tenth (v5.75, your call)
+const ownFlame = e => isInfantry(e) ? FRIENDLY_SPLASH : FRIENDLY_FLAME_VEHICLE;
 function rocketMult(srcType, t) {   // how hard a rocket of this kind hits this target
   const S = STATS[srcType] || STATS.rocket;
   return srcType === 'sam' ? 1
@@ -3539,7 +3541,7 @@ function updateFires(dt) {
     const f = game.fires[k], i = +k, c = i % TCOLS, r = Math.floor(i / TCOLS), cx = c * TC + TC / 2, cy = r * TC + TC / 2;
     f.t += dt;
     for (const e of game.ents) if (isUnit(e) && !e.air && e.hp > 0 && !e.boarded && e.team !== NEUTRAL && Math.abs(e.x - cx) < TC * 0.7 && Math.abs(e.y - cy) < TC * 0.7)   // (the side that lit it takes a quarter, v5.75, your call)
-      hurt(e, (isInfantry(e) ? FIRE_DPS.infantry : FIRE_DPS.vehicle) * dt * (e.team === f.team ? FRIENDLY_SPLASH : 1), 'fire', f.team);
+      hurt(e, (isInfantry(e) ? FIRE_DPS.infantry : FIRE_DPS.vehicle) * dt * (e.team === f.team ? ownFlame(e) : 1), 'fire', f.team);
     if (!f.spread && f.t > FIRE_SPREAD_AT) {
       f.spread = true;
       if (f.step < FIRE_STEPS) for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (Math.random() < 0.8) igniteAt(cx + dc * TC, cy + dr * TC, f.team, f.step + 1);
@@ -3618,7 +3620,7 @@ function updateNapalm(dt) {
       const reach = isBuilding(e) ? NAPALM_HALF + Math.max(halfX(e), halfY(e)) * 0.7 : NAPALM_HALF + e.r * 0.5;
       if (segDistTo(e.x, e.y, seg) > reach) continue;
       const dps = isBuilding(e) ? NAPALM_DPS.building : isInfantry(e) ? NAPALM_DPS.infantry : NAPALM_DPS.vehicle;
-      hurt(e, dps * dt * (own ? FRIENDLY_SPLASH : 1), 'napalm', st.team);
+      hurt(e, dps * dt * (own ? ownFlame(e) : 1), 'napalm', st.team);
       if (e.hp <= 0 && isInfantry(e) && Math.random() < 0.5) game.effects.push({ kind: 'text', x: e.x, y: e.y - 10, text: 'Burned!', t: 0, color: '#ffb070' });
     }
   }

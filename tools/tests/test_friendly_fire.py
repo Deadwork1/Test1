@@ -46,8 +46,8 @@ with sync_playwright() as p:
       let fp=null; for(let i=0;i<terrain.length&&!fp;i++){ if(terrain[i]!==T.FOREST) continue; const c=i%TCOLS, rr=Math.floor(i/TCOLS); if(terrain[rr*TCOLS+c-1]===T.GRASS && terrain[rr*TCOLS+c+1]===T.FOREST) fp={x:c*TC+TC/2,y:rr*TC+TC/2}; }
       const f2=spawn('flamer',1,fp.x-10,fp.y); Math.random=()=>0; f2.hp=0; U(1); Math.random=rnd; out.fire=Object.keys(game.fires).length>0;
       // a burning forest tile: an enemy and one of the side that lit it standing in it for 2 s
-      const fq=fp; const fo=spawn('soldier',0,fq.x+TC,fq.y), fe=spawn('soldier',1,fq.x+TC,fq.y); for(const u of [fo,fe]){ u.hp=u.maxHp=1e6; u.passive=true; u.cooldown=1e9; } igniteAt(fq.x+TC,fq.y,1,99);
-      for(let i=0;i<40;i++){ for(const u of [fo,fe]){ u.order=null; u.x=fq.x+TC; u.y=fq.y; } U(1); } out.forestBurn={own:Math.round(1e6-fe.hp), enemy:Math.round(1e6-fo.hp)};
+      const fq=fp; const fo=spawn('soldier',0,fq.x+TC,fq.y), fe=spawn('soldier',1,fq.x+TC,fq.y), vo=spawn('flametank',1,fq.x+TC,fq.y), ve=spawn('light',0,fq.x+TC,fq.y); for(const u of [fo,fe,vo,ve]){ u.hp=u.maxHp=1e6; u.passive=true; u.cooldown=1e9; } igniteAt(fq.x+TC,fq.y,1,99);
+      for(let i=0;i<40;i++){ for(const u of [fo,fe,vo,ve]){ u.order=null; u.x=fq.x+TC; u.y=fq.y; } U(1); } out.forestBurn={own:Math.round(1e6-fe.hp), enemy:Math.round(1e6-fo.hp)}; out.vehBurn={own:+(1e6-vo.hp).toFixed(1), enemy:+(1e6-ve.hp).toFixed(1)};
       return JSON.stringify(out); })()"""))
     print(r)
     for k, name in [('grenade', "a Grenadier's grenade"), ('mrl', 'a Rocket Launcher salvo'), ('rocket', "a Rocket Soldier's rocket")]:
@@ -60,6 +60,8 @@ with sync_playwright() as p:
     check(0.27 <= r['rates']['flamer'] <= 0.43 and 0.52 <= r['rates']['flametank'] <= 0.68, 'Flamethrowers go up about 35%% of the time (%.2f), Flame Tanks about 60%% (%.2f)' % (r['rates']['flamer'], r['rates']['flametank']))
     check(r['fire'], 'a fuel blast at the edge of a forest sets it alight')
     fb = r['forestBurn']
+    vb = r['vehBurn']
+    check(vb['own'] > 0 and vb['own'] <= vb['enemy'] * 0.12 + 0.2, "and the lighting side's vehicles only a tenth (%.1f vs the enemy's %.1f)" % (vb['own'], vb['enemy']))
     check(fb['own'] > 0 and fb['enemy'] > 0 and fb['own'] <= fb['enemy'] * 0.3 + 1, 'a forest fire burns the side that lit it at a quarter (%d) of what the enemy takes (%d)' % (fb['own'], fb['enemy']))
     check(not errs, 'no page errors %s' % errs[:3])
     b.close()
