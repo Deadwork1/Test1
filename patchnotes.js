@@ -2,6 +2,17 @@
 // To add a release: put a new entry at the top of this list.
 const PATCH_NOTES = [
   {
+    version: '5.75', date: '28 Nov 2026', title: 'Stalker, Veil, friendly fire',
+    changes: [
+      'The Sniper moves to the Legion.',
+      'New for the Ashen: the Stalker ($300, Barracks, needs a Power Plant). Forest infantry: in a forest it stays hidden even when firing, moves at full speed and does 50% more damage.',
+      'New for the Ashen: the Veil ($750, War Factory, needs a Tech Centre). An ambush truck under camouflage netting: hidden once it has stood still for 2 seconds, or in a forest. It fires a pair of big anti-tank rockets, then reloads for 7 seconds. Moving in the open, firing, or an enemy close by gives it away.',
+      'Friendly fire: your own units caught in a blast take a quarter of the damage. That covers grenades and shells (Grenadier, Artillery, Rocket Launcher, Orbital Barrage), the small blast every rocket now has, and tank shell splash. Your buildings are not hurt.',
+      'Fire hurts its own side too: your infantry take a quarter from your own forest fires and Napalm, your vehicles a tenth.',
+      'Flamethrowers (35% of the time) and Flame Tanks (60%) can blow up when destroyed, hurting everyone near them (more the closer they are) and setting trees alight.',
+    ],
+  },
+  {
     version: '5.74', date: '27 Nov 2026', title: 'Faster Bulwark, heavier tanks',
     changes: [
       'The Bulwark is faster than a Light Tank now (speed 85, was 62) and costs $700 (was $650).',
