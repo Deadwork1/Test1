@@ -1,6 +1,7 @@
 # v5.75: blasts hurt your own units a little (a quarter): grenades and shells (Grenadier, Artillery, Rocket Launcher, Orbital
 # Barrage), every rocket's small blast (enemies near the target take it in full), tank shell splash. Fire units can go up when
 # destroyed (Flamethrower 35%, Flame Tank 60%), hurting everyone around (less further out) and setting trees alight.
+# Forest fires and Napalm hurt the side that started them at a quarter too (their buildings not at all).
 # Usage: python3 tests/test_friendly_fire.py <game folder> <port>
 import sys, http.server, threading, functools, json
 from playwright.sync_api import sync_playwright
@@ -44,6 +45,9 @@ with sync_playwright() as p:
       // a forest catches fire from a blast at its edge
       let fp=null; for(let i=0;i<terrain.length&&!fp;i++){ if(terrain[i]!==T.FOREST) continue; const c=i%TCOLS, rr=Math.floor(i/TCOLS); if(terrain[rr*TCOLS+c-1]===T.GRASS && terrain[rr*TCOLS+c+1]===T.FOREST) fp={x:c*TC+TC/2,y:rr*TC+TC/2}; }
       const f2=spawn('flamer',1,fp.x-10,fp.y); Math.random=()=>0; f2.hp=0; U(1); Math.random=rnd; out.fire=Object.keys(game.fires).length>0;
+      // a burning forest tile: an enemy and one of the side that lit it standing in it for 2 s
+      const fq=fp; const fo=spawn('soldier',0,fq.x+TC,fq.y), fe=spawn('soldier',1,fq.x+TC,fq.y); for(const u of [fo,fe]){ u.hp=u.maxHp=1e6; u.passive=true; u.cooldown=1e9; } igniteAt(fq.x+TC,fq.y,1,99);
+      for(let i=0;i<40;i++){ for(const u of [fo,fe]){ u.order=null; u.x=fq.x+TC; u.y=fq.y; } U(1); } out.forestBurn={own:Math.round(1e6-fe.hp), enemy:Math.round(1e6-fo.hp)};
       return JSON.stringify(out); })()"""))
     print(r)
     for k, name in [('grenade', "a Grenadier's grenade"), ('mrl', 'a Rocket Launcher salvo'), ('rocket', "a Rocket Soldier's rocket")]:
@@ -55,6 +59,8 @@ with sync_playwright() as p:
     check(bl['near'] > bl['far'] > 0 and bl['outside'] == 0, 'a Flame Tank going up hurts your own unit close by (%d) more than an enemy further out (%d), nobody beyond 90 (%d)' % (bl['near'], bl['far'], bl['outside']))
     check(0.27 <= r['rates']['flamer'] <= 0.43 and 0.52 <= r['rates']['flametank'] <= 0.68, 'Flamethrowers go up about 35%% of the time (%.2f), Flame Tanks about 60%% (%.2f)' % (r['rates']['flamer'], r['rates']['flametank']))
     check(r['fire'], 'a fuel blast at the edge of a forest sets it alight')
+    fb = r['forestBurn']
+    check(fb['own'] > 0 and fb['enemy'] > 0 and fb['own'] <= fb['enemy'] * 0.3 + 1, 'a forest fire burns the side that lit it at a quarter (%d) of what the enemy takes (%d)' % (fb['own'], fb['enemy']))
     check(not errs, 'no page errors %s' % errs[:3])
     b.close()
 print('PASS' if ok else 'FAIL')

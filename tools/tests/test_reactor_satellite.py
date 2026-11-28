@@ -1,7 +1,7 @@
 # v5.67: the Nuclear Reactor ($1,000, needs a Tech Centre: power worth 3 Power Plants, still capped at double; unlocks the Heavy
 # Tank and the Laser Turret) and the Satellite Radar ($1,500, needs a Reactor: everything in your explored fog is in view, black
 # fog stays black; unlocks the Napalm Strike, once every 5 minutes: a 300-long strip of fire for 6 s,
-# deadly to infantry, a little to vehicles, never your own side). The computer builds and uses them on Hard only.
+# deadly to infantry, a little to vehicles, your own units take a quarter since v5.75). The computer builds and uses them on Hard only.
 # Usage: python3 tests/test_reactor_satellite.py <game folder> <port>
 import sys, http.server, threading, functools, json
 from playwright.sync_api import sync_playwright
@@ -50,16 +50,16 @@ with sync_playwright() as p:
     # napalm
     r = json.loads(pg.evaluate("""(()=>{ const cx=hq.x+330, cy=hq.y-30; U(1); let unk=null; for(let k=0;k<3000&&!unk;k++){ const x=100+Math.random()*(W-200), y=100+Math.random()*(H-200); if(!fog[0].exp[cellIndex(x,y)]) unk={x,y}; }
       const foes=[]; for(let i=0;i<8;i++){ const s=spawn('soldier',1,cx-80+i*22,cy); s.passive=true; foes.push(s); } const tank=spawn('light',1,cx,cy+10); tank.passive=true;
-      const mine=[]; for(let i=0;i<3;i++){ const s=spawn('soldier',0,cx-30+i*25,cy+5); s.passive=true; mine.push(s); }
+      const mine=[]; for(let i=0;i<3;i++){ const s=spawn('soldier',0,cx-30+i*25,cy+5); s.passive=true; s.hp=s.maxHp=1000; mine.push(s); }
       const ready=napalmReady(0); const unseen=callNapalm(0, unk.x, unk.y); const okCall=callNapalm(0,cx,cy); const again=callNapalm(0,cx,cy);
       let k=0; while(k<20*9){ for(const s of foes) if(s.hp>0){ s.order=null; } tank.order=null; U(1); k++; }
       const wait=Math.round(napalmWait(0));
-      return JSON.stringify({ready, unseen, okCall, again, foesLeft:foes.filter(s=>s.hp>0).length, tankHp:Math.round(tank.hp), tankMax:tank.maxHp, mineHp:mine.map(s=>Math.round(s.hp)), wait}); })()"""))
+      return JSON.stringify({ready, unseen, okCall, again, foesLeft:foes.filter(s=>s.hp>0).length, tankHp:Math.round(tank.hp), tankMax:tank.maxHp, mineHp:mine.map(s=>Math.round(1000-s.hp)), wait}); })()"""))
     print(r)
     check(r['ready'] and not r['unseen'] and r['okCall'] and not r['again'], 'the Napalm Strike is ready with the Satellite Radar up, only on ground you can see, and once at a time')
     check(r['foesLeft'] == 0, 'the strip of fire kills all 8 enemy soldiers standing in it')
     check(r['tankMax'] - r['tankHp'] > 30 and r['tankHp'] > r['tankMax'] * 0.5, 'a tank in it is hurt a little (%d of %d left)' % (r['tankHp'], r['tankMax']))
-    check(all(h == 60 for h in r['mineHp']), 'your own soldiers in it are unhurt')
+    check(all(40 <= h <= 110 for h in r['mineHp']), 'your own soldiers in it take a quarter (since v5.75): lost %s (enemies take 70 a second, up to 420)' % r['mineHp'])
     check(285 <= r['wait'] <= 292, 'the next strike is about 5 minutes away (%d s)' % r['wait'])
     check(not errs, 'no page errors' + (': ' + errs[0] if errs else ''))
     pg.close()
