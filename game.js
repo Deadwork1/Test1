@@ -238,6 +238,11 @@ try {
   mapNumber = parseInt(localStorage.getItem('mini-rts-seed'), 10) || 0;
 } catch (err) {}
 if (!mapNumber) { mapNumber = newMapNumber(); try { localStorage.setItem('mini-rts-seed', mapNumber); } catch (err) {} }
+// Campaign (v5.76): a mission is picked on the start screen and kept here; it brings its own map (the page reloads)
+const MISSION_MAPS = { legion1: 'large' };
+let campaignId = null;
+try { const c = localStorage.getItem('mini-rts-campaign'); if (MISSION_MAPS[c]) campaignId = c; } catch (err) {}
+if (campaignId) mapChoice = MISSION_MAPS[campaignId];
 let MAP = mapChoice === 'random' ? generateMap(randomSize, mapNumber) : MAPS[mapChoice];
 
 // ---------- Settings (tweak these to balance the game) ----------
@@ -361,7 +366,7 @@ const crestSVG = (f, px) => !CRESTS[f] ? '' : `<svg class="crest" viewBox="0 0 1
   CRESTS[f].map(sh => `<path d="${sh.d}" fill="${sh.fill || 'none'}"${sh.stroke ? ` stroke="${sh.stroke}" stroke-width="${sh.w}" stroke-linecap="${sh.cap || 'butt'}"` : ''}/>`).join('') + '</svg>';
 let factionPick = 'legion';   // what the start screen is set to: 'legion', 'ashen' or 'random'
 try { const f = localStorage.getItem('mini-rts-faction'); if (f === 'legion' || f === 'ashen' || f === 'random' || f === 'all') factionPick = f; } catch (err) {}   // ('all' = no factions, everything for both: only the test tools set it)
-const rollFactions = () => { if (factionPick === 'all') return [null, null]; const mine = factionPick === 'random' ? (Math.random() < 0.5 ? 'legion' : 'ashen') : factionPick; return [mine, otherFaction(mine)]; };
+const rollFactions = () => { if (campaignId) return ['legion', 'ashen']; if (factionPick === 'all') return [null, null]; const mine = factionPick === 'random' ? (Math.random() < 0.5 ? 'legion' : 'ashen') : factionPick; return [mine, otherFaction(mine)]; };
 const factionOf = team => (game && game.factions && game.factions[team]) || null;
 // may this side build or train this at all? (no for the other faction's own things)
 const allowed = (team, type) => { const f = factionOf(team); return !f || !FACTIONS[otherFaction(f)].only.includes(type); };
@@ -396,6 +401,8 @@ try { if (DIFFICULTY[localStorage.getItem('mini-rts-difficulty')]) difficulty = 
 // the computer plays as usual at the chosen difficulty. Remembered between games.
 let sandbox = false;
 try { sandbox = localStorage.getItem('mini-rts-sandbox') === 'on'; } catch (err) {}
+if (campaignId) sandbox = false;   // (no Sandbox in a mission)
+if (campaignId) { DIFFICULTY.mission = { ...DIFFICULTY.easy, label: 'Mission' }; difficulty = 'mission'; }   // (missions run on Easy, with their own attack timing)
 const diff = () => DIFFICULTY[difficulty];
 // Power Plants: each finished one makes building and training 25% faster, up to double speed
 // Extra Headquarters (from bought Settlers, v5.65): each one past the first adds another 25% on top, up to triple speed in all
@@ -1218,6 +1225,7 @@ function newGame() {
   spawn('settler', 1, START[1].x, START[1].y);
   startLanding();
   cam.x = START[0].x; cam.y = (START[0].y + H) / 2; setZoom(1); clampCam();   // (between your start spot and the beach, so you see the boat come in)
+  if (campaignId) missionSetup();
   updateFog();
 }
 
@@ -1497,7 +1505,7 @@ function deploy(settler) {
   settler.hp = 0; settler.deployed = true;
   const hq = spawn('hq', settler.team, settler.x, settler.y);
   game.startDeployed = game.startDeployed || [false, false];
-  if (!game.startDeployed[settler.team]) { game.startDeployed[settler.team] = true; scheduleReinforcements(settler.team); }   // first HQ: reinforcements on the way (v5.71)
+  if (!game.startDeployed[settler.team]) { game.startDeployed[settler.team] = true; if (!game.mission) scheduleReinforcements(settler.team); }   // (a mission brings its own)   // first HQ: reinforcements on the way (v5.71)
   if (game.time > 0.1) { hq.unfold = 0; hq.unfoldFrom = settler.facing || 0; }   // the truck turns and the HQ unfolds out of it (v5.59; not when the tools deploy at the very start)
   if (game.selected.delete(settler.id) && settler.team === 0) game.selected.add(hq.id);
   return true;
@@ -1897,7 +1905,7 @@ function landingX(dx) {
 }
 function sendReinforcement(r) {
   const hq = hqOf(r.team);
-  if (!hq) return;
+  if (!hq && r.team !== 0) return;   // (yours can come before you have an HQ: a mission's landing)
   if (r.team !== 0) {   // the computer: they turn up beside its HQ
     const toward = Math.atan2(H / 2 - hq.y, W / 2 - hq.x);
     r.units.forEach((t, i) => {
@@ -1912,7 +1920,7 @@ function sendReinforcement(r) {
   const x = landingX(r.dx), stopY = coastY(x) + 20, y = HT + 90, cargo = [];
   const slots = {};
   for (const t of r.units) {
-    const k = slots[t] = (slots[t] || 0), off = (DECK[t] || DECK.soldier)[k % (DECK[t] || DECK.soldier).length]; slots[t]++;
+    const key = t === 'buggy' ? 'buggy' : 'soldier', k = slots[key] = (slots[key] || 0), off = DECK[key][k % DECK[key].length]; slots[key]++;   // (all infantry share the soldiers' spots)
     const u = spawn(t, 0, x + off[0] * BOAT_K, y + off[1] * BOAT_K);
     u.boarded = true; u.onBoat = true; u.facing = -Math.PI / 2; u.offX = off[0]; u.offY = off[1];
     cargo.push(u.id);
@@ -2072,10 +2080,11 @@ function update(dt) {
   game.effects = game.effects.filter(fx => fx.t < (fx.kind === 'shot' ? 0.08 : fx.kind === 'text' ? 1.2 : fx.kind === 'spark' ? 0.3 : fx.kind === 'blast' ? 0.45 : fx.kind === 'beam' ? 0.35 : fx.kind === 'flame' ? 0.3 : fx.kind === 'lock' ? BARRAGE_DELAY + BARRAGE_SHELLS * BARRAGE_GAP + 0.4 : 0.6));
 
   defendBuildings();
-  runAI(dt);
+  if (!game.mission || game.mission.aiOn) runAI(dt);   // (a mission wakes the computer up when it's time)
   updateFog();
 
   // a side is beaten once its HQ is gone (before it has deployed, its Settler)
+  if (game.mission) { missionUpdate(dt); return; }   // (a mission has its own objectives, and its own way to win or lose)
   const alive = [0, 1].map(t => game.ents.some(e => e.team === t && (e.type === 'hq' || e.type === 'settler')));
   if (!alive[1]) endGame(true);
   else if (!alive[0]) endGame(false);
@@ -3155,7 +3164,7 @@ function runAI(dt) {
   const of = t => mine.filter(e => e.type === t && !e.ruin);   // (a captured ruin is a bonus: it doesn't stand in for the buildings it makes at home)
   const settler = of('settler')[0], hq = of('hq')[0];
   const barracks = of('barracks'), refineries = of('refinery'), extractors = of('extractor');
-  const army = mine.filter(e => isCombat(e) && !e.air);   // soldiers, buggies and tanks (its helicopters fly their own raids: aiHelis)
+  const army = mine.filter(e => isCombat(e) && !e.air && !e.mission);   // soldiers, buggies and tanks (its helicopters fly their own raids: aiHelis; a mission's posted troops are the mission's)
   const cash = game.credits[1];
   // its Rocket Soldiers gang up on your Heavy Tanks: each one within 350 of a Heavy Tank it can see goes for the nearest (v5.50)
   const yourHeavies = game.ents.filter(v => v.team === 0 && v.type === 'heavy' && v.hp > 0 && visibleAt(v.x, v.y, 1));
@@ -4367,6 +4376,7 @@ function draw() {
   for (const e of ents) if (sel.has(e.id) && isDefenceType(e.type)) drawRange(e.x, e.y, rangeOf(e));
   for (const e of ents) if (sel.has(e.id) && e.type === 'artillery' && e.team === 0) drawRange(e.x, e.y, rangeOf(e));
 
+  if (game.mission) drawMissionMarks();
   for (const fx of game.effects) {
     if (fx.kind !== 'marker' && fx.kind !== 'text' && !visibleAt(fx.x, fx.y)) continue;
     if (fx.kind === 'flame') {   // a jet of fire (v5.69): puffs of flame along the line, swelling as they go
@@ -7311,6 +7321,7 @@ ui.ovBtn.addEventListener('click', () => {
   updateFog();
   $('ovReport').style.display = 'none';
   game.paused = false; ui.overlay.style.display = 'none'; ui.pause.textContent = '❚❚';
+  showObjectives();
 });
 
 function extractorStatus(e) {
@@ -7562,6 +7573,126 @@ function showResults() {
   box.style.display = 'block';
 }
 
+// ---------- Campaign (v5.76) ----------
+// A mission sets up its own start, gives you a list of objectives that tick off as you go, sends short radio messages,
+// and decides for itself when you've won or lost. Missions run on Easy. Only Legion 1 so far; the list shows what's next.
+const MISSIONS = {
+  legion1: {
+    side: 'The Legion', num: 1, title: 'Beachhead',
+    briefing: 'The Ashen hold the coast. Land with a small force, wipe out their outpost guarding the ore field to the east, ' +
+      'then bring in a Settler, build a base and destroy the Ashen Headquarters in the far north-east.<br><small>Missions are new: more to come.</small>',
+  },
+};
+const MISSION_LIST = [   // the campaign screen (locked ones are coming later)
+  { id: 'legion1', label: 'Legion 1: Beachhead' }, { label: 'Legion 2: coming soon' }, { label: 'Ashen 1: coming soon' },
+];
+// Legion 1's opening: from the far bottom left, two boats with a Buggy each, then 4 s later two boats together with
+// 5 Soldiers each (your design)
+const L1_BOATS = [
+  { at: 1, units: ['buggy'], dx: -210 }, { at: 1, units: ['buggy'], dx: -130 },
+  { at: 5, units: ['soldier', 'soldier', 'soldier', 'soldier', 'soldier'], dx: -50 }, { at: 5, units: ['soldier', 'soldier', 'soldier', 'soldier', 'soldier'], dx: 30 },
+];
+function openSpot(x, y, size) {   // the nearest place a building of this size could stand
+  if (siteIsFree(x, y, size)) return { x, y };
+  for (let r = 20; r < 500; r += 20) for (let k = 0; k < 24; k++) { const a = k * Math.PI / 12, px = x + Math.cos(a) * r, py = y + Math.sin(a) * r; if (siteIsFree(px, py, size)) return { x: px, y: py }; }
+  return { x, y };
+}
+function missionSetup() {
+  const M = game.mission = { id: campaignId, phase: 'land', obj: [], radio: [], aiOn: false, t: 0 };
+  // no Settler at the start: troops come ashore first
+  const s0 = game.ents.find(e => e.team === 0 && e.type === 'settler'); if (s0) game.ents = game.ents.filter(e => e !== s0);
+  game.landing = null;
+  const s1 = game.ents.find(e => e.team === 1 && e.type === 'settler'); if (s1) { s1.boarded = false; deploy(s1); }   // the Ashen are already dug in
+  game.aiDeployAt = 0;
+  // the outpost: a Cannon Turret with 4 Soldiers and 2 Flamethrowers, on the ore field east of the landing
+  const o = openSpot(1150, 1900, 60); M.outpost = o;
+  const t = spawn('cannon', 1, o.x, o.y); t.built = true; t.progress = 1; t.hp = t.maxHp; t.mission = true;
+  M.guards = [t.id];
+  [['soldier', -50, 30], ['soldier', 50, 30], ['soldier', -40, -40], ['soldier', 40, -40], ['flamer', 0, 55], ['flamer', -70, 0]].forEach(([type, dx, dy]) => {
+    const u = spawn(type, 1, o.x + dx, o.y + dy); u.mission = true; u.role = 'mission'; M.guards.push(u.id);
+  });
+  game.reinf = L1_BOATS.map(b => ({ team: 0, at: b.at, units: b.units, dx: b.dx }));
+  cam.x = START[0].x; cam.y = H - 180; clampCam();
+  setObjectives([{ id: 'outpost', text: 'Destroy the Ashen outpost to the east', at: o }]);
+  radio('Command: Boats are coming in. Clear that Ashen outpost east of the beach.', 2);
+}
+function setObjectives(list) { game.mission.obj.push(...list.map(o => ({ ...o, done: false }))); showObjectives(); }
+function tick(id) { const o = game.mission.obj.find(o => o.id === id); if (o && !o.done) { o.done = true; showObjectives(); } }
+function radio(text, delay = 0) { game.mission.radio.push({ text, at: game.mission.t + delay }); }
+function missionUpdate(dt) {
+  const M = game.mission; M.t += dt;
+  for (const r of M.radio) if (!r.shown && M.t >= r.at) { r.shown = true; showRadio(r.text); }
+  const mine = game.ents.filter(e => e.team === 0 && e.hp > 0), alive = id => { const e = byId(id); return e && e.hp > 0 && e.team === 1; };
+  if (M.phase === 'land' && M.t > 12 && !mine.some(isUnit) && !(game.boats || []).length) return missionOver(false, 'Your landing force was wiped out.');
+  if (M.phase === 'land' && !M.guards.some(alive)) {   // outpost cleared: a Settler comes in by boat, and the Ashen wake up
+    tick('outpost'); M.phase = 'base';
+    const s = spawn('settler', 0, START[0].x, START[0].y); startLanding(); game.aiDeployAt = 0;
+    M.aiOn = true; DIFFICULTY.mission.attackAfter = game.time + 360;   // (their first attack is about 6 minutes off)
+    setObjectives([{ id: 'deploy', text: 'Deploy your Settler' }, { id: 'barracks', text: 'Build a Barracks' }]);
+    radio('Command: Outpost down, good work. A Settler is on its way: deploy it and get a base up.');
+  }
+  if (M.phase === 'base') {
+    if (hqOf(0)) tick('deploy');
+    if (mine.some(e => e.type === 'barracks' && e.built)) {
+      tick('barracks'); M.phase = 'attack';
+      const hq = hqOf(0) || START[0];
+      airlift(0, ['soldier', 'soldier', 'grenadier', 'grenadier', 'engineer'], { x: 20, y: Math.max(60, hq.y - 260) }, { x: hq.x + 140, y: hq.y - 160 });
+      const e = hqOf(1); setObjectives([{ id: 'hq', text: 'Destroy the Ashen Headquarters', at: e ? { x: e.x, y: e.y } : null }]);
+      radio('Command: Skylift inbound with more troops. Build up, then take out the Ashen Headquarters in the north-east.');
+    }
+  }
+  const enemyAlive = game.ents.some(e => e.team === 1 && (e.type === 'hq' || e.type === 'settler'));
+  if (!enemyAlive) { tick('hq'); return missionOver(true, 'The Ashen Headquarters is destroyed. The coast is ours.'); }
+  if (M.phase !== 'land' && !game.landing && !mine.some(e => e.type === 'hq' || e.type === 'settler')) return missionOver(false, 'Your Headquarters was destroyed.');
+}
+function missionOver(won, text) {
+  if (game.over) return;
+  if (won) { try { const d = JSON.parse(localStorage.getItem('mini-rts-campaign-done') || '[]'); if (!d.includes(game.mission.id)) d.push(game.mission.id); localStorage.setItem('mini-rts-campaign-done', JSON.stringify(d)); } catch (err) {} }
+  endGame(won);
+  ui.ovTitle.textContent = won ? 'Mission complete' : 'Mission failed';
+  ui.ovText.textContent = text;
+  ui.ovBtn.textContent = won ? 'Play again' : 'Try again';
+}
+function drawMissionMarks() {   // a pulsing ring on each objective that has a place
+  const t = performance.now() / 1000;
+  for (const o of game.mission.obj) {
+    if (o.done || !o.at) continue;
+    const r = 46 + Math.sin(t * 3) * 6;
+    ctx.strokeStyle = 'rgba(255,214,90,0.85)'; ctx.lineWidth = 3; ctx.setLineDash([10, 8]);
+    ctx.beginPath(); ctx.arc(o.at.x, o.at.y, r, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+  }
+}
+function showObjectives() {
+  const el = document.getElementById('objectives'); if (!el) return;
+  const M = game.mission; el.style.display = M ? '' : 'none'; if (!M) return;
+  el.innerHTML = '<b>Objectives</b>' + M.obj.map(o => `<div class="${o.done ? 'done' : ''}">${o.done ? '✓' : '•'} ${esc(o.text)}</div>`).join('');
+}
+function showRadio(text) {
+  const el = document.getElementById('radio'); if (!el) return;
+  const ob = document.getElementById('objectives');   // (just under the objectives box, so it never covers it)
+  el.style.top = ob && ob.style.display !== 'none' ? (ob.offsetTop + ob.offsetHeight + 8) + 'px' : '';
+  el.textContent = text; el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');
+  if (game.mission) game.mission.lastRadio = text;
+}
+// the start screen in a mission: its briefing instead of the skirmish settings, and a way back out
+function campaignMenu() {
+  const M = MISSIONS[campaignId];
+  for (const id of ['mapRow', 'randRow', 'mapInfo', 'diffRow', 'diffInfo', 'factionRow', 'factionInfo', 'sandboxRow', 'sandboxInfo', 'ovCampaign']) { const el = $(id); if (el) el.style.display = 'none'; }
+  $('ovLeave').style.display = '';
+  ui.ovTitle.innerHTML = crestSVG('legion', 40) + ` ${esc(M.side)} — Mission ${M.num}: ${esc(M.title)}`;
+  ui.ovText.innerHTML = M.briefing;
+  ui.ovBtn.textContent = 'Start mission';
+}
+function showCampaignList() {
+  let done = []; try { done = JSON.parse(localStorage.getItem('mini-rts-campaign-done') || '[]'); } catch (err) {}
+  $('campBody').innerHTML = MISSION_LIST.map(m => m.id ? `<button class="campMission" data-id="${m.id}">${esc(m.label)}${done.includes(m.id) ? ' ✓' : ''}</button>` : `<button class="ghost campMission" disabled>${esc(m.label)}</button>`).join('');
+  for (const b of document.querySelectorAll('#campBody button[data-id]')) b.addEventListener('click', () => { try { localStorage.setItem('mini-rts-campaign', b.dataset.id); } catch (err) {} location.reload(); });
+  $('campaign').style.display = 'flex';
+}
+$('ovCampaign').addEventListener('click', showCampaignList);
+$('campClose').addEventListener('click', () => { $('campaign').style.display = 'none'; });
+$('ovLeave').addEventListener('click', () => { try { localStorage.removeItem('mini-rts-campaign'); } catch (err) {} location.reload(); });
+
 // ---------- Main loop ----------
 let last = performance.now();
 function frame(now) {
@@ -7582,6 +7713,8 @@ function showMenu() {
   ui.ovTitle.textContent = 'Mini RTS';
   ui.ovText.innerHTML = 'Deploy your settler, build a <b>Refinery</b> for ore and a <b>Barracks</b> for soldiers, and fight for the big ore field in the middle.<br>Drag to scroll · pinch to zoom · best in landscape.';
   ui.ovBtn.textContent = 'Start';
+  if (campaignId) campaignMenu();
+  showObjectives();
   ui.overlay.style.display = 'flex';
 }
 showMenu();

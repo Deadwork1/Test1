@@ -70,6 +70,22 @@
   #reinf.on { animation: newOpts 2.6s steps(1, end) forwards; }
   @keyframes newOpts { 0% { opacity: 1 } 12% { opacity: .15 } 20% { opacity: 1 } 32% { opacity: .15 } 40% { opacity: 1 } 52% { opacity: .2 } 60% { opacity: 1 } 88% { opacity: 1 } 94% { opacity: .3 } 100% { opacity: 0 } }
   #factionRow button { display: inline-flex; align-items: center; gap: 6px; }
+  /* Campaign (v5.76): the mission list, the objectives box and radio messages */
+  #campaign { z-index: 30; position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.75); padding: 14px; }
+  .campBox { background: #141d11; border: 1px solid #5b8a45; border-radius: 14px; width: min(460px, 100%); max-height: 100%; display: flex; flex-direction: column; }
+  .campHead { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,.12); }
+  .campHead h2 { margin: 0; font-size: 20px; }
+  #campBody { display: flex; flex-direction: column; gap: 10px; padding: 14px 18px 18px; }
+  #campBody button { text-align: left; }
+  #ovTitle .crest { vertical-align: middle; }
+  #objectives { position: fixed; left: max(8px, env(safe-area-inset-left)); top: calc(58px + env(safe-area-inset-top)); z-index: 6; pointer-events: none;
+    background: rgba(10,16,8,.82); border: 1px solid rgba(255,214,90,.35); border-radius: 10px; padding: 7px 10px; font-size: 13px; line-height: 1.5; max-width: min(300px, 70vw); }
+  #objectives b { color: #ffd86b; display: block; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; }
+  #objectives .done { opacity: .55; text-decoration: line-through; }
+  #radio { position: fixed; left: max(8px, env(safe-area-inset-left)); top: calc(58px + env(safe-area-inset-top)); z-index: 6; pointer-events: none; opacity: 0;
+    background: rgba(8,14,22,.88); border: 1px solid rgba(127,177,255,.45); border-radius: 10px; padding: 8px 12px; font-size: 14px; max-width: min(460px, 86vw); color: #dce8ff; }
+  #radio.on { animation: radio 7s ease forwards; }
+  @keyframes radio { 0% { opacity: 0 } 4% { opacity: 1 } 90% { opacity: 1 } 100% { opacity: 0 } }
   .crest { vertical-align: middle; flex: none; }
   #diffInfo, .sub { font-size: 13px; opacity: .75; margin-top: -6px; max-width: 460px; }
   #overlay { overflow-y: auto; justify-content: flex-start; }
@@ -114,6 +130,8 @@
 
 <div id="newOpts">New construction options</div>
 <div id="reinf">Reinforcements have arrived</div>
+<div id="objectives" style="display:none"></div>
+<div id="radio"></div>
 <div id="panel" class="bar">
   <span id="info" class="chip">Tap your settler to begin</span>
   <button id="btnDeploy">Deploy HQ</button>
@@ -177,12 +195,14 @@
     <button class="ghost" data-f="random">Random</button>
   </div>
   <div id="factionInfo" class="sub"></div>
-  <div class="row">
+  <div id="sandboxRow" class="row">
     <button id="sandboxBtn" class="ghost">Sandbox: off</button>
   </div>
   <div id="sandboxInfo" class="sub"></div>
   <div class="row">
     <button id="ovBtn">Start</button>
+    <button id="ovCampaign" class="ghost">Campaign</button>
+    <button id="ovLeave" class="ghost" style="display:none">Leave campaign</button>
     <button id="ovNotes" class="ghost">Patch notes</button>
     <button id="ovReport" class="ghost" style="display:none">Save game report</button>
   </div>
@@ -199,6 +219,12 @@
   </div>
 </div>
 
+<div id="campaign">
+  <div class="campBox">
+    <div class="campHead"><h2>Campaign</h2><button id="campClose" class="ghost">Close</button></div>
+    <div id="campBody"></div>
+  </div>
+</div>
 <div id="notes">
   <div id="notesBox">
     <div id="notesHead"><h2>Patch notes</h2><button id="notesClose" class="ghost">Close</button></div>
